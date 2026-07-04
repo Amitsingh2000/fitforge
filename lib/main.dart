@@ -4,6 +4,8 @@ import 'theme/app_theme.dart';
 import 'onboarding/onboarding_flow.dart';
 import 'dashboard/screens/home_dashboard.dart';
 import 'auth/screens/login_screen.dart';
+import 'auth/screens/gym_owner_login_screen.dart';
+import 'gym_owner/screens/gym_owner_dashboard.dart';
 
 void main() {
   WidgetsFlutterBinding.ensureInitialized();
@@ -32,6 +34,8 @@ class FitForgeApp extends StatelessWidget {
         '/onboarding': (context) => const OnboardingFlow(),
         '/login': (context) => const LoginScreen(),
         '/dashboard': (context) => const HomeDashboard(),
+        '/gym-owner-login': (context) => const GymOwnerLoginScreen(),
+        '/gym-owner-dashboard': (context) => const GymOwnerDashboard(),
       },
     );
   }
