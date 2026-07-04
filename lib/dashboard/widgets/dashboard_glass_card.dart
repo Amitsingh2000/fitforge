@@ -27,7 +27,6 @@ class DashboardGlassCard extends StatelessWidget {
       child: BackdropFilter(
         filter: ImageFilter.blur(sigmaX: 20, sigmaY: 20),
         child: Container(
-          width: double.infinity,
           padding: padding,
           decoration: BoxDecoration(
             color: gradient == null ? AppColors.glassBg : null,

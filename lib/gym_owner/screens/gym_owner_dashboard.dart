@@ -353,7 +353,33 @@ class _GymOwnerDashboardState extends State<GymOwnerDashboard>
           padding: const EdgeInsets.fromLTRB(20, 24, 20, 0),
           sliver: SliverList(
             delegate: SliverChildListDelegate([
-              _buildSectionLabel('TRAINERS'),
+              Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: [
+                  _buildSectionLabel('TRAINERS'),
+                  GestureDetector(
+                    onTap: () => Navigator.pushNamed(context, '/gym-owner-trainers'),
+                    child: Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                      decoration: BoxDecoration(
+                        borderRadius: BorderRadius.circular(8),
+                        color: AppColors.accentPurple.withValues(alpha: 0.08),
+                        border: Border.all(
+                          color: AppColors.accentPurple.withValues(alpha: 0.2),
+                        ),
+                      ),
+                      child: Text(
+                        'View All',
+                        style: AppTextStyles.caption.copyWith(
+                          color: AppColors.accentPurple,
+                          fontWeight: FontWeight.w600,
+                          fontSize: 10,
+                        ),
+                      ),
+                    ),
+                  ),
+                ],
+              ),
               const SizedBox(height: 12),
             ]),
           ),
@@ -449,7 +475,7 @@ class _GymOwnerDashboardState extends State<GymOwnerDashboard>
 
           // Notification bell
           GestureDetector(
-            onTap: () {},
+            onTap: () => Navigator.pushNamed(context, '/gym-owner-join-requests'),
             child: Container(
               width: 44,
               height: 44,
@@ -527,7 +553,7 @@ class _GymOwnerDashboardState extends State<GymOwnerDashboard>
         crossAxisCount: 2,
         crossAxisSpacing: 12,
         mainAxisSpacing: 12,
-        childAspectRatio: 1.55,
+        childAspectRatio: 1.38,
       ),
       itemCount: _analyticsData.length,
       itemBuilder: (context, index) {
@@ -541,29 +567,35 @@ class _GymOwnerDashboardState extends State<GymOwnerDashboard>
     final color = data['color'] as Color;
     final isGradient = data['isGradient'] ?? false;
 
-    return DashboardGlassCard(
-      padding: const EdgeInsets.all(16),
-      borderRadius: 18,
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        mainAxisAlignment: MainAxisAlignment.spaceBetween,
-        children: [
+    return GestureDetector(
+      onTap: () {
+        if (data['title'] == 'Pending Requests') {
+          Navigator.pushNamed(context, '/gym-owner-join-requests');
+        }
+      },
+      child: DashboardGlassCard(
+        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
+        borderRadius: 18,
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+          children: [
           // Icon row
           Row(
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
               Container(
-                width: 38,
-                height: 38,
+                width: 34,
+                height: 34,
                 decoration: BoxDecoration(
-                  borderRadius: BorderRadius.circular(12),
+                  borderRadius: BorderRadius.circular(10),
                   color: color.withValues(alpha: 0.12),
                 ),
                 child: Center(
                   child: Icon(
                     data['icon'] as IconData,
                     color: color,
-                    size: 20,
+                    size: 18,
                   ),
                 ),
               ),
@@ -581,7 +613,7 @@ class _GymOwnerDashboardState extends State<GymOwnerDashboard>
                     Icon(
                       Icons.trending_up_rounded,
                       color: AppColors.accentCyan,
-                      size: 12,
+                      size: 11,
                     ),
                     const SizedBox(width: 2),
                     Text(
@@ -616,9 +648,11 @@ class _GymOwnerDashboardState extends State<GymOwnerDashboard>
                   }
                   return Text(
                     displayValue,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
                     style: AppTextStyles.titleLarge.copyWith(
                       fontWeight: FontWeight.w800,
-                      fontSize: isGradient ? 19 : 22,
+                      fontSize: isGradient ? 18 : 20,
                       foreground: isGradient
                           ? (Paint()
                             ..shader = const LinearGradient(
@@ -637,16 +671,18 @@ class _GymOwnerDashboardState extends State<GymOwnerDashboard>
               const SizedBox(height: 2),
               Text(
                 data['title'] as String,
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
                 style: AppTextStyles.caption.copyWith(
                   color: AppColors.textTertiary,
-                  fontSize: 11,
+                  fontSize: 10,
                 ),
               ),
             ],
           ),
         ],
       ),
-    );
+    ));
   }
 
   String _formatCurrency(int value) {
@@ -679,6 +715,8 @@ class _GymOwnerDashboardState extends State<GymOwnerDashboard>
             onTap: () {
               if (action['label'] == 'View Analytics') {
                 setState(() => _currentNavIndex = 3);
+              } else if (action['label'] == 'Add Trainer') {
+                Navigator.pushNamed(context, '/gym-owner-trainers');
               }
             },
             child: Container(
