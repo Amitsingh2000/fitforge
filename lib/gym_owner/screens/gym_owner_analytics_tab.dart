@@ -190,7 +190,7 @@ class _GymOwnerAnalyticsTabState extends State<GymOwnerAnalyticsTab> {
         // Top metrics row
         SliverToBoxAdapter(
           child: SizedBox(
-            height: 100,
+            height: 106,
             child: ListView.separated(
               padding: const EdgeInsets.symmetric(horizontal: 20),
               scrollDirection: Axis.horizontal,
@@ -284,7 +284,7 @@ class _GymOwnerAnalyticsTabState extends State<GymOwnerAnalyticsTab> {
   Widget _buildTopMetricCard(Map<String, dynamic> metric) {
     final color = metric['color'] as Color;
     return DashboardGlassCard(
-      padding: const EdgeInsets.all(14),
+      padding: const EdgeInsets.all(12),
       borderRadius: 16,
       child: SizedBox(
         width: 130,
@@ -318,16 +318,20 @@ class _GymOwnerAnalyticsTabState extends State<GymOwnerAnalyticsTab> {
                 ),
               ],
             ),
-            const SizedBox(height: 8),
+            const SizedBox(height: 6),
             Text(
               metric['value'] as String,
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
               style: AppTextStyles.titleLarge.copyWith(
                 fontWeight: FontWeight.w800,
-                fontSize: 20,
+                fontSize: 18,
               ),
             ),
             Text(
               metric['title'] as String,
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
               style: AppTextStyles.caption.copyWith(
                 color: AppColors.textTertiary,
                 fontSize: 10,
