@@ -224,6 +224,47 @@ class _LoginScreenState extends State<LoginScreen>
                               .animate()
                               .fadeIn(duration: 500.ms, delay: 900.ms),
 
+                          const SizedBox(height: 10),
+
+                          // Trainer login
+                          GestureDetector(
+                            onTap: () {
+                              Navigator.of(context).pushReplacementNamed('/trainer-login');
+                            },
+                            child: Container(
+                              padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
+                              decoration: BoxDecoration(
+                                borderRadius: BorderRadius.circular(14),
+                                color: AppColors.accentCyan.withValues(alpha: 0.08),
+                                border: Border.all(
+                                  color: AppColors.accentCyan.withValues(alpha: 0.2),
+                                  width: 1,
+                                ),
+                              ),
+                              child: Row(
+                                mainAxisAlignment: MainAxisAlignment.center,
+                                children: [
+                                  Icon(
+                                    Icons.sports_rounded,
+                                    color: AppColors.accentCyan,
+                                    size: 18,
+                                  ),
+                                  const SizedBox(width: 8),
+                                  Text(
+                                    'Login as Trainer',
+                                    style: AppTextStyles.bodyMedium.copyWith(
+                                      color: AppColors.accentCyan,
+                                      fontWeight: FontWeight.w600,
+                                      fontSize: 13,
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ),
+                          )
+                              .animate()
+                              .fadeIn(duration: 500.ms, delay: 950.ms),
+
                           const SizedBox(height: 24),
                         ],
                       ),
