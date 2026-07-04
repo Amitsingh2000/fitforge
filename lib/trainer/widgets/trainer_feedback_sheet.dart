@@ -106,8 +106,9 @@ class _TrainerFeedbackSheetState extends State<TrainerFeedbackSheet> {
               style: AppTextStyles.caption.copyWith(fontWeight: FontWeight.bold, letterSpacing: 0.5),
             ),
             const SizedBox(height: 8),
-            Row(
-              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            Wrap(
+              spacing: 8,
+              runSpacing: 8,
               children: _categories.map((category) {
                 final isSelected = _selectedCategory == category;
                 return GestureDetector(

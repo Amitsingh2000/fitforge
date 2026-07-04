@@ -55,7 +55,7 @@ class TrainerAnalyticsTab extends StatelessWidget {
             crossAxisCount: 2,
             crossAxisSpacing: 12,
             mainAxisSpacing: 12,
-            childAspectRatio: 1.55,
+            childAspectRatio: 1.4,
             children: [
               const TrainerGlassStatCard(
                 title: 'Total Clients',

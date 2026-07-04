@@ -437,7 +437,7 @@ class _TrainerDashboardState extends State<TrainerDashboard>
         crossAxisCount: 2,
         crossAxisSpacing: 12,
         mainAxisSpacing: 12,
-        childAspectRatio: 1.55,
+        childAspectRatio: 1.4,
       ),
       itemCount: _analyticsData.length,
       itemBuilder: (context, index) {

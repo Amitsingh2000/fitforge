@@ -132,9 +132,13 @@ class _TrainerClientDetailScreenState extends State<TrainerClientDetailScreen>
                                       ),
                                     ),
                                     const SizedBox(width: 8),
-                                    Text(
-                                      'Plan: ${widget.client['plan']}',
-                                      style: AppTextStyles.caption.copyWith(color: AppColors.textTertiary),
+                                    Flexible(
+                                      child: Text(
+                                        'Plan: ${widget.client['plan']}',
+                                        maxLines: 1,
+                                        overflow: TextOverflow.ellipsis,
+                                        style: AppTextStyles.caption.copyWith(color: AppColors.textTertiary),
+                                      ),
                                     ),
                                   ],
                                 ),
