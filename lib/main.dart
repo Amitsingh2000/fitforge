@@ -6,6 +6,8 @@ import 'dashboard/screens/home_dashboard.dart';
 import 'auth/screens/login_screen.dart';
 import 'auth/screens/gym_owner_login_screen.dart';
 import 'gym_owner/screens/gym_owner_dashboard.dart';
+import 'auth/screens/trainer_login_screen.dart';
+import 'trainer/screens/trainer_dashboard.dart';
 import 'gym_owner/screens/gym_owner_trainers_screen.dart';
 import 'gym_owner/screens/gym_owner_join_requests_screen.dart';
 
@@ -38,6 +40,8 @@ class FitForgeApp extends StatelessWidget {
         '/dashboard': (context) => const HomeDashboard(),
         '/gym-owner-login': (context) => const GymOwnerLoginScreen(),
         '/gym-owner-dashboard': (context) => const GymOwnerDashboard(),
+        '/trainer-login': (context) => const TrainerLoginScreen(),
+        '/trainer-dashboard': (context) => const TrainerDashboard(),
         '/gym-owner-trainers': (context) => const GymOwnerTrainersScreen(),
         '/gym-owner-join-requests': (context) => const GymOwnerJoinRequestsScreen(),
       },
