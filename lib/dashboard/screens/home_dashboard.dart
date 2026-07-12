@@ -22,57 +22,24 @@ class _HomeDashboardState extends State<HomeDashboard>
     with TickerProviderStateMixin {
   int _currentNavIndex = 0;
 
+  // ── Hero swipe page controller ──
+  late final PageController _heroPageController;
+  int _heroCurrentPage = 1;
+  
   // Simulated user data
   final int _caloriesConsumed = 2200;
   final int _caloriesTarget = 2500;
-  final int _proteinCurrent = 92;
-  final int _proteinTarget = 140;
-  final int _carbsCurrent = 145;
-  final int _carbsTarget = 220;
-  final int _fatsCurrent = 42;
-  final int _fatsTarget = 70;
   double _waterCurrent = 2.5;
   final double _waterTarget = 4.0;
+  final int _stepsCurrent = 6420;
+  final int _stepsTarget = 10000;
   final int _currentStreak = 12;
-  final int _longestStreak = 28;
-  final int _xpToday = 450;
 
   final List<Map<String, dynamic>> _tasks = [
     {'title': 'Drink 4L Water', 'completed': false, 'xp': 50},
     {'title': 'Reach Protein Goal', 'completed': false, 'xp': 50},
     {'title': 'Walk 8000 Steps', 'completed': true, 'xp': 50},
     {'title': 'Complete Workout', 'completed': false, 'xp': 50},
-  ];
-
-  final List<Map<String, dynamic>> _meals = [
-    {
-      'name': 'Breakfast',
-      'time': '8:00 AM',
-      'calories': 520,
-      'protein': 28,
-      'icon': '🥣',
-    },
-    {
-      'name': 'Lunch',
-      'time': '1:00 PM',
-      'calories': 680,
-      'protein': 35,
-      'icon': '🥗',
-    },
-    {
-      'name': 'Dinner',
-      'time': '7:30 PM',
-      'calories': 750,
-      'protein': 42,
-      'icon': '🍽️',
-    },
-    {
-      'name': 'Snack',
-      'time': '4:00 PM',
-      'calories': 250,
-      'protein': 12,
-      'icon': '🥜',
-    },
   ];
 
   String get _greeting {
@@ -92,6 +59,18 @@ class _HomeDashboardState extends State<HomeDashboard>
     setState(() {
       _tasks[index]['completed'] = !_tasks[index]['completed'];
     });
+  }
+
+  @override
+  void initState() {
+    super.initState();
+    _heroPageController = PageController(initialPage: 1, viewportFraction: 1.0);
+  }
+
+  @override
+  void dispose() {
+    _heroPageController.dispose();
+    super.dispose();
   }
 
   @override
@@ -196,71 +175,28 @@ class _HomeDashboardState extends State<HomeDashboard>
       key: key,
       physics: const BouncingScrollPhysics(),
       slivers: [
-        // Top greeting bar
+        // Prominent greeting
         SliverToBoxAdapter(child: _buildGreetingHeader()),
 
         // Content
         SliverPadding(
-          padding: const EdgeInsets.fromLTRB(20, 8, 20, 120),
+          padding: const EdgeInsets.fromLTRB(16, 0, 16, 80),
           sliver: SliverList(
             delegate: SliverChildListDelegate([
-              // Calorie hero card
-              _buildCalorieHeroCard()
+              // ── Swipeable Hero Section ──
+              _buildSwipeableHeroSection()
                   .animate()
                   .fadeIn(duration: 600.ms, delay: 100.ms)
-                  .slideY(begin: 0.08, end: 0, duration: 600.ms, delay: 100.ms),
-              const SizedBox(height: 16),
-
-              // Macro tracking
-              _buildSectionLabel('MACROS'),
-              const SizedBox(height: 12),
-              _buildMacroCards()
-                  .animate()
-                  .fadeIn(duration: 500.ms, delay: 250.ms)
-                  .slideY(begin: 0.08, end: 0, duration: 500.ms, delay: 250.ms),
-              const SizedBox(height: 20),
-
-              // Hydration
-              _buildSectionLabel('HYDRATION'),
-              const SizedBox(height: 12),
-              _buildHydrationCard()
-                  .animate()
-                  .fadeIn(duration: 500.ms, delay: 350.ms)
-                  .slideY(begin: 0.08, end: 0, duration: 500.ms, delay: 350.ms),
-              const SizedBox(height: 20),
+                  .slideY(
+                      begin: 0.08, end: 0, duration: 600.ms, delay: 100.ms),
+              const SizedBox(height: 14),
 
               // Daily Tasks
-              _buildSectionLabel('TODAY\'S TASKS'),
-              const SizedBox(height: 12),
               _buildTasksSection()
                   .animate()
-                  .fadeIn(duration: 500.ms, delay: 450.ms)
-                  .slideY(begin: 0.08, end: 0, duration: 500.ms, delay: 450.ms),
-              const SizedBox(height: 20),
-
-              // Streak & XP
-              _buildSectionLabel('STREAK & XP'),
-              const SizedBox(height: 12),
-              _buildStreakXPSection()
-                  .animate()
-                  .fadeIn(duration: 500.ms, delay: 550.ms)
-                  .slideY(begin: 0.08, end: 0, duration: 500.ms, delay: 550.ms),
-              const SizedBox(height: 20),
-
-              // Today's Meals
-              _buildSectionLabel('TODAY\'S MEALS'),
-              const SizedBox(height: 12),
-              _buildMealsSection()
-                  .animate()
-                  .fadeIn(duration: 500.ms, delay: 650.ms)
-                  .slideY(begin: 0.08, end: 0, duration: 500.ms, delay: 650.ms),
-              const SizedBox(height: 16),
-
-              // View Full Diet Plan CTA
-              _buildDietPlanCta()
-                  .animate()
-                  .fadeIn(duration: 500.ms, delay: 750.ms)
-                  .slideY(begin: 0.08, end: 0, duration: 500.ms, delay: 750.ms),
+                  .fadeIn(duration: 500.ms, delay: 350.ms)
+                  .slideY(
+                      begin: 0.08, end: 0, duration: 500.ms, delay: 350.ms),
             ]),
           ),
         ),
@@ -272,102 +208,64 @@ class _HomeDashboardState extends State<HomeDashboard>
   // GREETING HEADER
   // ─────────────────────────────────────────────
 
+  String get _formattedDate {
+    final now = DateTime.now();
+    const months = [
+      'Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun',
+      'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'
+    ];
+    const days = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
+    return '${days[now.weekday - 1]}, ${now.day} ${months[now.month - 1]}';
+  }
+
   Widget _buildGreetingHeader() {
     return Padding(
-      padding: const EdgeInsets.fromLTRB(20, 12, 20, 8),
+      padding: const EdgeInsets.fromLTRB(16, 20, 16, 12),
       child: Row(
+        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+        crossAxisAlignment: CrossAxisAlignment.center,
         children: [
-          // Avatar
-          Container(
-            width: 44,
-            height: 44,
-            decoration: BoxDecoration(
-              borderRadius: BorderRadius.circular(14),
-              gradient: const LinearGradient(
-                begin: Alignment.topLeft,
-                end: Alignment.bottomRight,
-                colors: [AppColors.accentBlue, AppColors.accentPurple],
-              ),
+          // Left side: Greetings + Username
+          Text(
+            '$_greeting, Amit 👋',
+            style: AppTextStyles.titleMedium.copyWith(
+              fontWeight: FontWeight.w800,
+              fontSize: 16.5,
             ),
-            child: Center(
-              child: Text(
-                'A',
-                style: AppTextStyles.titleLarge.copyWith(
-                  color: Colors.white,
+          ),
+          // Right side: Streak and Date
+          Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              const StreakFlame(size: 13),
+              const SizedBox(width: 4),
+              Text(
+                '$_currentStreak days',
+                style: AppTextStyles.caption.copyWith(
+                  color: AppColors.accentOrange,
                   fontWeight: FontWeight.w700,
-                  fontSize: 18,
+                  fontSize: 11,
                 ),
               ),
-            ),
-          ),
-          const SizedBox(width: 14),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  '$_greeting, Amit',
-                  style: AppTextStyles.titleMedium.copyWith(
-                    fontWeight: FontWeight.w700,
-                  ),
+              const SizedBox(width: 8),
+              Container(
+                width: 3,
+                height: 3,
+                decoration: const BoxDecoration(
+                  color: AppColors.textDisabled,
+                  shape: BoxShape.circle,
                 ),
-                const SizedBox(height: 2),
-                Row(
-                  children: [
-                    const StreakFlame(size: 14),
-                    const SizedBox(width: 4),
-                    Text(
-                      '$_currentStreak Day Streak',
-                      style: AppTextStyles.caption.copyWith(
-                        color: AppColors.accentOrange,
-                        fontWeight: FontWeight.w600,
-                      ),
-                    ),
-                  ],
+              ),
+              const SizedBox(width: 8),
+              Text(
+                _formattedDate,
+                style: AppTextStyles.caption.copyWith(
+                  color: AppColors.textTertiary,
+                  fontWeight: FontWeight.w500,
+                  fontSize: 11,
                 ),
-              ],
-            ),
-          ),
-          // Notification bell
-          GestureDetector(
-            onTap: () {},
-            child: Container(
-              width: 44,
-              height: 44,
-              decoration: BoxDecoration(
-                color: AppColors.bgSecondary,
-                borderRadius: BorderRadius.circular(14),
-                border: Border.all(color: AppColors.glassBorder),
               ),
-              child: Stack(
-                alignment: Alignment.center,
-                children: [
-                  const Icon(
-                    Icons.notifications_none_rounded,
-                    color: AppColors.textSecondary,
-                    size: 22,
-                  ),
-                  Positioned(
-                    top: 11,
-                    right: 12,
-                    child: Container(
-                      width: 8,
-                      height: 8,
-                      decoration: BoxDecoration(
-                        color: AppColors.accentCoral,
-                        shape: BoxShape.circle,
-                        boxShadow: [
-                          BoxShadow(
-                            color: AppColors.accentCoral.withValues(alpha: 0.5),
-                            blurRadius: 6,
-                          ),
-                        ],
-                      ),
-                    ),
-                  ),
-                ],
-              ),
-            ),
+            ],
           ),
         ],
       ),
@@ -377,67 +275,153 @@ class _HomeDashboardState extends State<HomeDashboard>
         .slideY(begin: -0.1, end: 0, duration: 500.ms);
   }
 
-  // ─────────────────────────────────────────────
-  // SECTION LABEL
-  // ─────────────────────────────────────────────
-
-  Widget _buildSectionLabel(String label) {
-    return Text(
-      label,
-      style: AppTextStyles.caption.copyWith(
-        letterSpacing: 1.2,
-        color: AppColors.textTertiary,
-        fontWeight: FontWeight.w600,
-      ),
-    );
-  }
 
   // ─────────────────────────────────────────────
-  // CALORIE HERO CARD
+  // SWIPEABLE HERO SECTION  (Calories / Water / Steps)
   // ─────────────────────────────────────────────
 
-  Widget _buildCalorieHeroCard() {
-    final progress = _caloriesConsumed / _caloriesTarget;
-    final remaining = _caloriesTarget - _caloriesConsumed;
+  Widget _buildSwipeableHeroSection() {
+    const pageCount = 3;
+    final labels = ['Calories', 'Water', 'Steps'];
+    final icons = [
+      Icons.local_fire_department_rounded,
+      Icons.water_drop_rounded,
+      Icons.directions_walk_rounded,
+    ];
+    final colors = [
+      AppColors.accentBlue,
+      AppColors.accentCyan,
+      AppColors.accentPurple,
+    ];
+
+    // Animated gradient color that transitions with the page
+    final activeColor = colors[_heroCurrentPage];
 
     return DashboardGlassCard(
-      padding: const EdgeInsets.all(24),
+      padding: EdgeInsets.zero,
       gradient: LinearGradient(
         begin: Alignment.topLeft,
         end: Alignment.bottomRight,
         colors: [
-          AppColors.accentBlue.withValues(alpha: 0.08),
-          AppColors.accentPurple.withValues(alpha: 0.05),
+          activeColor.withValues(alpha: 0.07),
+          AppColors.accentPurple.withValues(alpha: 0.03),
         ],
       ),
       child: Column(
         children: [
-          Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-            children: [
-              Text(
-                'Daily Calories',
-                style: AppTextStyles.titleMedium.copyWith(
-                  fontWeight: FontWeight.w700,
-                ),
+          // ── Segmented tab bar inside the card ──
+          Padding(
+            padding: const EdgeInsets.fromLTRB(16, 16, 16, 0),
+            child: Container(
+              padding: const EdgeInsets.all(4),
+              decoration: BoxDecoration(
+                color: AppColors.bgSecondary.withValues(alpha: 0.7),
+                borderRadius: BorderRadius.circular(14),
+                border: Border.all(color: AppColors.glassBorder),
               ),
-              Container(
-                padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
-                decoration: BoxDecoration(
-                  color: AppColors.accentBlue.withValues(alpha: 0.12),
-                  borderRadius: BorderRadius.circular(8),
-                ),
-                child: Text(
-                  '${(progress * 100).round()}%',
-                  style: AppTextStyles.caption.copyWith(
-                    color: AppColors.accentBlue,
-                    fontWeight: FontWeight.w700,
-                  ),
-                ),
+              child: Row(
+                children: List.generate(pageCount, (i) {
+                  final isActive = i == _heroCurrentPage;
+                  return Expanded(
+                    child: GestureDetector(
+                      onTap: () {
+                        _heroPageController.animateToPage(
+                          i,
+                          duration: const Duration(milliseconds: 400),
+                          curve: Curves.easeOutCubic,
+                        );
+                      },
+                      child: AnimatedContainer(
+                        duration: const Duration(milliseconds: 300),
+                        curve: Curves.easeOutCubic,
+                        padding: const EdgeInsets.symmetric(vertical: 8),
+                        decoration: BoxDecoration(
+                          color: isActive
+                              ? colors[i].withValues(alpha: 0.15)
+                              : Colors.transparent,
+                          borderRadius: BorderRadius.circular(11),
+                          border: isActive
+                              ? Border.all(
+                                  color: colors[i].withValues(alpha: 0.3),
+                                )
+                              : null,
+                          boxShadow: isActive
+                              ? [
+                                  BoxShadow(
+                                    color: colors[i].withValues(alpha: 0.12),
+                                    blurRadius: 8,
+                                    offset: const Offset(0, 2),
+                                  ),
+                                ]
+                              : [],
+                        ),
+                        child: Row(
+                          mainAxisAlignment: MainAxisAlignment.center,
+                          children: [
+                            Icon(
+                              icons[i],
+                              size: 14,
+                              color: isActive
+                                  ? colors[i]
+                                  : AppColors.textTertiary,
+                            ),
+                            const SizedBox(width: 5),
+                            Text(
+                              labels[i],
+                              style: AppTextStyles.caption.copyWith(
+                                color: isActive
+                                    ? colors[i]
+                                    : AppColors.textTertiary,
+                                fontWeight: isActive
+                                    ? FontWeight.w700
+                                    : FontWeight.w500,
+                                fontSize: 11,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ),
+                  );
+                }),
               ),
-            ],
+            ),
           ),
-          const SizedBox(height: 24),
+
+          // ── Swipeable inner content ──
+          SizedBox(
+            height: 295,
+            child: PageView(
+              controller: _heroPageController,
+              physics: const BouncingScrollPhysics(),
+              onPageChanged: (index) {
+                setState(() => _heroCurrentPage = index);
+              },
+              children: [
+                _buildCaloriesContent(),
+                _buildWaterContent(),
+                _buildStepsContent(),
+              ],
+            ),
+          ),
+
+          const SizedBox(height: 12),
+        ],
+      ),
+    );
+  }
+
+  // ── PAGE 1 CONTENT : Daily Calories ──
+  Widget _buildCaloriesContent() {
+    final progress = _caloriesConsumed / _caloriesTarget;
+    final remaining = _caloriesTarget - _caloriesConsumed;
+
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(16, 18, 16, 8),
+      child: Column(
+        mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+        children: [
+          // Radial ring
           TweenAnimationBuilder<double>(
             tween: Tween(begin: 0, end: progress),
             duration: const Duration(milliseconds: 1400),
@@ -445,33 +429,35 @@ class _HomeDashboardState extends State<HomeDashboard>
             builder: (context, animatedProgress, _) {
               return RadialProgress(
                 progress: animatedProgress,
-                size: 180,
-                strokeWidth: 14,
+                size: 120,
+                strokeWidth: 10,
                 progressColor: AppColors.accentBlue,
                 child: Column(
                   mainAxisAlignment: MainAxisAlignment.center,
                   children: [
+                    const Text('🔥', style: TextStyle(fontSize: 18)),
+                    const SizedBox(height: 4),
                     TweenAnimationBuilder<double>(
-                      tween: Tween(begin: 0, end: _caloriesConsumed.toDouble()),
+                      tween: Tween(
+                          begin: 0, end: _caloriesConsumed.toDouble()),
                       duration: const Duration(milliseconds: 1200),
                       curve: Curves.easeOutCubic,
                       builder: (context, value, _) {
                         return Text(
-                          value.toInt().toString(),
-                          style: AppTextStyles.displayLarge.copyWith(
-                            fontSize: 36,
+                          '${value.toInt()}',
+                          style: AppTextStyles.headlineMedium.copyWith(
                             fontWeight: FontWeight.w800,
+                            fontSize: 22,
                             height: 1,
                           ),
                         );
                       },
                     ),
-                    const SizedBox(height: 2),
                     Text(
                       '/ $_caloriesTarget cal',
-                      style: AppTextStyles.bodyMedium.copyWith(
+                      style: AppTextStyles.caption.copyWith(
                         color: AppColors.textTertiary,
-                        fontSize: 13,
+                        fontSize: 11,
                       ),
                     ),
                   ],
@@ -479,29 +465,126 @@ class _HomeDashboardState extends State<HomeDashboard>
               );
             },
           ),
-          const SizedBox(height: 20),
+
+          // Stat chips row
           Row(
             children: [
-              Expanded(
-                child: _buildCalorieStat(
-                  label: 'Consumed',
-                  value: '$_caloriesConsumed',
-                  color: AppColors.accentBlue,
-                  icon: Icons.local_fire_department_rounded,
-                ),
+              _buildMiniStat(
+                emoji: '🔥',
+                label: 'Consumed',
+                value: '$_caloriesConsumed',
+                unit: 'cal',
+                color: AppColors.accentBlue,
               ),
-              Container(
-                width: 1,
-                height: 36,
-                color: AppColors.glassBorder,
+              _buildStatDivider(),
+              _buildMiniStat(
+                emoji: '🎯',
+                label: 'Target',
+                value: '$_caloriesTarget',
+                unit: 'cal',
+                color: AppColors.accentPurple,
               ),
-              Expanded(
-                child: _buildCalorieStat(
-                  label: 'Remaining',
-                  value: '$remaining',
-                  color: AppColors.accentCyan,
-                  icon: Icons.flag_rounded,
+              _buildStatDivider(),
+              _buildMiniStat(
+                emoji: '✨',
+                label: 'Left',
+                value: '$remaining',
+                unit: 'cal',
+                color: AppColors.accentCyan,
+              ),
+            ],
+          ),
+
+          // Progress bar
+          _buildProgressRow(
+              'Progress', _caloriesConsumed, _caloriesTarget, AppColors.accentBlue),
+        ],
+      ),
+    );
+  }
+
+  // ── PAGE 2 CONTENT : Water Intake ──
+  Widget _buildWaterContent() {
+    final progress = _waterCurrent / _waterTarget;
+
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(16, 18, 16, 8),
+      child: Column(
+        mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+        children: [
+          // Radial ring
+          TweenAnimationBuilder<double>(
+            tween: Tween(begin: 0, end: progress),
+            duration: const Duration(milliseconds: 1400),
+            curve: Curves.easeOutCubic,
+            builder: (context, animatedProgress, _) {
+              return RadialProgress(
+                progress: animatedProgress,
+                size: 120,
+                strokeWidth: 10,
+                progressColor: AppColors.accentCyan,
+                child: Column(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    const Text('💧', style: TextStyle(fontSize: 18)),
+                    const SizedBox(height: 4),
+                    Text(
+                      '${_waterCurrent.toStringAsFixed(1)}L',
+                      style: AppTextStyles.headlineMedium.copyWith(
+                        fontWeight: FontWeight.w800,
+                        fontSize: 22,
+                        height: 1,
+                      ),
+                    ),
+                    Text(
+                      '/ ${_waterTarget.toStringAsFixed(0)}L goal',
+                      style: AppTextStyles.caption.copyWith(
+                        color: AppColors.textTertiary,
+                        fontSize: 11,
+                      ),
+                    ),
+                  ],
                 ),
+              );
+            },
+          ),
+
+          // Quick-add buttons
+          Row(
+            children: [
+              _buildWaterButton('+250ml', 0.25),
+              const SizedBox(width: 8),
+              _buildWaterButton('+500ml', 0.5),
+              const SizedBox(width: 8),
+              _buildWaterButton('+1L', 1.0),
+            ],
+          ),
+
+          // Stat chips row
+          Row(
+            children: [
+              _buildMiniStat(
+                emoji: '💧',
+                label: 'Consumed',
+                value: _waterCurrent.toStringAsFixed(1),
+                unit: 'L',
+                color: AppColors.accentCyan,
+              ),
+              _buildStatDivider(),
+              _buildMiniStat(
+                emoji: '🎯',
+                label: 'Target',
+                value: _waterTarget.toStringAsFixed(0),
+                unit: 'L',
+                color: AppColors.accentBlue,
+              ),
+              _buildStatDivider(),
+              _buildMiniStat(
+                emoji: '✨',
+                label: 'Left',
+                value: (_waterTarget - _waterCurrent).toStringAsFixed(1),
+                unit: 'L',
+                color: AppColors.accentPurple,
               ),
             ],
           ),
@@ -510,241 +593,184 @@ class _HomeDashboardState extends State<HomeDashboard>
     );
   }
 
-  Widget _buildCalorieStat({
-    required String label,
-    required String value,
-    required Color color,
-    required IconData icon,
-  }) {
-    return Column(
-      children: [
-        Icon(icon, color: color, size: 18),
-        const SizedBox(height: 6),
-        Text(
-          value,
-          style: AppTextStyles.titleMedium.copyWith(
-            fontWeight: FontWeight.w700,
-            color: AppColors.textPrimary,
-          ),
-        ),
-        const SizedBox(height: 2),
-        Text(
-          label,
-          style: AppTextStyles.caption.copyWith(
-            color: AppColors.textTertiary,
-          ),
-        ),
-      ],
-    );
-  }
+  // ── PAGE 3 CONTENT : Step Count ──
+  Widget _buildStepsContent() {
+    final progress = _stepsCurrent / _stepsTarget;
+    final remaining = _stepsTarget - _stepsCurrent;
+    final distanceKm = (_stepsCurrent * 0.000762).toStringAsFixed(1);
+    final caloriesBurned = (_stepsCurrent * 0.04).round();
 
-  // ─────────────────────────────────────────────
-  // MACRO TRACKING CARDS
-  // ─────────────────────────────────────────────
-
-  Widget _buildMacroCards() {
-    return Row(
-      children: [
-        Expanded(
-          child: _buildMacroCard(
-            emoji: '💪',
-            label: 'Protein',
-            current: _proteinCurrent,
-            target: _proteinTarget,
-            unit: 'g',
-            color: AppColors.accentBlue,
-          ),
-        ),
-        const SizedBox(width: 10),
-        Expanded(
-          child: _buildMacroCard(
-            emoji: '🌾',
-            label: 'Carbs',
-            current: _carbsCurrent,
-            target: _carbsTarget,
-            unit: 'g',
-            color: AppColors.accentPurple,
-          ),
-        ),
-        const SizedBox(width: 10),
-        Expanded(
-          child: _buildMacroCard(
-            emoji: '🥑',
-            label: 'Fats',
-            current: _fatsCurrent,
-            target: _fatsTarget,
-            unit: 'g',
-            color: AppColors.accentCoral,
-          ),
-        ),
-      ],
-    );
-  }
-
-  Widget _buildMacroCard({
-    required String emoji,
-    required String label,
-    required int current,
-    required int target,
-    required String unit,
-    required Color color,
-  }) {
-    final progress = current / target;
-
-    return DashboardGlassCard(
-      padding: const EdgeInsets.all(14),
-      borderRadius: 18,
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(16, 18, 16, 8),
       child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
+        mainAxisAlignment: MainAxisAlignment.spaceEvenly,
         children: [
-          Row(
-            children: [
-              Text(emoji, style: const TextStyle(fontSize: 18)),
-              const Spacer(),
-              Container(
-                width: 7,
-                height: 7,
-                decoration: BoxDecoration(
-                  color: color,
-                  shape: BoxShape.circle,
-                  boxShadow: [
-                    BoxShadow(
-                      color: color.withValues(alpha: 0.5),
-                      blurRadius: 6,
+          // Radial ring
+          TweenAnimationBuilder<double>(
+            tween: Tween(begin: 0, end: progress),
+            duration: const Duration(milliseconds: 1400),
+            curve: Curves.easeOutCubic,
+            builder: (context, animatedProgress, _) {
+              return RadialProgress(
+                progress: animatedProgress,
+                size: 120,
+                strokeWidth: 10,
+                progressColor: AppColors.accentPurple,
+                child: Column(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    const Text('👟', style: TextStyle(fontSize: 18)),
+                    const SizedBox(height: 4),
+                    TweenAnimationBuilder<double>(
+                      tween: Tween(
+                          begin: 0, end: _stepsCurrent.toDouble()),
+                      duration: const Duration(milliseconds: 1200),
+                      curve: Curves.easeOutCubic,
+                      builder: (context, value, _) {
+                        return Text(
+                          '${value.toInt()}',
+                          style: AppTextStyles.headlineMedium.copyWith(
+                            fontWeight: FontWeight.w800,
+                            fontSize: 22,
+                            height: 1,
+                          ),
+                        );
+                      },
+                    ),
+                    Text(
+                      '/ $_stepsTarget steps',
+                      style: AppTextStyles.caption.copyWith(
+                        color: AppColors.textTertiary,
+                        fontSize: 11,
+                      ),
                     ),
                   ],
                 ),
+              );
+            },
+          ),
+
+          // Stat chips row
+          Row(
+            children: [
+              _buildMiniStat(
+                emoji: '📍',
+                label: 'Distance',
+                value: distanceKm,
+                unit: 'km',
+                color: AppColors.accentPurple,
+              ),
+              _buildStatDivider(),
+              _buildMiniStat(
+                emoji: '🔥',
+                label: 'Burned',
+                value: '$caloriesBurned',
+                unit: 'cal',
+                color: AppColors.accentCoral,
+              ),
+              _buildStatDivider(),
+              _buildMiniStat(
+                emoji: '🏁',
+                label: 'Left',
+                value: '$remaining',
+                unit: '',
+                color: AppColors.accentOrange,
               ),
             ],
           ),
-          const SizedBox(height: 12),
+
+          // Progress bar
+          _buildProgressRow(
+              'Progress', _stepsCurrent, _stepsTarget, AppColors.accentPurple),
+        ],
+      ),
+    );
+  }
+
+  // ── Shared mini stat (diet-tab style) ──
+  Widget _buildMiniStat({
+    required String emoji,
+    required String label,
+    required String value,
+    required String unit,
+    required Color color,
+  }) {
+    return Expanded(
+      child: Column(
+        children: [
+          Text(emoji, style: const TextStyle(fontSize: 16)),
+          const SizedBox(height: 5),
+          Text(
+            '$value$unit',
+            style: AppTextStyles.labelLarge.copyWith(
+              fontWeight: FontWeight.w700,
+              fontSize: 14,
+              color: color,
+            ),
+          ),
           Text(
             label,
             style: AppTextStyles.caption.copyWith(
               color: AppColors.textTertiary,
-              letterSpacing: 0.6,
+              fontSize: 10,
             ),
           ),
-          const SizedBox(height: 6),
-          RichText(
-            text: TextSpan(
-              children: [
-                TextSpan(
-                  text: '$current',
-                  style: AppTextStyles.titleMedium.copyWith(
-                    fontWeight: FontWeight.w800,
-                    fontSize: 18,
-                  ),
-                ),
-                TextSpan(
-                  text: ' / $target$unit',
-                  style: AppTextStyles.caption.copyWith(
-                    color: AppColors.textTertiary,
-                    fontSize: 11,
-                  ),
-                ),
-              ],
+        ],
+      ),
+    );
+  }
+
+  Widget _buildStatDivider() {
+    return Container(
+      width: 1,
+      height: 38,
+      color: AppColors.glassBorder,
+    );
+  }
+
+  // ── Progress bar row ──
+  Widget _buildProgressRow(String label, int current, int target, Color color) {
+    return Row(
+      children: [
+        SizedBox(
+          width: 56,
+          child: Text(
+            label,
+            style: AppTextStyles.caption.copyWith(
+              color: AppColors.textTertiary,
+              fontSize: 11,
             ),
           ),
-          const SizedBox(height: 10),
-          LinearProgressBar(
-            progress: progress,
+        ),
+        Expanded(
+          child: LinearProgressBar(
+            progress: current / target,
             color: color,
-            height: 4,
+            height: 5,
           ),
-        ],
-      ),
+        ),
+        const SizedBox(width: 10),
+        Text(
+          '${(current / target * 100).round()}%',
+          style: AppTextStyles.caption.copyWith(
+            color: color,
+            fontWeight: FontWeight.w600,
+            fontSize: 11,
+          ),
+        ),
+      ],
     );
   }
 
-  // ─────────────────────────────────────────────
-  // HYDRATION CARD
-  // ─────────────────────────────────────────────
 
-  Widget _buildHydrationCard() {
-    final progress = _waterCurrent / _waterTarget;
-
-    return DashboardGlassCard(
-      padding: const EdgeInsets.all(20),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Row(
-            children: [
-              const Text('💧', style: TextStyle(fontSize: 22)),
-              const SizedBox(width: 10),
-              Text(
-                'Water Intake',
-                style: AppTextStyles.titleMedium.copyWith(
-                  fontWeight: FontWeight.w700,
-                ),
-              ),
-              const Spacer(),
-              Container(
-                padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
-                decoration: BoxDecoration(
-                  color: AppColors.accentCyan.withValues(alpha: 0.12),
-                  borderRadius: BorderRadius.circular(8),
-                ),
-                child: Text(
-                  '${(progress * 100).round()}%',
-                  style: AppTextStyles.caption.copyWith(
-                    color: AppColors.accentCyan,
-                    fontWeight: FontWeight.w700,
-                  ),
-                ),
-              ),
-            ],
-          ),
-          const SizedBox(height: 16),
-          Row(
-            crossAxisAlignment: CrossAxisAlignment.baseline,
-            textBaseline: TextBaseline.alphabetic,
-            children: [
-              Text(
-                '${_waterCurrent.toStringAsFixed(1)}L',
-                style: AppTextStyles.headlineMedium.copyWith(
-                  fontWeight: FontWeight.w800,
-                  fontSize: 28,
-                ),
-              ),
-              const SizedBox(width: 6),
-              Text(
-                '/ ${_waterTarget.toStringAsFixed(0)}L',
-                style: AppTextStyles.bodyMedium.copyWith(
-                  color: AppColors.textTertiary,
-                ),
-              ),
-            ],
-          ),
-          const SizedBox(height: 14),
-          LinearProgressBar(
-            progress: progress,
-            color: AppColors.accentCyan,
-            height: 8,
-          ),
-          const SizedBox(height: 18),
-          Row(
-            children: [
-              _buildWaterButton('+250ml', 0.25),
-              const SizedBox(width: 10),
-              _buildWaterButton('+500ml', 0.5),
-              const SizedBox(width: 10),
-              _buildWaterButton('+1L', 1.0),
-            ],
-          ),
-        ],
-      ),
-    );
-  }
-
+  // ── Water quick-add button ──
   Widget _buildWaterButton(String label, double amount) {
     return Expanded(
       child: GestureDetector(
         onTap: () => _addWater(amount),
         child: AnimatedContainer(
           duration: const Duration(milliseconds: 200),
-          padding: const EdgeInsets.symmetric(vertical: 10),
+          padding: const EdgeInsets.symmetric(vertical: 8),
           decoration: BoxDecoration(
             color: AppColors.accentCyan.withValues(alpha: 0.08),
             borderRadius: BorderRadius.circular(12),
@@ -775,15 +801,15 @@ class _HomeDashboardState extends State<HomeDashboard>
     final completedCount = _tasks.where((t) => t['completed']).length;
 
     return DashboardGlassCard(
-      padding: const EdgeInsets.all(20),
+      padding: const EdgeInsets.all(18),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Row(
             children: [
               Container(
-                width: 36,
-                height: 36,
+                width: 32,
+                height: 32,
                 decoration: BoxDecoration(
                   borderRadius: BorderRadius.circular(10),
                   gradient: LinearGradient(
@@ -796,7 +822,7 @@ class _HomeDashboardState extends State<HomeDashboard>
                   ),
                 ),
                 child: const Center(
-                  child: Text('✦', style: TextStyle(fontSize: 16)),
+                  child: Text('✦', style: TextStyle(fontSize: 14)),
                 ),
               ),
               const SizedBox(width: 12),
@@ -808,7 +834,7 @@ class _HomeDashboardState extends State<HomeDashboard>
                       'Daily Challenges',
                       style: AppTextStyles.titleMedium.copyWith(
                         fontWeight: FontWeight.w700,
-                        fontSize: 15,
+                        fontSize: 14,
                       ),
                     ),
                     Text(
@@ -821,7 +847,8 @@ class _HomeDashboardState extends State<HomeDashboard>
                 ),
               ),
               Container(
-                padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+                padding:
+                    const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
                 decoration: BoxDecoration(
                   color: AppColors.accentPurple.withValues(alpha: 0.12),
                   borderRadius: BorderRadius.circular(8),
@@ -843,7 +870,7 @@ class _HomeDashboardState extends State<HomeDashboard>
 
             return Padding(
               padding: EdgeInsets.only(
-                bottom: index < _tasks.length - 1 ? 8 : 0,
+                bottom: index < _tasks.length - 1 ? 10 : 0,
               ),
               child: GestureDetector(
                 onTap: () => _toggleTask(index),
@@ -869,10 +896,10 @@ class _HomeDashboardState extends State<HomeDashboard>
                     children: [
                       AnimatedContainer(
                         duration: const Duration(milliseconds: 250),
-                        width: 24,
-                        height: 24,
+                        width: 20,
+                        height: 20,
                         decoration: BoxDecoration(
-                          borderRadius: BorderRadius.circular(7),
+                          borderRadius: BorderRadius.circular(6),
                           color: isCompleted
                               ? AppColors.accentBlue
                               : Colors.transparent,
@@ -886,7 +913,7 @@ class _HomeDashboardState extends State<HomeDashboard>
                         child: isCompleted
                             ? const Icon(
                                 Icons.check_rounded,
-                                size: 14,
+                                size: 12,
                                 color: Colors.white,
                               )
                             : null,
@@ -914,7 +941,8 @@ class _HomeDashboardState extends State<HomeDashboard>
                             vertical: 3,
                           ),
                           decoration: BoxDecoration(
-                            color: AppColors.accentBlue.withValues(alpha: 0.1),
+                            color:
+                                AppColors.accentBlue.withValues(alpha: 0.1),
                             borderRadius: BorderRadius.circular(6),
                           ),
                           child: Text(
@@ -937,214 +965,6 @@ class _HomeDashboardState extends State<HomeDashboard>
     );
   }
 
-  // ─────────────────────────────────────────────
-  // STREAK & XP SECTION
-  // ─────────────────────────────────────────────
-
-  Widget _buildStreakXPSection() {
-    return Row(
-      children: [
-        Expanded(
-          child: _buildStreakCard(
-            emoji: '🔥',
-            label: 'CURRENT STREAK',
-            value: '$_currentStreak Days',
-            color: AppColors.accentOrange,
-          ),
-        ),
-        const SizedBox(width: 10),
-        Expanded(
-          child: _buildStreakCard(
-            emoji: '🏆',
-            label: 'BEST STREAK',
-            value: '$_longestStreak Days',
-            color: AppColors.accentCoral,
-          ),
-        ),
-        const SizedBox(width: 10),
-        Expanded(
-          child: _buildStreakCard(
-            emoji: '⚡',
-            label: 'XP TODAY',
-            value: '$_xpToday',
-            color: AppColors.accentPurple,
-          ),
-        ),
-      ],
-    );
-  }
-
-  Widget _buildStreakCard({
-    required String emoji,
-    required String label,
-    required String value,
-    required Color color,
-  }) {
-    return DashboardGlassCard(
-      padding: const EdgeInsets.all(14),
-      borderRadius: 18,
-      child: Column(
-        children: [
-          Text(emoji, style: const TextStyle(fontSize: 24)),
-          const SizedBox(height: 10),
-          Text(
-            label,
-            style: AppTextStyles.caption.copyWith(
-              color: AppColors.textTertiary,
-              letterSpacing: 0.5,
-              fontSize: 9,
-            ),
-            textAlign: TextAlign.center,
-          ),
-          const SizedBox(height: 6),
-          Text(
-            value,
-            style: AppTextStyles.labelLarge.copyWith(
-              color: color,
-              fontWeight: FontWeight.w700,
-              fontSize: 13,
-            ),
-            textAlign: TextAlign.center,
-          ),
-        ],
-      ),
-    );
-  }
-
-  // ─────────────────────────────────────────────
-  // TODAY'S MEALS PREVIEW
-  // ─────────────────────────────────────────────
-
-  Widget _buildMealsSection() {
-    return Column(
-      children: _meals.asMap().entries.map((entry) {
-        final index = entry.key;
-        final meal = entry.value;
-        return Padding(
-          padding: EdgeInsets.only(
-            bottom: index < _meals.length - 1 ? 10 : 0,
-          ),
-          child: _buildMealCard(meal),
-        );
-      }).toList(),
-    );
-  }
-
-  Widget _buildMealCard(Map<String, dynamic> meal) {
-    return DashboardGlassCard(
-      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
-      borderRadius: 16,
-      child: Row(
-        children: [
-          Container(
-            width: 48,
-            height: 48,
-            decoration: BoxDecoration(
-              color: AppColors.bgTertiary,
-              borderRadius: BorderRadius.circular(14),
-            ),
-            child: Center(
-              child: Text(
-                meal['icon'],
-                style: const TextStyle(fontSize: 22),
-              ),
-            ),
-          ),
-          const SizedBox(width: 14),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  meal['name'],
-                  style: AppTextStyles.labelLarge.copyWith(
-                    fontWeight: FontWeight.w600,
-                  ),
-                ),
-                const SizedBox(height: 3),
-                Text(
-                  meal['time'],
-                  style: AppTextStyles.caption.copyWith(
-                    color: AppColors.textTertiary,
-                  ),
-                ),
-              ],
-            ),
-          ),
-          Column(
-            crossAxisAlignment: CrossAxisAlignment.end,
-            children: [
-              Text(
-                '${meal['calories']} cal',
-                style: AppTextStyles.labelLarge.copyWith(
-                  color: AppColors.accentBlue,
-                  fontWeight: FontWeight.w600,
-                  fontSize: 13,
-                ),
-              ),
-              const SizedBox(height: 2),
-              Text(
-                '${meal['protein']}g protein',
-                style: AppTextStyles.caption.copyWith(
-                  color: AppColors.textTertiary,
-                  fontSize: 10,
-                ),
-              ),
-            ],
-          ),
-        ],
-      ),
-    );
-  }
-
-  // ─────────────────────────────────────────────
-  // VIEW FULL DIET PLAN CTA
-  // ─────────────────────────────────────────────
-
-  Widget _buildDietPlanCta() {
-    return GestureDetector(
-      onTap: () => setState(() => _currentNavIndex = 1),
-      child: Container(
-        width: double.infinity,
-        padding: const EdgeInsets.symmetric(vertical: 16),
-        decoration: BoxDecoration(
-          borderRadius: BorderRadius.circular(16),
-          gradient: const LinearGradient(
-            begin: Alignment.topLeft,
-            end: Alignment.bottomRight,
-            colors: [AppColors.accentBlue, Color(0xFF6366F1)],
-          ),
-          boxShadow: [
-            BoxShadow(
-              color: AppColors.accentBlue.withValues(alpha: 0.25),
-              blurRadius: 20,
-              offset: const Offset(0, 8),
-            ),
-          ],
-        ),
-        child: Row(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            Text(
-              'View Full Diet Plan',
-              style: AppTextStyles.labelLarge.copyWith(
-                color: Colors.white,
-                fontSize: 15,
-                fontWeight: FontWeight.w600,
-                letterSpacing: 0.3,
-              ),
-            ),
-            const SizedBox(width: 8),
-            const Icon(
-              Icons.arrow_forward_rounded,
-              color: Colors.white,
-              size: 18,
-            ),
-          ],
-        ),
-      ),
-    );
-  }
 
   // ─────────────────────────────────────────────
   // BOTTOM NAVIGATION
