@@ -664,18 +664,27 @@ class _DietPlanContentState extends State<DietPlanContent> {
       key: _containerKey,
       decoration: BoxDecoration(
         borderRadius: BorderRadius.circular(24),
+        gradient: LinearGradient(
+          begin: Alignment.topCenter,
+          end: Alignment.bottomCenter,
+          colors: [
+            AppColors.bgSecondary.withValues(alpha: 0.85),
+            AppColors.bgPrimary.withValues(alpha: 0.95),
+            AppColors.bgSecondary.withValues(alpha: 0.8),
+          ],
+        ),
         border: Border.all(color: AppColors.glassBorder),
       ),
       child: ClipRRect(
         borderRadius: BorderRadius.circular(24),
         child: Stack(
           children: [
-            // 1. Sky Backdrop
+            // 1. Dark-themed backdrop with subtle phase glow
             Positioned.fill(
               child: TweenAnimationBuilder<double>(
                 tween: Tween<double>(end: _backdropTargetIndex.toDouble()),
-                duration: const Duration(milliseconds: 500),
-                curve: Curves.easeInOutCubic,
+                duration: const Duration(milliseconds: 800),
+                curve: Curves.easeInOutQuart,
                 builder: (context, progress, child) {
                   return CustomPaint(
                     painter: SkyBackdropPainter(
@@ -699,46 +708,38 @@ class _DietPlanContentState extends State<DietPlanContent> {
                   final isExpanded = index == _expandedMealIndex;
                   final isEaten = meal['eaten'] == true;
 
-                  return IntrinsicHeight(
-                    child: Row(
-                      crossAxisAlignment: CrossAxisAlignment.stretch,
-                      children: [
-                        // Left timeline line & node
-                        TimelineSegment(
-                          index: index,
-                          progressNotifier: _timelineProgressNotifier,
-                          phase: phase,
-                          isExpanded: isExpanded,
-                          isEaten: isEaten,
-                        ),
-                        // Right meal card (tappable to expand)
-                        Expanded(
-                          child: Padding(
-                            padding: const EdgeInsets.symmetric(vertical: 8),
-                            child: GestureDetector(
-                              onTap: () {
-                                setState(() {
-                                  if (_expandedMealIndex == index) {
-                                    _expandedMealIndex = -1;
-                                  } else {
-                                    _expandedMealIndex = index;
-                                    _backdropTargetIndex = index;
-                                  }
-                                });
-                                WidgetsBinding.instance.addPostFrameCallback((_) {
-                                  _calculateTimelineProgress();
-                                });
-                              },
-                              child: Container(
-                                key: _mealKeys[index],
-                                child: isSnack
-                                    ? _buildSnackCard(meal, index, phase, isExpanded, isEaten)
-                                    : _buildFullMealCard(meal, index, phase, isExpanded, isEaten),
-                              ),
-                            ),
-                          ),
-                        ),
-                      ],
+                  return Padding(
+                    padding: const EdgeInsets.symmetric(vertical: 6, horizontal: 4),
+                    child: InteractivePressCard(
+                      key: _mealKeys[index],
+                      onTap: () {
+                        setState(() {
+                          if (_expandedMealIndex == index) {
+                            _expandedMealIndex = -1;
+                          } else {
+                            _expandedMealIndex = index;
+                            _backdropTargetIndex = index;
+                          }
+                        });
+                        WidgetsBinding.instance.addPostFrameCallback((_) {
+                          _calculateTimelineProgress();
+                        });
+                      },
+                      child: AnimatedCrossFade(
+                        firstChild: isSnack
+                            ? _buildSnackCard(meal, index, phase, false, isEaten)
+                            : _buildFullMealCard(meal, index, phase, false, isEaten),
+                        secondChild: isSnack
+                            ? _buildSnackCard(meal, index, phase, true, isEaten)
+                            : _buildFullMealCard(meal, index, phase, true, isEaten),
+                        crossFadeState: isExpanded
+                            ? CrossFadeState.showSecond
+                            : CrossFadeState.showFirst,
+                        duration: const Duration(milliseconds: 350),
+                        firstCurve: Curves.easeOutCubic,
+                        secondCurve: Curves.easeOutCubic,
+                        sizeCurve: Curves.easeOutCubic,
+                      ),
                     ),
                   );
                 }).toList(),
@@ -748,6 +749,16 @@ class _DietPlanContentState extends State<DietPlanContent> {
         ),
       ),
     );
+  }
+
+  // ─── Gradient colors per meal phase (for accent bar) ───
+  List<Color> _accentBarGradient(DayPhaseTheme phase, bool isExpanded) {
+    final c = phase.accentColor;
+    if (!isExpanded) return [c, c];
+    return [
+      c,
+      Color.lerp(c, phase.glowColor, 0.5)!,
+    ];
   }
 
   Widget _buildFullMealCard(
@@ -764,16 +775,18 @@ class _DietPlanContentState extends State<DietPlanContent> {
       return DashboardGlassCard(
         padding: EdgeInsets.zero,
         borderRadius: 14,
-        borderColor: phaseColor.withValues(alpha: 0.15),
+        borderColor: phaseColor.withValues(alpha: 0.2),
         gradient: LinearGradient(
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
           colors: [
-            AppColors.bgPrimary.withValues(alpha: 0.5),
-            AppColors.bgSecondary.withValues(alpha: 0.45),
+            AppColors.bgSecondary.withValues(alpha: 0.7),
+            Color.lerp(AppColors.bgPrimary, phaseColor, 0.06)!.withValues(alpha: 0.6),
           ],
         ),
         child: AnimatedSize(
-          duration: const Duration(milliseconds: 300),
-          curve: Curves.easeInOut,
+          duration: const Duration(milliseconds: 450),
+          curve: Curves.easeOutCubic,
           child: IntrinsicHeight(
             child: Row(
               crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -782,7 +795,14 @@ class _DietPlanContentState extends State<DietPlanContent> {
                 Container(
                   width: 4,
                   decoration: BoxDecoration(
-                    color: phaseColor.withValues(alpha: 0.65),
+                    gradient: LinearGradient(
+                      begin: Alignment.topCenter,
+                      end: Alignment.bottomCenter,
+                      colors: [
+                        phaseColor.withValues(alpha: 0.65),
+                        phaseColor.withValues(alpha: 0.35),
+                      ],
+                    ),
                     borderRadius: const BorderRadius.only(
                       topLeft: Radius.circular(14),
                       bottomLeft: Radius.circular(14),
@@ -890,16 +910,18 @@ class _DietPlanContentState extends State<DietPlanContent> {
       return DashboardGlassCard(
         padding: EdgeInsets.zero,
         borderRadius: 14,
-        borderColor: AppColors.glassBorder,
+        borderColor: phaseColor.withValues(alpha: 0.12),
         gradient: LinearGradient(
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
           colors: [
-            AppColors.bgPrimary.withValues(alpha: 0.6),
-            AppColors.bgSecondary.withValues(alpha: 0.55),
+            AppColors.bgSecondary.withValues(alpha: 0.65),
+            Color.lerp(AppColors.bgPrimary, phaseColor, 0.04)!.withValues(alpha: 0.55),
           ],
         ),
         child: AnimatedSize(
-          duration: const Duration(milliseconds: 300),
-          curve: Curves.easeInOut,
+          duration: const Duration(milliseconds: 450),
+          curve: Curves.easeOutCubic,
           child: IntrinsicHeight(
             child: Row(
               crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -908,7 +930,14 @@ class _DietPlanContentState extends State<DietPlanContent> {
                 Container(
                   width: 4,
                   decoration: BoxDecoration(
-                    color: phaseColor.withValues(alpha: 0.45),
+                    gradient: LinearGradient(
+                      begin: Alignment.topCenter,
+                      end: Alignment.bottomCenter,
+                      colors: [
+                        phaseColor.withValues(alpha: 0.45),
+                        phaseColor.withValues(alpha: 0.2),
+                      ],
+                    ),
                     borderRadius: const BorderRadius.only(
                       topLeft: Radius.circular(14),
                       bottomLeft: Radius.circular(14),
@@ -1029,34 +1058,64 @@ class _DietPlanContentState extends State<DietPlanContent> {
 
     // 3. EXPANDED STATE (Rich, Highlighted, Spacing Tightened)
     final ingredients = (meal['ingredients'] as List<String>);
-    return DashboardGlassCard(
-      padding: EdgeInsets.zero,
-      borderRadius: 18,
-      borderColor: phaseColor.withValues(alpha: 0.35),
-      gradient: LinearGradient(
-        begin: Alignment.topLeft,
-        end: Alignment.bottomRight,
-        colors: [
-          AppColors.bgPrimary.withValues(alpha: isEaten ? 0.8 : 0.75),
-          AppColors.bgSecondary.withValues(alpha: isEaten ? 0.75 : 0.7),
+    return AnimatedContainer(
+      duration: const Duration(milliseconds: 500),
+      curve: Curves.easeOutCubic,
+      decoration: BoxDecoration(
+        borderRadius: BorderRadius.circular(18),
+        boxShadow: [
+          BoxShadow(
+            color: phaseColor.withValues(alpha: 0.18),
+            blurRadius: 24,
+            spreadRadius: -2,
+            offset: const Offset(0, 4),
+          ),
+          BoxShadow(
+            color: phaseColor.withValues(alpha: 0.08),
+            blurRadius: 40,
+            spreadRadius: 0,
+          ),
         ],
       ),
-      child: AnimatedSize(
-        duration: const Duration(milliseconds: 300),
-        curve: Curves.easeInOut,
-        child: IntrinsicHeight(
-          child: Row(
-            crossAxisAlignment: CrossAxisAlignment.stretch,
-            children: [
-              // Flush Left Accent Indicator
+      child: DashboardGlassCard(
+        padding: EdgeInsets.zero,
+        borderRadius: 18,
+        borderColor: phaseColor.withValues(alpha: 0.4),
+        gradient: LinearGradient(
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+          colors: [
+            Color.lerp(AppColors.bgSecondary, phaseColor, 0.1)!.withValues(alpha: isEaten ? 0.85 : 0.8),
+            Color.lerp(AppColors.bgPrimary, phaseColor, 0.05)!.withValues(alpha: isEaten ? 0.75 : 0.7),
+          ],
+        ),
+        child: AnimatedSize(
+          duration: const Duration(milliseconds: 450),
+          curve: Curves.easeOutCubic,
+          child: IntrinsicHeight(
+            child: Row(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+              // Flush Left Accent Bar with gradient
               Container(
-                width: 4,
+                width: 5,
                 decoration: BoxDecoration(
-                  color: phaseColor,
+                  gradient: LinearGradient(
+                    begin: Alignment.topCenter,
+                    end: Alignment.bottomCenter,
+                    colors: _accentBarGradient(phase, true),
+                  ),
                   borderRadius: const BorderRadius.only(
                     topLeft: Radius.circular(18),
                     bottomLeft: Radius.circular(18),
                   ),
+                  boxShadow: [
+                    BoxShadow(
+                      color: phaseColor.withValues(alpha: 0.3),
+                      blurRadius: 8,
+                      offset: const Offset(2, 0),
+                    ),
+                  ],
                 ),
               ),
               const SizedBox(width: 12),
@@ -1066,19 +1125,39 @@ class _DietPlanContentState extends State<DietPlanContent> {
                   padding: const EdgeInsets.fromLTRB(0, 12, 14, 12),
                   child: Stack(
                     children: [
-                      // Ambient backlight glow (radial gradient at the top right)
+                      // Ambient backlight glow (top-right)
                       Positioned(
-                        top: -50,
-                        right: -50,
-                        width: 140,
-                        height: 140,
+                        top: -60,
+                        right: -60,
+                        width: 160,
+                        height: 160,
                         child: Container(
                           decoration: BoxDecoration(
                             shape: BoxShape.circle,
                             gradient: RadialGradient(
                               colors: [
-                                phaseColor.withValues(alpha: 0.22),
+                                phaseColor.withValues(alpha: 0.2),
+                                phaseColor.withValues(alpha: 0.06),
                                 phaseColor.withValues(alpha: 0.0),
+                              ],
+                              stops: const [0.0, 0.5, 1.0],
+                            ),
+                          ),
+                        ),
+                      ),
+                      // Secondary ambient glow (bottom-left, complementary)
+                      Positioned(
+                        bottom: -40,
+                        left: -30,
+                        width: 120,
+                        height: 120,
+                        child: Container(
+                          decoration: BoxDecoration(
+                            shape: BoxShape.circle,
+                            gradient: RadialGradient(
+                              colors: [
+                                phase.glowColor.withValues(alpha: 0.1),
+                                phase.glowColor.withValues(alpha: 0.0),
                               ],
                             ),
                           ),
@@ -1260,7 +1339,8 @@ class _DietPlanContentState extends State<DietPlanContent> {
                   ),
                 ),
               ),
-            ],
+              ],
+            ),
           ),
         ),
       ),
@@ -1851,17 +1931,12 @@ class SkyBackdropPainter extends CustomPainter {
     final double clampedProgress = progress.clamp(0.0, 4.0);
     final theme = DayPhaseTheme.getInterpolated(clampedProgress);
     
-    // 1. Paint sky gradient background
+    // 1. Paint dark app-matching background (transparent — the container gradient shows through)
     final rect = Offset.zero & size;
-    final skyPaint = Paint()
-      ..shader = LinearGradient(
-        begin: Alignment.topCenter,
-        end: Alignment.bottomCenter,
-        colors: theme.skyGradient,
-      ).createShader(rect);
-    canvas.drawRect(rect, skyPaint);
+    final bgPaint = Paint()..color = const Color(0x00000000);
+    canvas.drawRect(rect, bgPaint);
 
-    // 2. Draw a soft, massive glowing ambient light beam (radial gradient) behind the active meal area
+    // 2. Draw a soft, subtle accent glow behind the active meal area
     double activeY = size.height / 2;
     if (cardCenters.length == 5) {
       int idx = clampedProgress.floor().clamp(0, 3);
@@ -1871,19 +1946,35 @@ class SkyBackdropPainter extends CustomPainter {
       activeY = yA + (yB - yA) * t;
     }
 
-    final double glowX = size.width * 0.45; // slightly offset from left
+    final double glowX = size.width * 0.45;
     final double glowY = activeY;
 
+    // Subtle phase-colored glow that blends with the dark background
     final glowPaint = Paint()
       ..shader = RadialGradient(
         colors: [
-          theme.glowColor.withValues(alpha: 0.24),
+          theme.glowColor.withValues(alpha: 0.12),
+          theme.glowColor.withValues(alpha: 0.03),
           theme.glowColor.withValues(alpha: 0.0),
         ],
-        radius: 0.65,
-      ).createShader(Rect.fromCircle(center: Offset(glowX, glowY), radius: size.width * 0.9));
+        stops: const [0.0, 0.5, 1.0],
+        radius: 0.55,
+      ).createShader(Rect.fromCircle(center: Offset(glowX, glowY), radius: size.width * 0.85));
     
-    canvas.drawCircle(Offset(glowX, glowY), size.width * 0.9, glowPaint);
+    canvas.drawCircle(Offset(glowX, glowY), size.width * 0.85, glowPaint);
+
+    // 3. Add a very subtle top-edge gradient tint for depth
+    final topTintPaint = Paint()
+      ..shader = LinearGradient(
+        begin: Alignment.topCenter,
+        end: Alignment.bottomCenter,
+        colors: [
+          theme.accentColor.withValues(alpha: 0.04),
+          theme.accentColor.withValues(alpha: 0.0),
+        ],
+        stops: const [0.0, 0.3],
+      ).createShader(rect);
+    canvas.drawRect(rect, topTintPaint);
   }
 
   @override
@@ -1919,7 +2010,7 @@ class _TimelineSegmentState extends State<TimelineSegment> with SingleTickerProv
   void initState() {
     super.initState();
     _pulseController = AnimationController(
-      duration: const Duration(milliseconds: 1600),
+      duration: const Duration(milliseconds: 1800),
       vsync: this,
     );
     if (widget.isExpanded) {
@@ -1932,9 +2023,15 @@ class _TimelineSegmentState extends State<TimelineSegment> with SingleTickerProv
     super.didUpdateWidget(oldWidget);
     if (widget.isExpanded != oldWidget.isExpanded) {
       if (widget.isExpanded) {
+        _pulseController.reset();
         _pulseController.repeat();
       } else {
-        _pulseController.stop();
+        _pulseController.animateTo(1.0, duration: const Duration(milliseconds: 300)).then((_) {
+          if (mounted && !widget.isExpanded) {
+            _pulseController.stop();
+            _pulseController.reset();
+          }
+        });
       }
     }
   }
@@ -1947,32 +2044,27 @@ class _TimelineSegmentState extends State<TimelineSegment> with SingleTickerProv
 
   @override
   Widget build(BuildContext context) {
+    final nextPhaseIndex = (widget.index + 1).clamp(0, 4);
+    final nextPhase = DayPhaseTheme.phases[nextPhaseIndex];
+    final phaseColor = widget.phase.accentColor;
+
     return ValueListenableBuilder<double>(
       valueListenable: widget.progressNotifier,
       builder: (context, progress, child) {
-        final double distance = (progress - widget.index).abs();
-        final double activeFactor = (1.0 - distance).clamp(0.0, 1.0);
-
-        final nextPhaseIndex = (widget.index + 1).clamp(0, 4);
-        final nextPhase = DayPhaseTheme.phases[nextPhaseIndex];
-
         return CustomPaint(
           painter: TimelinePainter(
             progress: progress,
             index: widget.index,
-            activeColorStart: widget.phase.accentColor,
+            activeColorStart: phaseColor,
             activeColorEnd: nextPhase.accentColor,
-            inactiveColor: AppColors.glassBorder.withValues(alpha: 0.5),
+            inactiveColor: AppColors.glassBorder.withValues(alpha: 0.4),
             isExpanded: widget.isExpanded,
             isEaten: widget.isEaten,
           ),
           child: SizedBox(
-            width: 36,
-            child: Stack(
-              alignment: Alignment.center,
-              children: [
-                _buildNode(activeFactor),
-              ],
+            width: 40,
+            child: Center(
+              child: _buildNode(),
             ),
           ),
         );
@@ -1980,93 +2072,103 @@ class _TimelineSegmentState extends State<TimelineSegment> with SingleTickerProv
     );
   }
 
-  Widget _buildNode(double activeFactor) {
-    final double baseSize = 14.0 + (14.0 * activeFactor);
+  Widget _buildNode() {
+    final phaseColor = widget.phase.accentColor;
 
-    return Center(
-      child: SizedBox(
-        width: 36,
-        height: 36,
-        child: Stack(
-          alignment: Alignment.center,
-          children: [
-            // Pulsing outer ring for active/expanded meal
-            if (widget.isExpanded)
-              AnimatedBuilder(
-                animation: _pulseController,
-                builder: (context, child) {
-                  final double scale = 1.0 + (0.35 * _pulseController.value);
-                  final double opacity = 1.0 - _pulseController.value;
-                  return Container(
-                    width: baseSize * scale,
-                    height: baseSize * scale,
-                    decoration: BoxDecoration(
-                      shape: BoxShape.circle,
-                      border: Border.all(
-                        color: widget.phase.accentColor.withValues(alpha: 0.35 * opacity),
-                        width: 2.0,
-                      ),
-                    ),
-                  );
-                },
-              ),
+    // Determine sizes based on state
+    final double nodeSize = widget.isExpanded ? 28.0 : (widget.isEaten ? 18.0 : 14.0);
 
-            // Breathing Inner Node with glowing shadow
+    return SizedBox(
+      width: 40,
+      height: 40,
+      child: Stack(
+        alignment: Alignment.center,
+        children: [
+          // Pulsing outer ring (expanded only)
+          if (widget.isExpanded)
             AnimatedBuilder(
               animation: _pulseController,
               builder: (context, child) {
-                double breatheFactor = 0.0;
-                if (widget.isExpanded) {
-                  breatheFactor = (math.sin(_pulseController.value * 2 * math.pi) + 1.0) / 2.0;
-                }
-
-                final double size = baseSize + (widget.isExpanded ? (3.0 * breatheFactor) : 0.0);
-                final double shadowBlur = widget.isExpanded ? (12.0 + 4.0 * breatheFactor) : 0.0;
-
+                final double scale = 1.0 + (0.35 * _pulseController.value);
+                final double opacity = (1.0 - _pulseController.value).clamp(0.0, 1.0);
                 return Container(
-                  width: size,
-                  height: size,
+                  width: nodeSize * scale,
+                  height: nodeSize * scale,
                   decoration: BoxDecoration(
                     shape: BoxShape.circle,
-                    boxShadow: widget.isExpanded
-                        ? [
-                            BoxShadow(
-                              color: widget.phase.glowColor.withValues(alpha: 0.4 + 0.1 * breatheFactor),
-                              blurRadius: shadowBlur,
-                              spreadRadius: 1,
-                            ),
-                          ]
-                        : null,
-                    gradient: widget.isExpanded || widget.isEaten
-                        ? LinearGradient(
-                            begin: Alignment.topLeft,
-                            end: Alignment.bottomRight,
-                            colors: [
-                              widget.phase.skyGradient.first,
-                              widget.phase.skyGradient.last,
-                            ],
-                          )
-                        : null,
-                    color: !widget.isExpanded && !widget.isEaten ? Colors.transparent : null,
                     border: Border.all(
-                      color: widget.isExpanded || widget.isEaten
-                          ? widget.phase.accentColor
-                          : AppColors.textDisabled.withValues(alpha: 0.6),
-                      width: widget.isExpanded ? 2.5 : 1.5,
+                      color: phaseColor.withValues(alpha: 0.25 * opacity),
+                      width: 1.5,
                     ),
                   ),
-                  child: _buildNodeIcon(activeFactor),
                 );
               },
             ),
-          ],
-        ),
+
+          // Main node circle
+          AnimatedBuilder(
+            animation: _pulseController,
+            builder: (context, child) {
+              double breathe = 0.0;
+              if (widget.isExpanded) {
+                breathe = (math.sin(_pulseController.value * 2 * math.pi) + 1.0) / 2.0;
+              }
+              final double size = nodeSize + (widget.isExpanded ? 2.0 * breathe : 0.0);
+
+              return AnimatedContainer(
+                duration: const Duration(milliseconds: 350),
+                curve: Curves.easeOutCubic,
+                width: size,
+                height: size,
+                decoration: BoxDecoration(
+                  shape: BoxShape.circle,
+                  // Expanded: solid accent fill
+                  // Eaten: softer accent fill
+                  // Inactive: dark bg with subtle border
+                  color: widget.isExpanded
+                      ? phaseColor
+                      : (widget.isEaten
+                          ? phaseColor.withValues(alpha: 0.7)
+                          : AppColors.bgTertiary),
+                  border: Border.all(
+                    color: widget.isExpanded
+                        ? phaseColor
+                        : (widget.isEaten
+                            ? phaseColor.withValues(alpha: 0.5)
+                            : AppColors.textDisabled.withValues(alpha: 0.35)),
+                    width: widget.isExpanded ? 2.0 : 1.5,
+                  ),
+                  boxShadow: widget.isExpanded
+                      ? [
+                          BoxShadow(
+                            color: phaseColor.withValues(alpha: 0.4 + 0.1 * breathe),
+                            blurRadius: 12.0 + 4.0 * breathe,
+                            spreadRadius: 0,
+                          ),
+                        ]
+                      : null,
+                ),
+                child: _buildNodeIcon(),
+              );
+            },
+          ),
+        ],
       ),
     );
   }
 
-  Widget? _buildNodeIcon(double activeFactor) {
-    if (widget.isEaten && !widget.isExpanded) {
+  Widget? _buildNodeIcon() {
+    if (widget.isExpanded) {
+      return Center(
+        child: Icon(
+          widget.phase.phaseIcon,
+          color: Colors.white,
+          size: 13,
+        ),
+      );
+    }
+
+    if (widget.isEaten) {
       return const Center(
         child: Icon(
           Icons.check_rounded,
@@ -2075,21 +2177,18 @@ class _TimelineSegmentState extends State<TimelineSegment> with SingleTickerProv
         ),
       );
     }
-    
-    if (widget.isExpanded && activeFactor > 0.25) {
-      return Center(
-        child: Opacity(
-          opacity: ((activeFactor - 0.25) / 0.75).clamp(0.0, 1.0),
-          child: Icon(
-            widget.phase.phaseIcon,
-            color: Colors.white,
-            size: 10 + (6 * activeFactor),
-          ),
-        ),
-      );
-    }
 
-    return null;
+    // Inactive: small center dot
+    return Center(
+      child: Container(
+        width: 4,
+        height: 4,
+        decoration: BoxDecoration(
+          shape: BoxShape.circle,
+          color: AppColors.textDisabled.withValues(alpha: 0.5),
+        ),
+      ),
+    );
   }
 }
 
@@ -2117,27 +2216,27 @@ class TimelinePainter extends CustomPainter {
     final double centerX = size.width / 2;
     final double centerY = size.height / 2;
 
+    // Inactive track paint — thin and subtle
     final paintTrack = Paint()
       ..color = inactiveColor
+      ..strokeWidth = 1.5
+      ..strokeCap = StrokeCap.round;
+
+    // Active track paint — uses the segment's own color, no inter-phase blending
+    final paintActive = Paint()
       ..strokeWidth = 2.5
       ..strokeCap = StrokeCap.round;
 
-    final paintActive = Paint()
-      ..strokeWidth = 3.5
-      ..strokeCap = StrokeCap.round;
-
-    // 1. Draw vertical track lines
+    // 1. Draw vertical inactive track lines
     if (index > 0) {
-      canvas.drawLine(Offset(centerX, 0), Offset(centerX, centerY), paintTrack);
+      canvas.drawLine(Offset(centerX, 0), Offset(centerX, centerY - 8), paintTrack);
     }
     if (index < 4) {
-      canvas.drawLine(Offset(centerX, centerY), Offset(centerX, size.height), paintTrack);
+      canvas.drawLine(Offset(centerX, centerY + 8), Offset(centerX, size.height), paintTrack);
     }
 
-    // 2. Draw vertical active track lines
-    final Color currColor = activeColorStart;
-
-    // Top active line
+    // 2. Draw vertical active track lines (solid color per segment)
+    // Top active line — uses this segment's color
     if (index > 0) {
       double topProgress = 0.0;
       if (progress >= index) {
@@ -2147,22 +2246,17 @@ class TimelinePainter extends CustomPainter {
       }
 
       if (topProgress > 0.0) {
-        final Color prevColor = DayPhaseTheme.phases[(index - 1).clamp(0, 4)].accentColor;
-        paintActive.shader = LinearGradient(
-          begin: Alignment.topCenter,
-          end: Alignment.bottomCenter,
-          colors: [prevColor, Color.lerp(prevColor, currColor, topProgress)!],
-        ).createShader(Rect.fromLTRB(centerX - 2, 0, centerX + 2, centerY));
-
+        paintActive.color = activeColorStart.withValues(alpha: 0.7);
+        paintActive.shader = null;
         canvas.drawLine(
           Offset(centerX, 0),
-          Offset(centerX, centerY * topProgress),
+          Offset(centerX, (centerY - 8) * topProgress),
           paintActive,
         );
       }
     }
 
-    // Bottom active line
+    // Bottom active line — uses this segment's color
     if (index < 4) {
       double bottomProgress = 0.0;
       if (progress >= index + 1) {
@@ -2172,40 +2266,31 @@ class TimelinePainter extends CustomPainter {
       }
 
       if (bottomProgress > 0.0) {
-        paintActive.shader = LinearGradient(
-          begin: Alignment.topCenter,
-          end: Alignment.bottomCenter,
-          colors: [currColor, Color.lerp(currColor, activeColorEnd, bottomProgress)!],
-        ).createShader(Rect.fromLTRB(centerX - 2, centerY, centerX + 2, size.height));
-
+        paintActive.color = activeColorStart.withValues(alpha: 0.7);
+        paintActive.shader = null;
         canvas.drawLine(
-          Offset(centerX, centerY),
-          Offset(centerX, centerY + (size.height - centerY) * bottomProgress),
+          Offset(centerX, centerY + 8),
+          Offset(centerX, (centerY + 8) + (size.height - centerY - 8) * bottomProgress),
           paintActive,
         );
       }
     }
 
-    // 3. Draw horizontal connector line
+    // 3. Draw horizontal connector line to the card
     final connectorPaint = Paint()
       ..strokeCap = StrokeCap.round
-      ..strokeWidth = isExpanded ? 3.0 : 2.0;
+      ..strokeWidth = isExpanded ? 2.0 : 1.5;
 
     if (isExpanded) {
-      connectorPaint.shader = LinearGradient(
-        colors: [
-          activeColorStart,
-          activeColorStart.withValues(alpha: 0.5),
-        ],
-      ).createShader(Rect.fromLTRB(centerX, centerY - 1.5, size.width, centerY + 1.5));
-    } else if (isEaten) {
       connectorPaint.color = activeColorStart.withValues(alpha: 0.6);
+    } else if (isEaten) {
+      connectorPaint.color = activeColorStart.withValues(alpha: 0.35);
     } else {
-      connectorPaint.color = inactiveColor;
+      connectorPaint.color = inactiveColor.withValues(alpha: 0.4);
     }
 
     canvas.drawLine(
-      Offset(centerX, centerY),
+      Offset(centerX + 6, centerY),
       Offset(size.width, centerY),
       connectorPaint,
     );
