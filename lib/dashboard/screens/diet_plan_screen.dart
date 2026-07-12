@@ -1,4 +1,4 @@
-import 'dart:ui';
+import 'dart:math' as math;
 import 'package:flutter/material.dart';
 import 'package:flutter_animate/flutter_animate.dart';
 import '../../theme/app_theme.dart';
@@ -21,7 +21,6 @@ class _DietPlanContentState extends State<DietPlanContent> {
   final int _proteinTarget = 140;
   final int _carbsTarget = 220;
   final int _fatsTarget = 70;
-  final double _waterTarget = 4.0;
 
   // Current consumption
   int _caloriesConsumed = 1250;
@@ -99,20 +98,154 @@ class _DietPlanContentState extends State<DietPlanContent> {
   final List<Map<String, dynamic>> _insights = [
     {
       'text': 'You\'re on track to reach today\'s protein goal.',
-      'icon': Icons.trending_up_rounded,
+      'icon': Icons.check_circle_outline_rounded,
       'color': AppColors.accentBlue,
     },
     {
-      'text': 'Increase water intake by 500ml this afternoon.',
+      'text': 'Drink another 500 ml of water before this afternoon.',
       'icon': Icons.water_drop_rounded,
       'color': AppColors.accentCyan,
     },
     {
-      'text': 'Adding one fruit serving will improve fiber intake.',
+      'text': 'Adding one fruit serving will improve today\'s fiber intake.',
       'icon': Icons.eco_rounded,
       'color': AppColors.accentPurple,
     },
   ];
+
+  bool _tomorrowExpanded = false;
+
+  // Timeline animations & tracking
+  final ValueNotifier<double> _timelineProgressNotifier = ValueNotifier<double>(0.0);
+  final ValueNotifier<int> _activeMealIndexNotifier = ValueNotifier<int>(0);
+  final GlobalKey _containerKey = GlobalKey();
+  final List<GlobalKey> _mealKeys = List.generate(5, (_) => GlobalKey());
+  List<double> _cardCentersInContainer = [120, 360, 600, 840, 1080];
+  int _expandedMealIndex = 0;
+  int _backdropTargetIndex = 0;
+
+  int _getMealIndexByCurrentTime() {
+    final now = DateTime.now();
+    final hour = now.hour;
+    final minute = now.minute;
+    final double timeAsDouble = hour + (minute / 60.0);
+
+    if (timeAsDouble < 9.25) {
+      return 0; // Breakfast
+    } else if (timeAsDouble < 11.75) {
+      return 1; // Morning Snack
+    } else if (timeAsDouble < 14.75) {
+      return 2; // Lunch
+    } else if (timeAsDouble < 18.0) {
+      return 3; // Evening Snack
+    } else {
+      return 4; // Dinner
+    }
+  }
+
+  String _getShortMealType(String type) {
+    if (type == 'Morning Snack') return 'Morning';
+    if (type == 'Evening Snack') return 'Evening';
+    return type;
+  }
+
+  @override
+  void initState() {
+    super.initState();
+    _expandedMealIndex = _getMealIndexByCurrentTime();
+    _backdropTargetIndex = _expandedMealIndex;
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      _calculateTimelineProgress();
+    });
+  }
+
+  @override
+  void dispose() {
+    _timelineProgressNotifier.dispose();
+    _activeMealIndexNotifier.dispose();
+    super.dispose();
+  }
+
+  bool _onScrollNotification(ScrollNotification notification) {
+    _calculateTimelineProgress();
+    return false;
+  }
+
+  void _calculateTimelineProgress() {
+    if (!mounted) return;
+    final RenderBox? scrollBox = context.findRenderObject() as RenderBox?;
+    if (scrollBox == null || !scrollBox.hasSize) return;
+
+    final double viewportHeight = scrollBox.size.height;
+    final double triggerY = viewportHeight * 0.45;
+
+    List<double> cardYs = [];
+    for (int i = 0; i < 5; i++) {
+      final key = _mealKeys[i];
+      final cardContext = key.currentContext;
+      if (cardContext != null) {
+        final box = cardContext.findRenderObject() as RenderBox?;
+        if (box != null && box.hasSize) {
+          final localPoint = box.localToGlobal(
+            Offset(0, box.size.height / 2),
+            ancestor: scrollBox,
+          );
+          cardYs.add(localPoint.dy);
+        }
+      }
+    }
+
+    final containerBox = _containerKey.currentContext?.findRenderObject() as RenderBox?;
+    if (containerBox != null && containerBox.hasSize) {
+      List<double> centers = [];
+      for (int i = 0; i < 5; i++) {
+        final key = _mealKeys[i];
+        final cardContext = key.currentContext;
+        if (cardContext != null) {
+          final box = cardContext.findRenderObject() as RenderBox?;
+          if (box != null && box.hasSize) {
+            final localPoint = box.localToGlobal(
+              Offset(0, box.size.height / 2),
+              ancestor: containerBox,
+            );
+            centers.add(localPoint.dy);
+          }
+        }
+      }
+      if (centers.length == 5) {
+        _cardCentersInContainer = centers;
+      }
+    }
+
+    if (cardYs.length == 5) {
+      double activeProgress;
+      if (triggerY <= cardYs.first) {
+        activeProgress = 0.0;
+      } else if (triggerY >= cardYs.last) {
+        activeProgress = 4.0;
+      } else {
+        activeProgress = 0.0;
+        for (int i = 0; i < cardYs.length - 1; i++) {
+          final yA = cardYs[i];
+          final yB = cardYs[i + 1];
+          if (triggerY >= yA && triggerY <= yB) {
+            final t = (triggerY - yA) / (yB - yA);
+            activeProgress = i + t;
+            break;
+          }
+        }
+      }
+
+      if ((activeProgress - _timelineProgressNotifier.value).abs() > 0.001) {
+        _timelineProgressNotifier.value = activeProgress;
+        
+        int newIndex = activeProgress.round().clamp(0, 4);
+        if (newIndex != _activeMealIndexNotifier.value) {
+          _activeMealIndexNotifier.value = newIndex;
+        }
+      }
+    }
+  }
 
   int get _mealsCompleted => _meals.where((m) => m['eaten'] == true).length;
 
@@ -134,6 +267,9 @@ class _DietPlanContentState extends State<DietPlanContent> {
         _fatsConsumed -= meal['fat'] as int;
       }
     });
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      _calculateTimelineProgress();
+    });
   }
 
   String get _formattedDate {
@@ -148,69 +284,65 @@ class _DietPlanContentState extends State<DietPlanContent> {
 
   @override
   Widget build(BuildContext context) {
-    return CustomScrollView(
-      physics: const BouncingScrollPhysics(),
-      slivers: [
-        // Diet header
-        SliverToBoxAdapter(child: _buildDietHeader()),
+    return NotificationListener<ScrollNotification>(
+      onNotification: _onScrollNotification,
+      child: CustomScrollView(
+        physics: const BouncingScrollPhysics(),
+        slivers: [
+          // Diet header
+          SliverToBoxAdapter(child: _buildDietHeader()),
 
-        // Content
-        SliverPadding(
-          padding: const EdgeInsets.fromLTRB(20, 8, 20, 120),
-          sliver: SliverList(
-            delegate: SliverChildListDelegate([
-              // Nutrition summary hero
-              _buildNutritionSummary()
-                  .animate()
-                  .fadeIn(duration: 600.ms, delay: 100.ms)
-                  .slideY(begin: 0.06, end: 0, duration: 600.ms, delay: 100.ms),
+          // Content
+          SliverPadding(
+            padding: const EdgeInsets.fromLTRB(20, 8, 20, 120),
+            sliver: SliverList(
+              delegate: SliverChildListDelegate([
+                // Combined Nutrition & Meal Tracker Hero
+                _buildCombinedNutritionTracker()
+                    .animate()
+                    .fadeIn(duration: 600.ms, delay: 100.ms)
+                    .slideY(begin: 0.06, end: 0, duration: 600.ms, delay: 100.ms),
+                const SizedBox(height: 24),
+
+                // Meal timeline
+                _buildSectionLabel('MEAL PLAN'),
+                const SizedBox(height: 14),
+                _buildInteractiveTimelineSection(),
+                const SizedBox(height: 24),
+
               const SizedBox(height: 20),
 
-              // Meal completion progress
-              _buildMealCompletionBar()
-                  .animate()
-                  .fadeIn(duration: 500.ms, delay: 200.ms)
-                  .slideY(begin: 0.06, end: 0, duration: 500.ms, delay: 200.ms),
-              const SizedBox(height: 24),
-
-              // Meal timeline
-              _buildSectionLabel('MEAL PLAN'),
-              const SizedBox(height: 14),
-              ..._buildMealTimeline(),
-              const SizedBox(height: 24),
-
-              // AI Replacement section
-              _buildAIReplacementCard()
-                  .animate()
-                  .fadeIn(duration: 500.ms, delay: 600.ms)
-                  .slideY(begin: 0.06, end: 0, duration: 500.ms, delay: 600.ms),
-              const SizedBox(height: 24),
-
-              // Nutrition Insights
-              _buildSectionLabel('NUTRITION INSIGHTS'),
-              const SizedBox(height: 14),
-              _buildInsightsSection()
-                  .animate()
-                  .fadeIn(duration: 500.ms, delay: 700.ms)
-                  .slideY(begin: 0.06, end: 0, duration: 500.ms, delay: 700.ms),
-              const SizedBox(height: 24),
-
-              // Bottom CTAs
+              // Log Food Manually
               _buildLogFoodButton()
                   .animate()
-                  .fadeIn(duration: 500.ms, delay: 800.ms)
-                  .slideY(begin: 0.08, end: 0, duration: 500.ms, delay: 800.ms),
-              const SizedBox(height: 12),
-              _buildTomorrowPreview()
+                  .fadeIn(duration: 500.ms, delay: 300.ms)
+                  .slideY(begin: 0.05, end: 0, duration: 500.ms, delay: 300.ms),
+              const SizedBox(height: 28),
+
+              // Today's AI Coach
+              _buildSectionLabel('AI GUIDANCE'),
+              const SizedBox(height: 10),
+              _buildAICoachSection()
                   .animate()
-                  .fadeIn(duration: 500.ms, delay: 850.ms),
-              const SizedBox(height: 24),
+                  .fadeIn(duration: 500.ms, delay: 400.ms)
+                  .slideY(begin: 0.05, end: 0, duration: 500.ms, delay: 400.ms),
+              const SizedBox(height: 28),
+
+              // Tomorrow's Preview Card
+              _buildSectionLabel('FUTURE PLANNING'),
+              const SizedBox(height: 10),
+              _buildTomorrowPreviewCard()
+                  .animate()
+                  .fadeIn(duration: 500.ms, delay: 500.ms)
+                  .slideY(begin: 0.05, end: 0, duration: 500.ms, delay: 500.ms),
+              const SizedBox(height: 20),
             ]),
           ),
         ),
       ],
-    );
-  }
+    ),
+  );
+}
 
   // ─────────────────────────────────────────────
   // DIET HEADER (replaces back-button app bar)
@@ -309,146 +441,152 @@ class _DietPlanContentState extends State<DietPlanContent> {
   }
 
   // ─────────────────────────────────────────────
-  // NUTRITION SUMMARY HERO
+  // COMBINED NUTRITION & MEAL TRACKER HERO
   // ─────────────────────────────────────────────
 
-  Widget _buildNutritionSummary() {
+  Widget _buildCombinedNutritionTracker() {
+    final mealProgress = _mealsCompleted / _meals.length;
+
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         // Motivational text
         Container(
-          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
           decoration: BoxDecoration(
-            color: AppColors.accentPurple.withValues(alpha: 0.08),
-            borderRadius: BorderRadius.circular(10),
+            color: AppColors.accentPurple.withValues(alpha: 0.06),
+            borderRadius: BorderRadius.circular(8),
             border: Border.all(
-              color: AppColors.accentPurple.withValues(alpha: 0.15),
+              color: AppColors.accentPurple.withValues(alpha: 0.12),
             ),
           ),
           child: Row(
             mainAxisSize: MainAxisSize.min,
             children: [
-              const Text('✦', style: TextStyle(fontSize: 14)),
-              const SizedBox(width: 8),
+              const Text('✦', style: TextStyle(fontSize: 12)),
+              const SizedBox(width: 6),
               Text(
                 'Stay consistent. Every meal counts.',
                 style: AppTextStyles.bodyMedium.copyWith(
-                  color: AppColors.accentPurple.withValues(alpha: 0.9),
+                  color: AppColors.accentPurple.withValues(alpha: 0.8),
                   fontWeight: FontWeight.w500,
-                  fontSize: 13,
+                  fontSize: 12,
                 ),
               ),
             ],
           ),
         ),
-        const SizedBox(height: 16),
+        const SizedBox(height: 12),
 
-        // Hero nutrition card
+        // Unified Glass Card
         DashboardGlassCard(
-          padding: const EdgeInsets.all(22),
+          padding: const EdgeInsets.all(16),
           gradient: LinearGradient(
             begin: Alignment.topLeft,
             end: Alignment.bottomRight,
             colors: [
-              AppColors.accentBlue.withValues(alpha: 0.07),
+              AppColors.accentBlue.withValues(alpha: 0.08),
               AppColors.accentPurple.withValues(alpha: 0.04),
             ],
           ),
           child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              // Calorie ring + label
-              TweenAnimationBuilder<double>(
-                tween: Tween(begin: 0, end: _caloriesConsumed / _caloriesTarget),
-                duration: const Duration(milliseconds: 1400),
-                curve: Curves.easeOutCubic,
-                builder: (context, progress, _) {
-                  return RadialProgress(
-                    progress: progress,
-                    size: 160,
-                    strokeWidth: 12,
-                    progressColor: AppColors.accentBlue,
-                    child: Column(
-                      mainAxisAlignment: MainAxisAlignment.center,
-                      children: [
-                        const Text('🔥', style: TextStyle(fontSize: 22)),
-                        const SizedBox(height: 4),
-                        TweenAnimationBuilder<double>(
-                          tween: Tween(begin: 0, end: _caloriesConsumed.toDouble()),
-                          duration: const Duration(milliseconds: 1200),
-                          curve: Curves.easeOutCubic,
-                          builder: (context, val, _) {
-                            return Text(
-                              '${val.toInt()}',
-                              style: AppTextStyles.headlineMedium.copyWith(
-                                fontWeight: FontWeight.w800,
-                                fontSize: 28,
-                                height: 1,
-                              ),
-                            );
-                          },
-                        ),
-                        Text(
-                          '/ $_caloriesTarget cal',
-                          style: AppTextStyles.caption.copyWith(
-                            color: AppColors.textTertiary,
-                          ),
-                        ),
-                      ],
-                    ),
-                  );
-                },
-              ),
-              const SizedBox(height: 20),
-
-              // Macro row
+              // Upper Half: Meal Completion Line
               Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
                 children: [
-                  _buildMiniMacro(
-                    emoji: '💪',
-                    label: 'Protein',
-                    current: _proteinConsumed,
-                    target: _proteinTarget,
-                    unit: 'g',
-                    color: AppColors.accentBlue,
+                  Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        'Meal Plan Progress',
+                        style: AppTextStyles.labelLarge.copyWith(
+                          fontWeight: FontWeight.w700,
+                          fontSize: 13,
+                          letterSpacing: 0.2,
+                        ),
+                      ),
+                      const SizedBox(height: 2),
+                      Text(
+                        '$_mealsCompleted of ${_meals.length} meals eaten',
+                        style: AppTextStyles.caption.copyWith(
+                          color: AppColors.textTertiary,
+                          fontSize: 11,
+                        ),
+                      ),
+                    ],
                   ),
-                  _buildMacroDivider(),
-                  _buildMiniMacro(
-                    emoji: '🌾',
-                    label: 'Carbs',
-                    current: _carbsConsumed,
-                    target: _carbsTarget,
-                    unit: 'g',
-                    color: AppColors.accentPurple,
-                  ),
-                  _buildMacroDivider(),
-                  _buildMiniMacro(
-                    emoji: '🥑',
-                    label: 'Fats',
-                    current: _fatsConsumed,
-                    target: _fatsTarget,
-                    unit: 'g',
-                    color: AppColors.accentCoral,
-                  ),
-                  _buildMacroDivider(),
-                  _buildMiniMacro(
-                    emoji: '💧',
-                    label: 'Water',
-                    current: 2,
-                    target: _waterTarget.toInt(),
-                    unit: 'L',
-                    color: AppColors.accentCyan,
+                  Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                    decoration: BoxDecoration(
+                      color: AppColors.accentBlue.withValues(alpha: 0.1),
+                      borderRadius: BorderRadius.circular(8),
+                    ),
+                    child: Text(
+                      '${(mealProgress * 100).round()}%',
+                      style: AppTextStyles.caption.copyWith(
+                        color: AppColors.accentBlue,
+                        fontWeight: FontWeight.w700,
+                      ),
+                    ),
                   ),
                 ],
               ),
-              const SizedBox(height: 16),
+              const SizedBox(height: 10),
+              LinearProgressBar(
+                progress: mealProgress,
+                color: AppColors.accentBlue,
+                height: 4,
+              ),
 
-              // Progress bars for each macro
-              _buildMacroProgressRow('Protein', _proteinConsumed, _proteinTarget, AppColors.accentBlue),
-              const SizedBox(height: 8),
-              _buildMacroProgressRow('Carbs', _carbsConsumed, _carbsTarget, AppColors.accentPurple),
-              const SizedBox(height: 8),
-              _buildMacroProgressRow('Fats', _fatsConsumed, _fatsTarget, AppColors.accentCoral),
+              // Spacer Divider
+              Padding(
+                padding: const EdgeInsets.symmetric(vertical: 16),
+                child: Container(
+                  height: 1,
+                  color: AppColors.glassBorder,
+                ),
+              ),
+
+              // Lower Half: 4 Radial Progress Indicators arranged horizontally
+              Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: [
+                  _buildRadialMetric(
+                    emoji: '🔥',
+                    label: 'Calories',
+                    progress: _caloriesConsumed / _caloriesTarget,
+                    current: '$_caloriesConsumed',
+                    target: '$_caloriesTarget',
+                    color: AppColors.accentBlue,
+                  ),
+                  _buildRadialMetric(
+                    emoji: '💪',
+                    label: 'Protein',
+                    progress: _proteinConsumed / _proteinTarget,
+                    current: '${_proteinConsumed}g',
+                    target: '${_proteinTarget}g',
+                    color: AppColors.accentBlue,
+                  ),
+                  _buildRadialMetric(
+                    emoji: '🌾',
+                    label: 'Carbs',
+                    progress: _carbsConsumed / _carbsTarget,
+                    current: '${_carbsConsumed}g',
+                    target: '${_carbsTarget}g',
+                    color: AppColors.accentPurple,
+                  ),
+                  _buildRadialMetric(
+                    emoji: '🥑',
+                    label: 'Fats',
+                    progress: _fatsConsumed / _fatsTarget,
+                    current: '${_fatsConsumed}g',
+                    target: '${_fatsTarget}g',
+                    color: AppColors.accentCoral,
+                  ),
+                ],
+              ),
             ],
           ),
         ),
@@ -456,156 +594,60 @@ class _DietPlanContentState extends State<DietPlanContent> {
     );
   }
 
-  Widget _buildMiniMacro({
+  Widget _buildRadialMetric({
     required String emoji,
     required String label,
-    required int current,
-    required int target,
-    required String unit,
+    required double progress,
+    required String current,
+    required String target,
     required Color color,
   }) {
     return Expanded(
       child: Column(
+        mainAxisSize: MainAxisSize.min,
         children: [
-          Text(emoji, style: const TextStyle(fontSize: 18)),
-          const SizedBox(height: 6),
-          Text(
-            '$current$unit',
-            style: AppTextStyles.labelLarge.copyWith(
-              fontWeight: FontWeight.w700,
-              fontSize: 14,
-              color: color,
+          RadialProgress(
+            progress: progress,
+            size: 52,
+            strokeWidth: 4.5,
+            progressColor: color,
+            child: Center(
+              child: Text(
+                emoji,
+                style: const TextStyle(fontSize: 15),
+              ),
             ),
           ),
+          const SizedBox(height: 8),
           Text(
-            '/ $target$unit',
+            label,
             style: AppTextStyles.caption.copyWith(
-              color: AppColors.textTertiary,
+              color: AppColors.textSecondary,
+              fontWeight: FontWeight.w600,
               fontSize: 10,
             ),
           ),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildMacroDivider() {
-    return Container(
-      width: 1,
-      height: 40,
-      color: AppColors.glassBorder,
-    );
-  }
-
-  Widget _buildMacroProgressRow(String label, int current, int target, Color color) {
-    return Row(
-      children: [
-        SizedBox(
-          width: 52,
-          child: Text(
-            label,
-            style: AppTextStyles.caption.copyWith(
-              color: AppColors.textTertiary,
-              fontSize: 11,
-            ),
-          ),
-        ),
-        Expanded(
-          child: LinearProgressBar(
-            progress: current / target,
-            color: color,
-            height: 5,
-          ),
-        ),
-        const SizedBox(width: 10),
-        Text(
-          '${(current / target * 100).round()}%',
-          style: AppTextStyles.caption.copyWith(
-            color: color,
-            fontWeight: FontWeight.w600,
-            fontSize: 11,
-          ),
-        ),
-      ],
-    );
-  }
-
-  // ─────────────────────────────────────────────
-  // MEAL COMPLETION BAR
-  // ─────────────────────────────────────────────
-
-  Widget _buildMealCompletionBar() {
-    final progress = _mealsCompleted / _meals.length;
-
-    return DashboardGlassCard(
-      padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 14),
-      borderRadius: 16,
-      child: Row(
-        children: [
-          Container(
-            width: 38,
-            height: 38,
-            decoration: BoxDecoration(
-              borderRadius: BorderRadius.circular(11),
-              color: AppColors.accentBlue.withValues(alpha: 0.12),
-            ),
-            child: Center(
-              child: Text(
-                '$_mealsCompleted',
-                style: AppTextStyles.titleMedium.copyWith(
-                  fontWeight: FontWeight.w800,
-                  color: AppColors.accentBlue,
-                  fontSize: 16,
-                ),
-              ),
-            ),
-          ),
-          const SizedBox(width: 14),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
+          const SizedBox(height: 2),
+          RichText(
+            textAlign: TextAlign.center,
+            text: TextSpan(
+              style: AppTextStyles.caption.copyWith(fontSize: 9),
               children: [
-                RichText(
-                  text: TextSpan(
-                    children: [
-                      TextSpan(
-                        text: '$_mealsCompleted / ${_meals.length} ',
-                        style: AppTextStyles.labelLarge.copyWith(
-                          fontWeight: FontWeight.w600,
-                          fontSize: 13,
-                        ),
-                      ),
-                      TextSpan(
-                        text: 'Meals Completed',
-                        style: AppTextStyles.caption.copyWith(
-                          color: AppColors.textTertiary,
-                        ),
-                      ),
-                    ],
+                TextSpan(
+                  text: current,
+                  style: TextStyle(
+                    fontWeight: FontWeight.w700,
+                    color: color,
                   ),
                 ),
-                const SizedBox(height: 8),
-                LinearProgressBar(
-                  progress: progress,
-                  color: AppColors.accentBlue,
-                  height: 5,
+                TextSpan(
+                  text: '\n/$target',
+                  style: TextStyle(
+                    color: AppColors.textTertiary,
+                    fontSize: 8.5,
+                  ),
                 ),
               ],
-            ),
-          ),
-          const SizedBox(width: 12),
-          Container(
-            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-            decoration: BoxDecoration(
-              color: AppColors.accentBlue.withValues(alpha: 0.1),
-              borderRadius: BorderRadius.circular(8),
-            ),
-            child: Text(
-              '${(progress * 100).round()}%',
-              style: AppTextStyles.caption.copyWith(
-                color: AppColors.accentBlue,
-                fontWeight: FontWeight.w700,
-              ),
             ),
           ),
         ],
@@ -617,319 +659,631 @@ class _DietPlanContentState extends State<DietPlanContent> {
   // MEAL TIMELINE
   // ─────────────────────────────────────────────
 
-  List<Widget> _buildMealTimeline() {
-    return _meals.asMap().entries.map((entry) {
-      final index = entry.key;
-      final meal = entry.value;
-      final isSnack = meal['isSnack'] == true;
-      final delay = 300 + (index * 80);
+  Widget _buildInteractiveTimelineSection() {
+    return Container(
+      key: _containerKey,
+      decoration: BoxDecoration(
+        borderRadius: BorderRadius.circular(24),
+        border: Border.all(color: AppColors.glassBorder),
+      ),
+      child: ClipRRect(
+        borderRadius: BorderRadius.circular(24),
+        child: Stack(
+          children: [
+            // 1. Sky Backdrop
+            Positioned.fill(
+              child: TweenAnimationBuilder<double>(
+                tween: Tween<double>(end: _backdropTargetIndex.toDouble()),
+                duration: const Duration(milliseconds: 500),
+                curve: Curves.easeInOutCubic,
+                builder: (context, progress, child) {
+                  return CustomPaint(
+                    painter: SkyBackdropPainter(
+                      progress: progress,
+                      cardCenters: _cardCentersInContainer,
+                    ),
+                  );
+                },
+              ),
+            ),
+            
+            // 2. Content rows
+            Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 16),
+              child: Column(
+                children: _meals.asMap().entries.map((entry) {
+                  final index = entry.key;
+                  final meal = entry.value;
+                  final isSnack = meal['isSnack'] == true;
+                  final phase = DayPhaseTheme.phases[index];
+                  final isExpanded = index == _expandedMealIndex;
+                  final isEaten = meal['eaten'] == true;
 
-      return Padding(
-        padding: EdgeInsets.only(bottom: index < _meals.length - 1 ? 12 : 0),
-        child: (isSnack
-            ? _buildSnackCard(meal, index)
-            : _buildFullMealCard(meal, index))
-            .animate()
-            .fadeIn(duration: 500.ms, delay: Duration(milliseconds: delay))
-            .slideY(begin: 0.06, end: 0, duration: 500.ms, delay: Duration(milliseconds: delay)),
-      );
-    }).toList();
+                  return IntrinsicHeight(
+                    child: Row(
+                      crossAxisAlignment: CrossAxisAlignment.stretch,
+                      children: [
+                        // Left timeline line & node
+                        TimelineSegment(
+                          index: index,
+                          progressNotifier: _timelineProgressNotifier,
+                          phase: phase,
+                          isExpanded: isExpanded,
+                          isEaten: isEaten,
+                        ),
+                        // Right meal card (tappable to expand)
+                        Expanded(
+                          child: Padding(
+                            padding: const EdgeInsets.symmetric(vertical: 8),
+                            child: GestureDetector(
+                              onTap: () {
+                                setState(() {
+                                  if (_expandedMealIndex == index) {
+                                    _expandedMealIndex = -1;
+                                  } else {
+                                    _expandedMealIndex = index;
+                                    _backdropTargetIndex = index;
+                                  }
+                                });
+                                WidgetsBinding.instance.addPostFrameCallback((_) {
+                                  _calculateTimelineProgress();
+                                });
+                              },
+                              child: Container(
+                                key: _mealKeys[index],
+                                child: isSnack
+                                    ? _buildSnackCard(meal, index, phase, isExpanded, isEaten)
+                                    : _buildFullMealCard(meal, index, phase, isExpanded, isEaten),
+                              ),
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                  );
+                }).toList(),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
   }
 
-  Widget _buildFullMealCard(Map<String, dynamic> meal, int index) {
-    final isEaten = meal['eaten'] as bool;
-    final ingredients = (meal['ingredients'] as List<String>);
+  Widget _buildFullMealCard(
+    Map<String, dynamic> meal,
+    int index,
+    DayPhaseTheme phase,
+    bool isExpanded,
+    bool isEaten,
+  ) {
+    final phaseColor = phase.accentColor;
 
-    return DashboardGlassCard(
-      padding: const EdgeInsets.all(18),
-      borderRadius: 20,
-      borderColor: isEaten
-          ? AppColors.accentBlue.withValues(alpha: 0.2)
-          : AppColors.glassBorder,
-      gradient: isEaten
-          ? LinearGradient(
-              begin: Alignment.topLeft,
-              end: Alignment.bottomRight,
-              colors: [
-                AppColors.accentBlue.withValues(alpha: 0.05),
-                AppColors.glassBg,
-              ],
-            )
-          : null,
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          // Meal header
-          Row(
-            children: [
-              Container(
-                width: 52,
-                height: 52,
-                decoration: BoxDecoration(
-                  color: AppColors.bgTertiary,
-                  borderRadius: BorderRadius.circular(16),
-                ),
-                child: Center(
-                  child: Text(
-                    meal['icon'],
-                    style: const TextStyle(fontSize: 26),
+    // 1. COMPLETED STATE (Muted & Balanced Compact)
+    if (isEaten && !isExpanded) {
+      return DashboardGlassCard(
+        padding: EdgeInsets.zero,
+        borderRadius: 14,
+        borderColor: phaseColor.withValues(alpha: 0.15),
+        gradient: LinearGradient(
+          colors: [
+            AppColors.bgPrimary.withValues(alpha: 0.5),
+            AppColors.bgSecondary.withValues(alpha: 0.45),
+          ],
+        ),
+        child: AnimatedSize(
+          duration: const Duration(milliseconds: 300),
+          curve: Curves.easeInOut,
+          child: IntrinsicHeight(
+            child: Row(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                // Flush Left Accent Indicator
+                Container(
+                  width: 4,
+                  decoration: BoxDecoration(
+                    color: phaseColor.withValues(alpha: 0.65),
+                    borderRadius: const BorderRadius.only(
+                      topLeft: Radius.circular(14),
+                      bottomLeft: Radius.circular(14),
+                    ),
                   ),
                 ),
-              ),
-              const SizedBox(width: 14),
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Row(
+                const SizedBox(width: 12),
+                // Content Row
+                Expanded(
+                  child: Padding(
+                    padding: const EdgeInsets.fromLTRB(0, 11, 14, 11),
+                    child: Row(
                       children: [
-                        Container(
-                          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
-                          decoration: BoxDecoration(
-                            color: AppColors.bgTertiary,
-                            borderRadius: BorderRadius.circular(6),
-                          ),
-                          child: Text(
-                            meal['type'],
-                            style: AppTextStyles.caption.copyWith(
-                              color: AppColors.textTertiary,
-                              fontSize: 10,
-                              fontWeight: FontWeight.w600,
-                              letterSpacing: 0.5,
-                            ),
+                        // Muted checkmark
+                        Icon(
+                          Icons.check_circle_rounded,
+                          color: phaseColor.withValues(alpha: 0.7),
+                          size: 16,
+                        ),
+                        const SizedBox(width: 8),
+                        // Meal icon
+                        Text(meal['icon'], style: const TextStyle(fontSize: 16)),
+                        const SizedBox(width: 8),
+                        // Name and Time
+                        Expanded(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              Text(
+                                meal['name'],
+                                style: AppTextStyles.labelLarge.copyWith(
+                                  color: AppColors.textSecondary.withValues(alpha: 0.75),
+                                  fontSize: 12.5,
+                                  fontWeight: FontWeight.w600,
+                                ),
+                                maxLines: 1,
+                                overflow: TextOverflow.ellipsis,
+                              ),
+                              const SizedBox(height: 1),
+                              Row(
+                                children: [
+                                  Flexible(
+                                    child: Text(
+                                      _getShortMealType(meal['type']).toUpperCase(),
+                                      style: AppTextStyles.caption.copyWith(
+                                        color: phaseColor.withValues(alpha: 0.75),
+                                        fontWeight: FontWeight.w800,
+                                        letterSpacing: 0.8,
+                                        fontSize: 9,
+                                      ),
+                                      maxLines: 1,
+                                      overflow: TextOverflow.ellipsis,
+                                    ),
+                                  ),
+                                  const SizedBox(width: 6),
+                                  Text(
+                                    meal['time'],
+                                    style: AppTextStyles.caption.copyWith(
+                                      color: AppColors.textSecondary.withValues(alpha: 0.55),
+                                      fontSize: 9,
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ],
                           ),
                         ),
                         const SizedBox(width: 8),
-                        Text(
-                          meal['time'],
-                          style: AppTextStyles.caption.copyWith(
-                            color: AppColors.textTertiary,
-                            fontSize: 10,
-                          ),
+                        // Quick macros
+                        Column(
+                          crossAxisAlignment: CrossAxisAlignment.end,
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            Text(
+                              '${meal['calories']} cal',
+                              style: AppTextStyles.caption.copyWith(
+                                color: AppColors.textSecondary.withValues(alpha: 0.75),
+                                fontSize: 10.5,
+                                fontWeight: FontWeight.w600,
+                              ),
+                            ),
+                            Text(
+                              '${meal['protein']}g prot',
+                              style: AppTextStyles.caption.copyWith(
+                                color: AppColors.textTertiary.withValues(alpha: 0.7),
+                                fontSize: 9,
+                              ),
+                            ),
+                          ],
                         ),
-                        if (isEaten) ...[
-                          const SizedBox(width: 8),
-                          Container(
-                            width: 18,
-                            height: 18,
-                            decoration: const BoxDecoration(
-                              color: AppColors.accentBlue,
-                              shape: BoxShape.circle,
-                            ),
-                            child: const Icon(
-                              Icons.check_rounded,
-                              size: 12,
-                              color: Colors.white,
-                            ),
-                          ),
-                        ],
                       ],
                     ),
-                    const SizedBox(height: 4),
-                    Text(
-                      meal['name'],
-                      style: AppTextStyles.titleMedium.copyWith(
-                        fontWeight: FontWeight.w700,
-                        fontSize: 16,
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-            ],
-          ),
-          const SizedBox(height: 16),
-
-          // Macro chips
-          Row(
-            children: [
-              _buildNutrientChip('${meal['calories']}', 'cal', AppColors.accentCoral),
-              const SizedBox(width: 8),
-              _buildNutrientChip('${meal['protein']}g', 'protein', AppColors.accentBlue),
-              const SizedBox(width: 8),
-              _buildNutrientChip('${meal['carbs']}g', 'carbs', AppColors.accentPurple),
-              const SizedBox(width: 8),
-              _buildNutrientChip('${meal['fat']}g', 'fat', AppColors.accentOrange),
-            ],
-          ),
-          const SizedBox(height: 14),
-
-          // Ingredients preview
-          Wrap(
-            spacing: 6,
-            runSpacing: 6,
-            children: ingredients.map((ing) => Container(
-              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
-              decoration: BoxDecoration(
-                color: AppColors.bgSecondary,
-                borderRadius: BorderRadius.circular(8),
-                border: Border.all(color: AppColors.glassBorder),
-              ),
-              child: Text(
-                ing,
-                style: AppTextStyles.caption.copyWith(
-                  color: AppColors.textSecondary,
-                  fontSize: 11,
-                ),
-              ),
-            )).toList(),
-          ),
-          const SizedBox(height: 16),
-
-          // Action buttons
-          Row(
-            children: [
-              Expanded(
-                child: _buildMealAction(
-                  label: isEaten ? 'Eaten ✓' : 'Mark as Eaten',
-                  color: isEaten ? AppColors.accentBlue : AppColors.textTertiary,
-                  filled: isEaten,
-                  onTap: () => _toggleMealEaten(index),
-                ),
-              ),
-              const SizedBox(width: 8),
-              Expanded(
-                child: _buildMealAction(
-                  label: 'Replace',
-                  color: AppColors.textTertiary,
-                  filled: false,
-                  onTap: () {},
-                ),
-              ),
-              const SizedBox(width: 8),
-              Expanded(
-                child: _buildMealAction(
-                  label: 'Recipe',
-                  color: AppColors.textTertiary,
-                  filled: false,
-                  onTap: () {},
-                ),
-              ),
-            ],
-          ),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildSnackCard(Map<String, dynamic> meal, int index) {
-    final isEaten = meal['eaten'] as bool;
-
-    return DashboardGlassCard(
-      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
-      borderRadius: 16,
-      borderColor: isEaten
-          ? AppColors.accentBlue.withValues(alpha: 0.18)
-          : AppColors.glassBorder,
-      child: Row(
-        children: [
-          Container(
-            width: 44,
-            height: 44,
-            decoration: BoxDecoration(
-              color: AppColors.bgTertiary,
-              borderRadius: BorderRadius.circular(13),
-            ),
-            child: Center(
-              child: Text(meal['icon'], style: const TextStyle(fontSize: 22)),
-            ),
-          ),
-          const SizedBox(width: 14),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Row(
-                  children: [
-                    Container(
-                      padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 2),
-                      decoration: BoxDecoration(
-                        color: AppColors.bgTertiary,
-                        borderRadius: BorderRadius.circular(5),
-                      ),
-                      child: Text(
-                        meal['type'],
-                        style: AppTextStyles.caption.copyWith(
-                          color: AppColors.textTertiary,
-                          fontSize: 9,
-                          fontWeight: FontWeight.w600,
-                        ),
-                      ),
-                    ),
-                    const SizedBox(width: 6),
-                    Text(
-                      meal['time'],
-                      style: AppTextStyles.caption.copyWith(
-                        color: AppColors.textTertiary,
-                        fontSize: 10,
-                      ),
-                    ),
-                  ],
-                ),
-                const SizedBox(height: 3),
-                Text(
-                  meal['name'],
-                  style: AppTextStyles.labelLarge.copyWith(
-                    fontWeight: FontWeight.w600,
-                    fontSize: 14,
                   ),
                 ),
               ],
             ),
           ),
-          Column(
-            crossAxisAlignment: CrossAxisAlignment.end,
+        ),
+      );
+    }
+
+    // 2. UPCOMING STATE (Compact & Readable)
+    if (!isEaten && !isExpanded) {
+      return DashboardGlassCard(
+        padding: EdgeInsets.zero,
+        borderRadius: 14,
+        borderColor: AppColors.glassBorder,
+        gradient: LinearGradient(
+          colors: [
+            AppColors.bgPrimary.withValues(alpha: 0.6),
+            AppColors.bgSecondary.withValues(alpha: 0.55),
+          ],
+        ),
+        child: AnimatedSize(
+          duration: const Duration(milliseconds: 300),
+          curve: Curves.easeInOut,
+          child: IntrinsicHeight(
+            child: Row(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                // Flush Left Accent Indicator
+                Container(
+                  width: 4,
+                  decoration: BoxDecoration(
+                    color: phaseColor.withValues(alpha: 0.45),
+                    borderRadius: const BorderRadius.only(
+                      topLeft: Radius.circular(14),
+                      bottomLeft: Radius.circular(14),
+                    ),
+                  ),
+                ),
+                const SizedBox(width: 12),
+                // Content Row
+                Expanded(
+                  child: Padding(
+                    padding: const EdgeInsets.fromLTRB(0, 11, 14, 11),
+                    child: Row(
+                      children: [
+                        // Mini icon badge
+                        Container(
+                          width: 28,
+                          height: 28,
+                          decoration: BoxDecoration(
+                            shape: BoxShape.circle,
+                            border: Border.all(color: phaseColor.withValues(alpha: 0.3)),
+                            color: AppColors.bgTertiary.withValues(alpha: 0.4),
+                          ),
+                          alignment: Alignment.center,
+                          child: Text(meal['icon'], style: const TextStyle(fontSize: 14)),
+                        ),
+                        const SizedBox(width: 8),
+                        // Type, Name, Time
+                        Expanded(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              Text(
+                                meal['name'],
+                                style: AppTextStyles.labelLarge.copyWith(
+                                  fontSize: 13,
+                                  fontWeight: FontWeight.w600,
+                                ),
+                                maxLines: 1,
+                                overflow: TextOverflow.ellipsis,
+                              ),
+                              const SizedBox(height: 1),
+                              Row(
+                                children: [
+                                  Flexible(
+                                    child: Text(
+                                      _getShortMealType(meal['type']).toUpperCase(),
+                                      style: AppTextStyles.caption.copyWith(
+                                        color: phaseColor,
+                                        fontWeight: FontWeight.w800,
+                                        letterSpacing: 0.8,
+                                        fontSize: 9,
+                                      ),
+                                      maxLines: 1,
+                                      overflow: TextOverflow.ellipsis,
+                                    ),
+                                  ),
+                                  const SizedBox(width: 6),
+                                  Text(
+                                    meal['time'],
+                                    style: AppTextStyles.caption.copyWith(
+                                      color: AppColors.textTertiary,
+                                      fontSize: 9,
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ],
+                          ),
+                        ),
+                        const SizedBox(width: 6),
+                        // Macros & circular check marker
+                        Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            Column(
+                              crossAxisAlignment: CrossAxisAlignment.end,
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                Text(
+                                  '${meal['calories']} cal',
+                                  style: AppTextStyles.caption.copyWith(
+                                    color: phaseColor,
+                                    fontWeight: FontWeight.w700,
+                                    fontSize: 11,
+                                  ),
+                                ),
+                                Text(
+                                  '${meal['protein']}g prot',
+                                  style: AppTextStyles.caption.copyWith(
+                                    color: AppColors.textSecondary,
+                                    fontSize: 9.5,
+                                  ),
+                                ),
+                              ],
+                            ),
+                            const SizedBox(width: 8),
+                            Container(
+                              width: 18,
+                              height: 18,
+                              decoration: BoxDecoration(
+                                shape: BoxShape.circle,
+                                border: Border.all(color: AppColors.textDisabled, width: 1.5),
+                              ),
+                            ),
+                          ],
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
+      );
+    }
+
+    // 3. EXPANDED STATE (Rich, Highlighted, Spacing Tightened)
+    final ingredients = (meal['ingredients'] as List<String>);
+    return DashboardGlassCard(
+      padding: EdgeInsets.zero,
+      borderRadius: 18,
+      borderColor: phaseColor.withValues(alpha: 0.35),
+      gradient: LinearGradient(
+        begin: Alignment.topLeft,
+        end: Alignment.bottomRight,
+        colors: [
+          AppColors.bgPrimary.withValues(alpha: isEaten ? 0.8 : 0.75),
+          AppColors.bgSecondary.withValues(alpha: isEaten ? 0.75 : 0.7),
+        ],
+      ),
+      child: AnimatedSize(
+        duration: const Duration(milliseconds: 300),
+        curve: Curves.easeInOut,
+        child: IntrinsicHeight(
+          child: Row(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
-              Text(
-                '${meal['calories']} cal',
-                style: AppTextStyles.labelLarge.copyWith(
-                  color: AppColors.accentBlue,
-                  fontWeight: FontWeight.w600,
-                  fontSize: 13,
+              // Flush Left Accent Indicator
+              Container(
+                width: 4,
+                decoration: BoxDecoration(
+                  color: phaseColor,
+                  borderRadius: const BorderRadius.only(
+                    topLeft: Radius.circular(18),
+                    bottomLeft: Radius.circular(18),
+                  ),
                 ),
               ),
-              const SizedBox(height: 2),
-              Text(
-                '${meal['protein']}g protein',
-                style: AppTextStyles.caption.copyWith(
-                  color: AppColors.textTertiary,
-                  fontSize: 10,
+              const SizedBox(width: 12),
+              // Content Row
+              Expanded(
+                child: Padding(
+                  padding: const EdgeInsets.fromLTRB(0, 12, 14, 12),
+                  child: Stack(
+                    children: [
+                      // Ambient backlight glow (radial gradient at the top right)
+                      Positioned(
+                        top: -50,
+                        right: -50,
+                        width: 140,
+                        height: 140,
+                        child: Container(
+                          decoration: BoxDecoration(
+                            shape: BoxShape.circle,
+                            gradient: RadialGradient(
+                              colors: [
+                                phaseColor.withValues(alpha: 0.22),
+                                phaseColor.withValues(alpha: 0.0),
+                              ],
+                            ),
+                          ),
+                        ),
+                      ),
+                      
+                      // Content Column
+                      Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          // Header Row
+                          Row(
+                            children: [
+                              // Day phase icon
+                              Container(
+                                width: 32,
+                                height: 32,
+                                decoration: BoxDecoration(
+                                  shape: BoxShape.circle,
+                                  gradient: LinearGradient(
+                                    colors: [
+                                      phaseColor.withValues(alpha: 0.2),
+                                      phaseColor.withValues(alpha: 0.05),
+                                    ],
+                                  ),
+                                  border: Border.all(
+                                    color: phaseColor.withValues(alpha: 0.35),
+                                    width: 1,
+                                  ),
+                                ),
+                                child: Icon(
+                                  phase.phaseIcon,
+                                  color: phaseColor,
+                                  size: 15,
+                                ),
+                              ),
+                              const SizedBox(width: 8),
+                              // Meal phase type and time
+                              Expanded(
+                                child: Column(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  children: [
+                                    Text(
+                                      meal['type'].toUpperCase(),
+                                      style: AppTextStyles.caption.copyWith(
+                                        color: phaseColor,
+                                        fontWeight: FontWeight.w800,
+                                        letterSpacing: 1.0,
+                                        fontSize: 9.5,
+                                      ),
+                                    ),
+                                    const SizedBox(height: 1),
+                                    Text(
+                                      meal['time'],
+                                      style: AppTextStyles.caption.copyWith(
+                                        color: AppColors.textTertiary,
+                                        fontSize: 9.5,
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                              ),
+                              
+                              // Eaten badge / food emoji
+                              Container(
+                                padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 3),
+                                decoration: BoxDecoration(
+                                  color: AppColors.bgTertiary.withValues(alpha: 0.5),
+                                  borderRadius: BorderRadius.circular(8),
+                                  border: Border.all(color: AppColors.glassBorder),
+                                ),
+                                child: Row(
+                                  mainAxisSize: MainAxisSize.min,
+                                  children: [
+                                    Text(
+                                      meal['icon'],
+                                      style: const TextStyle(fontSize: 13),
+                                    ),
+                                    if (isEaten) ...[
+                                      const SizedBox(width: 5),
+                                      Icon(
+                                        Icons.check_circle_rounded,
+                                        color: phaseColor,
+                                        size: 12,
+                                      ),
+                                    ],
+                                  ],
+                                ),
+                              ),
+                            ],
+                          ),
+                          const SizedBox(height: 8),
+                          
+                          // Meal name
+                          Text(
+                            meal['name'],
+                            style: AppTextStyles.titleMedium.copyWith(
+                              fontWeight: FontWeight.w700,
+                              fontSize: 14.5,
+                            ),
+                          ),
+                          const SizedBox(height: 8),
+                          
+                          // Macros
+                          Row(
+                            children: [
+                              _buildNutrientChip('${meal['calories']}', 'cal', phaseColor),
+                              const SizedBox(width: 5),
+                              _buildNutrientChip('${meal['protein']}g', 'prot', AppColors.accentBlue),
+                              const SizedBox(width: 5),
+                              _buildNutrientChip('${meal['carbs']}g', 'carb', AppColors.accentPurple),
+                              const SizedBox(width: 5),
+                              _buildNutrientChip('${meal['fat']}g', 'fat', AppColors.accentOrange),
+                            ],
+                          ),
+                          const SizedBox(height: 8),
+                          
+                          // Ingredients
+                          Wrap(
+                            spacing: 4,
+                            runSpacing: 4,
+                            children: ingredients.map((ing) => Container(
+                              padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 3),
+                              decoration: BoxDecoration(
+                                color: AppColors.bgSecondary.withValues(alpha: 0.4),
+                                borderRadius: BorderRadius.circular(5),
+                                border: Border.all(color: AppColors.glassBorder),
+                              ),
+                              child: Text(
+                                ing,
+                                style: AppTextStyles.caption.copyWith(
+                                  color: AppColors.textSecondary,
+                                  fontSize: 10,
+                                ),
+                              ),
+                            )).toList(),
+                          ),
+                          const SizedBox(height: 10),
+                          
+                          // Actions
+                          Row(
+                            children: [
+                              Expanded(
+                                flex: 4,
+                                child: _buildMealAction(
+                                  label: isEaten ? 'Eaten ✓' : 'Eat Meal',
+                                  color: isEaten ? phaseColor : AppColors.textTertiary,
+                                  filled: isEaten,
+                                  onTap: () => _toggleMealEaten(index),
+                                ),
+                              ),
+                              const SizedBox(width: 6),
+                              Expanded(
+                                flex: 4,
+                                child: _buildMealAction(
+                                  label: 'Replace',
+                                  color: AppColors.accentPurple,
+                                  filled: false,
+                                  icon: Icons.auto_awesome_rounded,
+                                  onTap: () {},
+                                ),
+                              ),
+                              const SizedBox(width: 6),
+                              Expanded(
+                                flex: 3,
+                                child: _buildMealAction(
+                                  label: 'Recipe',
+                                  color: AppColors.textTertiary,
+                                  filled: false,
+                                  onTap: () {},
+                                ),
+                              ),
+                            ],
+                          ),
+                        ],
+                      ),
+                    ],
+                  ),
                 ),
               ),
             ],
           ),
-          const SizedBox(width: 10),
-          GestureDetector(
-            onTap: () => _toggleMealEaten(index),
-            child: AnimatedContainer(
-              duration: const Duration(milliseconds: 250),
-              width: 28,
-              height: 28,
-              decoration: BoxDecoration(
-                borderRadius: BorderRadius.circular(8),
-                color: isEaten ? AppColors.accentBlue : Colors.transparent,
-                border: Border.all(
-                  color: isEaten ? AppColors.accentBlue : AppColors.textDisabled,
-                  width: 2,
-                ),
-              ),
-              child: isEaten
-                  ? const Icon(Icons.check_rounded, size: 16, color: Colors.white)
-                  : null,
-            ),
-          ),
-        ],
+        ),
       ),
     );
+  }
+
+  Widget _buildSnackCard(
+    Map<String, dynamic> meal,
+    int index,
+    DayPhaseTheme phase,
+    bool isExpanded,
+    bool isEaten,
+  ) {
+    return _buildFullMealCard(meal, index, phase, isExpanded, isEaten);
   }
 
   Widget _buildNutrientChip(String value, String label, Color color) {
     return Expanded(
       child: Container(
-        padding: const EdgeInsets.symmetric(vertical: 6),
+        padding: const EdgeInsets.symmetric(vertical: 4),
         decoration: BoxDecoration(
           color: color.withValues(alpha: 0.08),
-          borderRadius: BorderRadius.circular(8),
+          borderRadius: BorderRadius.circular(6),
         ),
         child: Column(
           children: [
@@ -938,14 +1292,14 @@ class _DietPlanContentState extends State<DietPlanContent> {
               style: AppTextStyles.labelLarge.copyWith(
                 color: color,
                 fontWeight: FontWeight.w700,
-                fontSize: 12,
+                fontSize: 11,
               ),
             ),
             Text(
               label,
               style: AppTextStyles.caption.copyWith(
                 color: color.withValues(alpha: 0.7),
-                fontSize: 9,
+                fontSize: 8.5,
               ),
             ),
           ],
@@ -959,31 +1313,47 @@ class _DietPlanContentState extends State<DietPlanContent> {
     required Color color,
     required bool filled,
     required VoidCallback onTap,
+    IconData? icon,
   }) {
+    final bool isSpecial = color == AppColors.accentPurple || color == AppColors.accentBlue;
+    final Color textColor = filled ? color : (isSpecial ? color : AppColors.textSecondary);
+    final Color borderColor = filled 
+        ? color.withValues(alpha: 0.3) 
+        : (isSpecial ? color.withValues(alpha: 0.25) : AppColors.glassBorder);
+    final Color bgColor = filled 
+        ? color.withValues(alpha: 0.12) 
+        : (isSpecial ? color.withValues(alpha: 0.03) : AppColors.bgSecondary);
+
     return GestureDetector(
       onTap: onTap,
       child: AnimatedContainer(
         duration: const Duration(milliseconds: 200),
-        padding: const EdgeInsets.symmetric(vertical: 9),
+        padding: const EdgeInsets.symmetric(vertical: 7),
         decoration: BoxDecoration(
-          color: filled
-              ? color.withValues(alpha: 0.12)
-              : AppColors.bgSecondary,
-          borderRadius: BorderRadius.circular(10),
+          color: bgColor,
+          borderRadius: BorderRadius.circular(8),
           border: Border.all(
-            color: filled
-                ? color.withValues(alpha: 0.3)
-                : AppColors.glassBorder,
+            color: borderColor,
           ),
         ),
         child: Center(
-          child: Text(
-            label,
-            style: AppTextStyles.caption.copyWith(
-              color: filled ? color : AppColors.textSecondary,
-              fontWeight: FontWeight.w600,
-              fontSize: 11,
-            ),
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              if (icon != null) ...[
+                Icon(icon, color: textColor, size: 12),
+                const SizedBox(width: 4),
+              ],
+              Text(
+                label,
+                style: AppTextStyles.caption.copyWith(
+                  color: textColor,
+                  fontWeight: FontWeight.w600,
+                  fontSize: 10.5,
+                ),
+              ),
+            ],
           ),
         ),
       ),
@@ -991,170 +1361,138 @@ class _DietPlanContentState extends State<DietPlanContent> {
   }
 
   // ─────────────────────────────────────────────
-  // AI MEAL REPLACEMENT
+  // TODAY'S AI COACH
   // ─────────────────────────────────────────────
 
-  Widget _buildAIReplacementCard() {
+  Widget _buildAICoachSection() {
     return DashboardGlassCard(
-      padding: const EdgeInsets.all(20),
+      padding: const EdgeInsets.all(18),
+      borderRadius: 20,
+      borderColor: AppColors.accentBlue.withValues(alpha: 0.2),
       gradient: LinearGradient(
         begin: Alignment.topLeft,
         end: Alignment.bottomRight,
         colors: [
-          AppColors.accentPurple.withValues(alpha: 0.08),
           AppColors.accentBlue.withValues(alpha: 0.05),
+          AppColors.accentPurple.withValues(alpha: 0.02),
         ],
       ),
-      borderColor: AppColors.accentPurple.withValues(alpha: 0.2),
-      child: Row(
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Container(
-            width: 48,
-            height: 48,
-            decoration: BoxDecoration(
-              borderRadius: BorderRadius.circular(14),
-              gradient: LinearGradient(
-                begin: Alignment.topLeft,
-                end: Alignment.bottomRight,
-                colors: [
-                  AppColors.accentPurple.withValues(alpha: 0.2),
-                  AppColors.accentBlue.withValues(alpha: 0.2),
-                ],
-              ),
-            ),
-            child: const Center(
-              child: Icon(
-                Icons.auto_awesome_rounded,
-                color: AppColors.accentPurple,
-                size: 24,
-              ),
-            ),
-          ),
-          const SizedBox(width: 16),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  'Need something different?',
-                  style: AppTextStyles.labelLarge.copyWith(
-                    fontWeight: FontWeight.w600,
-                    fontSize: 14,
-                  ),
+          Row(
+            children: [
+              Container(
+                padding: const EdgeInsets.all(6),
+                decoration: BoxDecoration(
+                  color: AppColors.accentBlue.withValues(alpha: 0.1),
+                  shape: BoxShape.circle,
                 ),
-                const SizedBox(height: 3),
-                Text(
-                  'AI will regenerate meals matching your macros',
-                  style: AppTextStyles.caption.copyWith(
-                    color: AppColors.textTertiary,
-                    fontSize: 11,
-                  ),
+                child: const Icon(
+                  Icons.auto_awesome_rounded,
+                  color: AppColors.accentBlue,
+                  size: 16,
                 ),
-              ],
-            ),
-          ),
-          const SizedBox(width: 10),
-          Container(
-            padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 9),
-            decoration: BoxDecoration(
-              gradient: const LinearGradient(
-                begin: Alignment.topLeft,
-                end: Alignment.bottomRight,
-                colors: [AppColors.accentPurple, AppColors.accentBlue],
               ),
-              borderRadius: BorderRadius.circular(10),
-              boxShadow: [
-                BoxShadow(
-                  color: AppColors.accentPurple.withValues(alpha: 0.25),
-                  blurRadius: 12,
-                  offset: const Offset(0, 4),
+              const SizedBox(width: 10),
+              Text(
+                "Today's AI Coach",
+                style: AppTextStyles.labelLarge.copyWith(
+                  fontWeight: FontWeight.w700,
+                  fontSize: 14,
+                  letterSpacing: 0.2,
                 ),
-              ],
-            ),
-            child: Text(
-              'Replace',
-              style: AppTextStyles.caption.copyWith(
-                color: Colors.white,
-                fontWeight: FontWeight.w600,
-                fontSize: 12,
               ),
-            ),
+            ],
           ),
-        ],
-      ),
-    );
-  }
+          const SizedBox(height: 18),
+          ..._insights.asMap().entries.map((entry) {
+            final index = entry.key;
+            final insight = entry.value;
+            final isLast = index == _insights.length - 1;
 
-  // ─────────────────────────────────────────────
-  // NUTRITION INSIGHTS
-  // ─────────────────────────────────────────────
-
-  Widget _buildInsightsSection() {
-    return Column(
-      children: _insights.asMap().entries.map((entry) {
-        final index = entry.key;
-        final insight = entry.value;
-        return Padding(
-          padding: EdgeInsets.only(bottom: index < _insights.length - 1 ? 10 : 0),
-          child: DashboardGlassCard(
-            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
-            borderRadius: 14,
-            child: Row(
+            return Column(
               children: [
-                Container(
-                  width: 36,
-                  height: 36,
-                  decoration: BoxDecoration(
-                    color: (insight['color'] as Color).withValues(alpha: 0.12),
-                    borderRadius: BorderRadius.circular(10),
-                  ),
-                  child: Icon(
-                    insight['icon'] as IconData,
-                    color: insight['color'] as Color,
-                    size: 18,
-                  ),
-                ),
-                const SizedBox(width: 14),
-                Expanded(
-                  child: Text(
-                    insight['text'] as String,
-                    style: AppTextStyles.bodyMedium.copyWith(
-                      color: AppColors.textSecondary,
-                      fontSize: 13,
-                      height: 1.4,
+                Row(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Container(
+                      width: 28,
+                      height: 28,
+                      decoration: BoxDecoration(
+                        color: (insight['color'] as Color).withValues(alpha: 0.1),
+                        borderRadius: BorderRadius.circular(8),
+                      ),
+                      alignment: Alignment.center,
+                      child: Icon(
+                        insight['icon'] as IconData,
+                        color: insight['color'] as Color,
+                        size: 15,
+                      ),
+                    ),
+                    const SizedBox(width: 12),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            insight['text'] as String,
+                            style: AppTextStyles.bodyMedium.copyWith(
+                              color: AppColors.textSecondary,
+                              fontSize: 12.5,
+                              height: 1.4,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ],
+                )
+                .animate()
+                .fadeIn(delay: (index * 150).ms, duration: 400.ms)
+                .slideX(begin: 0.05, end: 0, delay: (index * 150).ms, duration: 400.ms),
+                if (!isLast)
+                  Padding(
+                    padding: const EdgeInsets.symmetric(vertical: 14),
+                    child: Divider(
+                      height: 1,
+                      thickness: 1,
+                      color: AppColors.glassBorder.withValues(alpha: 0.5),
                     ),
                   ),
-                ),
               ],
-            ),
-          ),
-        );
-      }).toList(),
+            );
+          }),
+        ],
+      ),
     );
   }
 
   // ─────────────────────────────────────────────
-  // BOTTOM CTAS
+  // LOG FOOD & TOMORROW PREVIEW
   // ─────────────────────────────────────────────
 
   Widget _buildLogFoodButton() {
-    return GestureDetector(
+    return InteractivePressCard(
       onTap: () {},
       child: Container(
         width: double.infinity,
-        padding: const EdgeInsets.symmetric(vertical: 16),
+        height: 52,
         decoration: BoxDecoration(
           borderRadius: BorderRadius.circular(16),
           gradient: const LinearGradient(
             begin: Alignment.topLeft,
             end: Alignment.bottomRight,
-            colors: [AppColors.accentBlue, Color(0xFF6366F1)],
+            colors: [
+              AppColors.accentBlue,
+              Color(0xFF6366F1),
+            ],
           ),
           boxShadow: [
             BoxShadow(
-              color: AppColors.accentBlue.withValues(alpha: 0.25),
-              blurRadius: 20,
-              offset: const Offset(0, 8),
+              color: AppColors.accentBlue.withValues(alpha: 0.35),
+              blurRadius: 18,
+              offset: const Offset(0, 6),
             ),
           ],
         ),
@@ -1166,14 +1504,14 @@ class _DietPlanContentState extends State<DietPlanContent> {
               color: Colors.white,
               size: 20,
             ),
-            const SizedBox(width: 10),
+            const SizedBox(width: 8),
             Text(
               'Log Food Manually',
               style: AppTextStyles.labelLarge.copyWith(
                 color: Colors.white,
-                fontSize: 15,
-                fontWeight: FontWeight.w600,
-                letterSpacing: 0.3,
+                fontSize: 14.5,
+                fontWeight: FontWeight.w700,
+                letterSpacing: 0.2,
               ),
             ),
           ],
@@ -1182,36 +1520,739 @@ class _DietPlanContentState extends State<DietPlanContent> {
     );
   }
 
-  Widget _buildTomorrowPreview() {
-    return GestureDetector(
-      onTap: () {},
-      child: Container(
-        width: double.infinity,
-        padding: const EdgeInsets.symmetric(vertical: 14),
-        decoration: BoxDecoration(
-          borderRadius: BorderRadius.circular(14),
-          color: AppColors.bgSecondary,
-          border: Border.all(color: AppColors.glassBorder),
+  Widget _buildTomorrowPreviewCard() {
+    return InteractivePressCard(
+      onTap: () {
+        setState(() {
+          _tomorrowExpanded = !_tomorrowExpanded;
+        });
+      },
+      child: DashboardGlassCard(
+        padding: const EdgeInsets.all(18),
+        borderRadius: 20,
+        borderColor: AppColors.glassBorder,
+        gradient: LinearGradient(
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+          colors: [
+            AppColors.bgPrimary.withValues(alpha: 0.55),
+            AppColors.bgSecondary.withValues(alpha: 0.5),
+          ],
         ),
-        child: Row(
-          mainAxisAlignment: MainAxisAlignment.center,
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Icon(
-              Icons.calendar_today_rounded,
-              color: AppColors.textTertiary,
-              size: 16,
+            Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                Row(
+                  children: [
+                    Container(
+                      padding: const EdgeInsets.all(6),
+                      decoration: BoxDecoration(
+                        color: AppColors.accentPurple.withValues(alpha: 0.1),
+                        shape: BoxShape.circle,
+                      ),
+                      child: const Icon(
+                        Icons.calendar_today_rounded,
+                        color: AppColors.accentPurple,
+                        size: 14,
+                      ),
+                    ),
+                    const SizedBox(width: 10),
+                    Text(
+                      "Tomorrow's Plan",
+                      style: AppTextStyles.labelLarge.copyWith(
+                        fontWeight: FontWeight.w700,
+                        fontSize: 14,
+                        letterSpacing: 0.2,
+                      ),
+                    ),
+                  ],
+                ),
+                Icon(
+                  _tomorrowExpanded
+                      ? Icons.keyboard_arrow_up_rounded
+                      : Icons.keyboard_arrow_down_rounded,
+                  color: AppColors.textTertiary,
+                  size: 20,
+                ),
+              ],
             ),
-            const SizedBox(width: 8),
-            Text(
-              'Generate Tomorrow\'s Preview',
-              style: AppTextStyles.labelLarge.copyWith(
-                color: AppColors.textSecondary,
-                fontSize: 14,
-                fontWeight: FontWeight.w500,
+            const SizedBox(height: 10),
+            Wrap(
+              spacing: 12,
+              runSpacing: 6,
+              crossAxisAlignment: WrapCrossAlignment.center,
+              children: [
+                Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Text(
+                      "Estimated Calories",
+                      style: AppTextStyles.caption.copyWith(
+                        color: AppColors.textTertiary,
+                        fontSize: 11,
+                      ),
+                    ),
+                    const SizedBox(width: 5),
+                    Text(
+                      "2,350 kcal",
+                      style: AppTextStyles.caption.copyWith(
+                        color: AppColors.accentPurple,
+                        fontWeight: FontWeight.w700,
+                        fontSize: 11,
+                      ),
+                    ),
+                  ],
+                ),
+                Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Text(
+                      "Meal Count",
+                      style: AppTextStyles.caption.copyWith(
+                        color: AppColors.textTertiary,
+                        fontSize: 11,
+                      ),
+                    ),
+                    const SizedBox(width: 5),
+                    Text(
+                      "3 meals",
+                      style: AppTextStyles.caption.copyWith(
+                        color: AppColors.accentBlue,
+                        fontWeight: FontWeight.w700,
+                        fontSize: 11,
+                      ),
+                    ),
+                  ],
+                ),
+              ],
+            ),
+            AnimatedSize(
+              duration: const Duration(milliseconds: 300),
+              curve: Curves.fastOutSlowIn,
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  if (_tomorrowExpanded) ...[
+                    const SizedBox(height: 18),
+                    Divider(
+                      height: 1,
+                      color: AppColors.glassBorder.withValues(alpha: 0.5),
+                    ),
+                    const SizedBox(height: 14),
+                    _buildTomorrowMealRow("Breakfast", "Protein Pancakes", "🥞"),
+                    const SizedBox(height: 10),
+                    _buildTomorrowMealRow("Lunch", "Chicken Rice Bowl", "🍗"),
+                    const SizedBox(height: 10),
+                    _buildTomorrowMealRow("Dinner", "Salmon & Vegetables", "🐟"),
+                    const SizedBox(height: 16),
+                    GestureDetector(
+                      onTap: () {},
+                      child: Container(
+                        padding: const EdgeInsets.symmetric(vertical: 11),
+                        decoration: BoxDecoration(
+                          borderRadius: BorderRadius.circular(10),
+                          border: Border.all(
+                            color: AppColors.accentPurple.withValues(alpha: 0.3),
+                          ),
+                          color: AppColors.accentPurple.withValues(alpha: 0.03),
+                        ),
+                        child: Row(
+                          mainAxisAlignment: MainAxisAlignment.center,
+                          children: [
+                            Text(
+                              "View Full Tomorrow Plan",
+                              style: AppTextStyles.caption.copyWith(
+                                color: AppColors.accentPurple,
+                                fontWeight: FontWeight.w700,
+                                fontSize: 12,
+                              ),
+                            ),
+                            const SizedBox(width: 6),
+                            const Icon(
+                              Icons.arrow_forward_rounded,
+                              color: AppColors.accentPurple,
+                              size: 14,
+                            ),
+                          ],
+                        ),
+                      ),
+                    ),
+                  ] else ...[
+                    const SizedBox(height: 12),
+                    Text(
+                      "Tap to preview tomorrow's meals...",
+                      style: AppTextStyles.caption.copyWith(
+                        color: AppColors.textTertiary.withValues(alpha: 0.7),
+                        fontStyle: FontStyle.italic,
+                        fontSize: 11,
+                      ),
+                    ),
+                  ],
+                ],
               ),
             ),
           ],
         ),
+      ),
+    );
+  }
+
+  Widget _buildTomorrowMealRow(String type, String name, String emoji) {
+    return Row(
+      children: [
+        Container(
+          width: 24,
+          height: 24,
+          alignment: Alignment.center,
+          decoration: BoxDecoration(
+            color: AppColors.bgTertiary.withValues(alpha: 0.4),
+            shape: BoxShape.circle,
+          ),
+          child: Text(
+            emoji,
+            style: const TextStyle(fontSize: 12),
+          ),
+        ),
+        const SizedBox(width: 10),
+        Expanded(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                type.toUpperCase(),
+                style: AppTextStyles.caption.copyWith(
+                  color: AppColors.textTertiary,
+                  fontWeight: FontWeight.w700,
+                  fontSize: 9,
+                  letterSpacing: 0.5,
+                ),
+              ),
+              Text(
+                name,
+                style: AppTextStyles.labelLarge.copyWith(
+                  color: AppColors.textSecondary,
+                  fontSize: 12.5,
+                  fontWeight: FontWeight.w600,
+                ),
+              ),
+            ],
+          ),
+        ),
+      ],
+    );
+  }
+
+}
+
+// ─────────────────────────────────────────────
+// DAY PHASE THEME & INTEGRATED WIDGETS
+// ─────────────────────────────────────────────
+
+class DayPhaseTheme {
+  final List<Color> skyGradient;
+  final Color accentColor;
+  final Color glowColor;
+  final IconData phaseIcon;
+  final String title;
+  final String description;
+
+  const DayPhaseTheme({
+    required this.skyGradient,
+    required this.accentColor,
+    required this.glowColor,
+    required this.phaseIcon,
+    required this.title,
+    required this.description,
+  });
+
+  static const List<DayPhaseTheme> phases = [
+    DayPhaseTheme(
+      skyGradient: [Color(0xFF1B1B3A), Color(0xFFD97706), Color(0xFFFCD34D)],
+      accentColor: Color(0xFFF59E0B),
+      glowColor: Color(0xFFFBBF24),
+      phaseIcon: Icons.wb_twilight_rounded,
+      title: 'Sunrise',
+      description: 'Fuel your day',
+    ),
+    DayPhaseTheme(
+      skyGradient: [Color(0xFF0369A1), Color(0xFF38BDF8), Color(0xFFE0F2FE)],
+      accentColor: Color(0xFF0284C7),
+      glowColor: Color(0xFF7DD3FC),
+      phaseIcon: Icons.wb_cloudy_rounded,
+      title: 'Morning Light',
+      description: 'Keep going strong',
+    ),
+    DayPhaseTheme(
+      skyGradient: [Color(0xFF1E3A8A), Color(0xFF0284C7), Color(0xFF22D3EE)],
+      accentColor: Color(0xFF06B6D4),
+      glowColor: Color(0xFFFDE047),
+      phaseIcon: Icons.wb_sunny_rounded,
+      title: 'High Noon',
+      description: 'Power through the peak',
+    ),
+    DayPhaseTheme(
+      skyGradient: [Color(0xFF4C1D95), Color(0xFFBE185D), Color(0xFFEA580C)],
+      accentColor: Color(0xFFEC4899),
+      glowColor: Color(0xFFF43F5E),
+      phaseIcon: Icons.wb_twilight_outlined,
+      title: 'Sunset',
+      description: 'Unwind and replenish',
+    ),
+    DayPhaseTheme(
+      skyGradient: [Color(0xFF020617), Color(0xFF0F172A), Color(0xFF1E1B4B)],
+      accentColor: Color(0xFF818CF8),
+      glowColor: Color(0xFF6366F1),
+      phaseIcon: Icons.bedtime_rounded,
+      title: 'Nightfall',
+      description: 'Recover and rebuild',
+    ),
+  ];
+
+  static DayPhaseTheme getInterpolated(double progress) {
+    final double clampedProgress = progress.clamp(0.0, 4.0);
+    final idx = clampedProgress.floor().clamp(0, 3);
+    final t = clampedProgress - idx;
+    final start = phases[idx];
+    final end = phases[idx + 1];
+
+    final sky = [
+      Color.lerp(start.skyGradient[0], end.skyGradient[0], t)!,
+      Color.lerp(start.skyGradient[1], end.skyGradient[1], t)!,
+      Color.lerp(start.skyGradient[2], end.skyGradient[2], t)!,
+    ];
+    final accent = Color.lerp(start.accentColor, end.accentColor, t)!;
+    final glow = Color.lerp(start.glowColor, end.glowColor, t)!;
+    final icon = t < 0.5 ? start.phaseIcon : end.phaseIcon;
+    final title = t < 0.5 ? start.title : end.title;
+    final desc = t < 0.5 ? start.description : end.description;
+
+    return DayPhaseTheme(
+      skyGradient: sky,
+      accentColor: accent,
+      glowColor: glow,
+      phaseIcon: icon,
+      title: title,
+      description: desc,
+    );
+  }
+}
+
+class SkyBackdropPainter extends CustomPainter {
+  final double progress;
+  final List<double> cardCenters;
+
+  SkyBackdropPainter({required this.progress, required this.cardCenters});
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    final double clampedProgress = progress.clamp(0.0, 4.0);
+    final theme = DayPhaseTheme.getInterpolated(clampedProgress);
+    
+    // 1. Paint sky gradient background
+    final rect = Offset.zero & size;
+    final skyPaint = Paint()
+      ..shader = LinearGradient(
+        begin: Alignment.topCenter,
+        end: Alignment.bottomCenter,
+        colors: theme.skyGradient,
+      ).createShader(rect);
+    canvas.drawRect(rect, skyPaint);
+
+    // 2. Draw a soft, massive glowing ambient light beam (radial gradient) behind the active meal area
+    double activeY = size.height / 2;
+    if (cardCenters.length == 5) {
+      int idx = clampedProgress.floor().clamp(0, 3);
+      double t = clampedProgress - idx;
+      double yA = cardCenters[idx];
+      double yB = cardCenters[idx + 1];
+      activeY = yA + (yB - yA) * t;
+    }
+
+    final double glowX = size.width * 0.45; // slightly offset from left
+    final double glowY = activeY;
+
+    final glowPaint = Paint()
+      ..shader = RadialGradient(
+        colors: [
+          theme.glowColor.withValues(alpha: 0.24),
+          theme.glowColor.withValues(alpha: 0.0),
+        ],
+        radius: 0.65,
+      ).createShader(Rect.fromCircle(center: Offset(glowX, glowY), radius: size.width * 0.9));
+    
+    canvas.drawCircle(Offset(glowX, glowY), size.width * 0.9, glowPaint);
+  }
+
+  @override
+  bool shouldRepaint(covariant SkyBackdropPainter oldDelegate) {
+    return oldDelegate.progress != progress || oldDelegate.cardCenters != cardCenters;
+  }
+}
+
+class TimelineSegment extends StatefulWidget {
+  final int index;
+  final ValueNotifier<double> progressNotifier;
+  final DayPhaseTheme phase;
+  final bool isExpanded;
+  final bool isEaten;
+
+  const TimelineSegment({
+    super.key,
+    required this.index,
+    required this.progressNotifier,
+    required this.phase,
+    required this.isExpanded,
+    required this.isEaten,
+  });
+
+  @override
+  State<TimelineSegment> createState() => _TimelineSegmentState();
+}
+
+class _TimelineSegmentState extends State<TimelineSegment> with SingleTickerProviderStateMixin {
+  late AnimationController _pulseController;
+
+  @override
+  void initState() {
+    super.initState();
+    _pulseController = AnimationController(
+      duration: const Duration(milliseconds: 1600),
+      vsync: this,
+    );
+    if (widget.isExpanded) {
+      _pulseController.repeat();
+    }
+  }
+
+  @override
+  void didUpdateWidget(TimelineSegment oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (widget.isExpanded != oldWidget.isExpanded) {
+      if (widget.isExpanded) {
+        _pulseController.repeat();
+      } else {
+        _pulseController.stop();
+      }
+    }
+  }
+
+  @override
+  void dispose() {
+    _pulseController.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return ValueListenableBuilder<double>(
+      valueListenable: widget.progressNotifier,
+      builder: (context, progress, child) {
+        final double distance = (progress - widget.index).abs();
+        final double activeFactor = (1.0 - distance).clamp(0.0, 1.0);
+
+        final nextPhaseIndex = (widget.index + 1).clamp(0, 4);
+        final nextPhase = DayPhaseTheme.phases[nextPhaseIndex];
+
+        return CustomPaint(
+          painter: TimelinePainter(
+            progress: progress,
+            index: widget.index,
+            activeColorStart: widget.phase.accentColor,
+            activeColorEnd: nextPhase.accentColor,
+            inactiveColor: AppColors.glassBorder.withValues(alpha: 0.5),
+            isExpanded: widget.isExpanded,
+            isEaten: widget.isEaten,
+          ),
+          child: SizedBox(
+            width: 36,
+            child: Stack(
+              alignment: Alignment.center,
+              children: [
+                _buildNode(activeFactor),
+              ],
+            ),
+          ),
+        );
+      },
+    );
+  }
+
+  Widget _buildNode(double activeFactor) {
+    final double baseSize = 14.0 + (14.0 * activeFactor);
+
+    return Center(
+      child: SizedBox(
+        width: 36,
+        height: 36,
+        child: Stack(
+          alignment: Alignment.center,
+          children: [
+            // Pulsing outer ring for active/expanded meal
+            if (widget.isExpanded)
+              AnimatedBuilder(
+                animation: _pulseController,
+                builder: (context, child) {
+                  final double scale = 1.0 + (0.35 * _pulseController.value);
+                  final double opacity = 1.0 - _pulseController.value;
+                  return Container(
+                    width: baseSize * scale,
+                    height: baseSize * scale,
+                    decoration: BoxDecoration(
+                      shape: BoxShape.circle,
+                      border: Border.all(
+                        color: widget.phase.accentColor.withValues(alpha: 0.35 * opacity),
+                        width: 2.0,
+                      ),
+                    ),
+                  );
+                },
+              ),
+
+            // Breathing Inner Node with glowing shadow
+            AnimatedBuilder(
+              animation: _pulseController,
+              builder: (context, child) {
+                double breatheFactor = 0.0;
+                if (widget.isExpanded) {
+                  breatheFactor = (math.sin(_pulseController.value * 2 * math.pi) + 1.0) / 2.0;
+                }
+
+                final double size = baseSize + (widget.isExpanded ? (3.0 * breatheFactor) : 0.0);
+                final double shadowBlur = widget.isExpanded ? (12.0 + 4.0 * breatheFactor) : 0.0;
+
+                return Container(
+                  width: size,
+                  height: size,
+                  decoration: BoxDecoration(
+                    shape: BoxShape.circle,
+                    boxShadow: widget.isExpanded
+                        ? [
+                            BoxShadow(
+                              color: widget.phase.glowColor.withValues(alpha: 0.4 + 0.1 * breatheFactor),
+                              blurRadius: shadowBlur,
+                              spreadRadius: 1,
+                            ),
+                          ]
+                        : null,
+                    gradient: widget.isExpanded || widget.isEaten
+                        ? LinearGradient(
+                            begin: Alignment.topLeft,
+                            end: Alignment.bottomRight,
+                            colors: [
+                              widget.phase.skyGradient.first,
+                              widget.phase.skyGradient.last,
+                            ],
+                          )
+                        : null,
+                    color: !widget.isExpanded && !widget.isEaten ? Colors.transparent : null,
+                    border: Border.all(
+                      color: widget.isExpanded || widget.isEaten
+                          ? widget.phase.accentColor
+                          : AppColors.textDisabled.withValues(alpha: 0.6),
+                      width: widget.isExpanded ? 2.5 : 1.5,
+                    ),
+                  ),
+                  child: _buildNodeIcon(activeFactor),
+                );
+              },
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget? _buildNodeIcon(double activeFactor) {
+    if (widget.isEaten && !widget.isExpanded) {
+      return const Center(
+        child: Icon(
+          Icons.check_rounded,
+          color: Colors.white,
+          size: 11,
+        ),
+      );
+    }
+    
+    if (widget.isExpanded && activeFactor > 0.25) {
+      return Center(
+        child: Opacity(
+          opacity: ((activeFactor - 0.25) / 0.75).clamp(0.0, 1.0),
+          child: Icon(
+            widget.phase.phaseIcon,
+            color: Colors.white,
+            size: 10 + (6 * activeFactor),
+          ),
+        ),
+      );
+    }
+
+    return null;
+  }
+}
+
+class TimelinePainter extends CustomPainter {
+  final double progress;
+  final int index;
+  final Color activeColorStart;
+  final Color activeColorEnd;
+  final Color inactiveColor;
+  final bool isExpanded;
+  final bool isEaten;
+
+  TimelinePainter({
+    required this.progress,
+    required this.index,
+    required this.activeColorStart,
+    required this.activeColorEnd,
+    required this.inactiveColor,
+    required this.isExpanded,
+    required this.isEaten,
+  });
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    final double centerX = size.width / 2;
+    final double centerY = size.height / 2;
+
+    final paintTrack = Paint()
+      ..color = inactiveColor
+      ..strokeWidth = 2.5
+      ..strokeCap = StrokeCap.round;
+
+    final paintActive = Paint()
+      ..strokeWidth = 3.5
+      ..strokeCap = StrokeCap.round;
+
+    // 1. Draw vertical track lines
+    if (index > 0) {
+      canvas.drawLine(Offset(centerX, 0), Offset(centerX, centerY), paintTrack);
+    }
+    if (index < 4) {
+      canvas.drawLine(Offset(centerX, centerY), Offset(centerX, size.height), paintTrack);
+    }
+
+    // 2. Draw vertical active track lines
+    final Color currColor = activeColorStart;
+
+    // Top active line
+    if (index > 0) {
+      double topProgress = 0.0;
+      if (progress >= index) {
+        topProgress = 1.0;
+      } else if (progress > index - 1) {
+        topProgress = progress - (index - 1);
+      }
+
+      if (topProgress > 0.0) {
+        final Color prevColor = DayPhaseTheme.phases[(index - 1).clamp(0, 4)].accentColor;
+        paintActive.shader = LinearGradient(
+          begin: Alignment.topCenter,
+          end: Alignment.bottomCenter,
+          colors: [prevColor, Color.lerp(prevColor, currColor, topProgress)!],
+        ).createShader(Rect.fromLTRB(centerX - 2, 0, centerX + 2, centerY));
+
+        canvas.drawLine(
+          Offset(centerX, 0),
+          Offset(centerX, centerY * topProgress),
+          paintActive,
+        );
+      }
+    }
+
+    // Bottom active line
+    if (index < 4) {
+      double bottomProgress = 0.0;
+      if (progress >= index + 1) {
+        bottomProgress = 1.0;
+      } else if (progress > index) {
+        bottomProgress = progress - index;
+      }
+
+      if (bottomProgress > 0.0) {
+        paintActive.shader = LinearGradient(
+          begin: Alignment.topCenter,
+          end: Alignment.bottomCenter,
+          colors: [currColor, Color.lerp(currColor, activeColorEnd, bottomProgress)!],
+        ).createShader(Rect.fromLTRB(centerX - 2, centerY, centerX + 2, size.height));
+
+        canvas.drawLine(
+          Offset(centerX, centerY),
+          Offset(centerX, centerY + (size.height - centerY) * bottomProgress),
+          paintActive,
+        );
+      }
+    }
+
+    // 3. Draw horizontal connector line
+    final connectorPaint = Paint()
+      ..strokeCap = StrokeCap.round
+      ..strokeWidth = isExpanded ? 3.0 : 2.0;
+
+    if (isExpanded) {
+      connectorPaint.shader = LinearGradient(
+        colors: [
+          activeColorStart,
+          activeColorStart.withValues(alpha: 0.5),
+        ],
+      ).createShader(Rect.fromLTRB(centerX, centerY - 1.5, size.width, centerY + 1.5));
+    } else if (isEaten) {
+      connectorPaint.color = activeColorStart.withValues(alpha: 0.6);
+    } else {
+      connectorPaint.color = inactiveColor;
+    }
+
+    canvas.drawLine(
+      Offset(centerX, centerY),
+      Offset(size.width, centerY),
+      connectorPaint,
+    );
+  }
+
+  @override
+  bool shouldRepaint(covariant TimelinePainter oldDelegate) {
+    return oldDelegate.progress != progress ||
+        oldDelegate.index != index ||
+        oldDelegate.activeColorStart != activeColorStart ||
+        oldDelegate.activeColorEnd != activeColorEnd ||
+        oldDelegate.inactiveColor != inactiveColor ||
+        oldDelegate.isExpanded != isExpanded ||
+        oldDelegate.isEaten != isEaten;
+  }
+}
+
+// ─────────────────────────────────────────────
+// INTERACTIVE PRESS SCALE ANIMATOR
+// ─────────────────────────────────────────────
+
+class InteractivePressCard extends StatefulWidget {
+  final Widget child;
+  final VoidCallback onTap;
+  const InteractivePressCard({super.key, required this.child, required this.onTap});
+
+  @override
+  State<InteractivePressCard> createState() => _InteractivePressCardState();
+}
+
+class _InteractivePressCardState extends State<InteractivePressCard> {
+  double _scale = 1.0;
+
+  @override
+  Widget build(BuildContext context) {
+    return GestureDetector(
+      onTapDown: (_) => setState(() => _scale = 0.97),
+      onTapUp: (_) {
+        setState(() => _scale = 1.0);
+        widget.onTap();
+      },
+      onTapCancel: () => setState(() => _scale = 1.0),
+      child: AnimatedScale(
+        scale: _scale,
+        duration: const Duration(milliseconds: 150),
+        curve: Curves.easeOutCubic,
+        child: widget.child,
       ),
     );
   }

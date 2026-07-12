@@ -25,6 +25,16 @@ class _HomeDashboardState extends State<HomeDashboard>
   // ── Hero swipe page controller ──
   late final PageController _heroPageController;
   int _heroCurrentPage = 1;
+
+  int get _safeHeroCurrentPage {
+    final dynamic page = _heroCurrentPage;
+    if (page is int) {
+      if (page >= 0 && page < 3) {
+        return page;
+      }
+    }
+    return 1;
+  }
   
   // Simulated user data
   final int _caloriesConsumed = 2200;
@@ -225,47 +235,59 @@ class _HomeDashboardState extends State<HomeDashboard>
         mainAxisAlignment: MainAxisAlignment.spaceBetween,
         crossAxisAlignment: CrossAxisAlignment.center,
         children: [
-          // Left side: Greetings + Username
-          Text(
-            '$_greeting, Amit 👋',
-            style: AppTextStyles.titleMedium.copyWith(
-              fontWeight: FontWeight.w800,
-              fontSize: 16.5,
+          // Left side: Greeting and Date/Streak summary
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Text(
+                  '$_greeting, Amit 👋',
+                  style: AppTextStyles.titleMedium.copyWith(
+                    fontWeight: FontWeight.w800,
+                    fontSize: 16.5,
+                  ),
+                  overflow: TextOverflow.ellipsis,
+                  maxLines: 1,
+                ),
+                const SizedBox(height: 2),
+                Text(
+                  _formattedDate,
+                  style: AppTextStyles.caption.copyWith(
+                    color: AppColors.textTertiary,
+                    fontWeight: FontWeight.w500,
+                    fontSize: 11,
+                  ),
+                ),
+              ],
             ),
           ),
-          // Right side: Streak and Date
-          Row(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              const StreakFlame(size: 13),
-              const SizedBox(width: 4),
-              Text(
-                '$_currentStreak days',
-                style: AppTextStyles.caption.copyWith(
-                  color: AppColors.accentOrange,
-                  fontWeight: FontWeight.w700,
-                  fontSize: 11,
-                ),
+          const SizedBox(width: 12),
+          // Right side: Streak badge
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+            decoration: BoxDecoration(
+              color: AppColors.accentOrange.withValues(alpha: 0.1),
+              borderRadius: BorderRadius.circular(12),
+              border: Border.all(
+                color: AppColors.accentOrange.withValues(alpha: 0.2),
               ),
-              const SizedBox(width: 8),
-              Container(
-                width: 3,
-                height: 3,
-                decoration: const BoxDecoration(
-                  color: AppColors.textDisabled,
-                  shape: BoxShape.circle,
+            ),
+            child: Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                const StreakFlame(size: 13),
+                const SizedBox(width: 4),
+                Text(
+                  '$_currentStreak days',
+                  style: AppTextStyles.caption.copyWith(
+                    color: AppColors.accentOrange,
+                    fontWeight: FontWeight.w700,
+                    fontSize: 11,
+                  ),
                 ),
-              ),
-              const SizedBox(width: 8),
-              Text(
-                _formattedDate,
-                style: AppTextStyles.caption.copyWith(
-                  color: AppColors.textTertiary,
-                  fontWeight: FontWeight.w500,
-                  fontSize: 11,
-                ),
-              ),
-            ],
+              ],
+            ),
           ),
         ],
       ),
@@ -295,7 +317,7 @@ class _HomeDashboardState extends State<HomeDashboard>
     ];
 
     // Animated gradient color that transitions with the page
-    final activeColor = colors[_heroCurrentPage];
+    final activeColor = colors[_safeHeroCurrentPage];
 
     return DashboardGlassCard(
       padding: EdgeInsets.zero,
@@ -321,7 +343,7 @@ class _HomeDashboardState extends State<HomeDashboard>
               ),
               child: Row(
                 children: List.generate(pageCount, (i) {
-                  final isActive = i == _heroCurrentPage;
+                  final isActive = i == _safeHeroCurrentPage;
                   return Expanded(
                     child: GestureDetector(
                       onTap: () {
