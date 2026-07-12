@@ -1770,9 +1770,9 @@ class DayPhaseTheme {
 
   static const List<DayPhaseTheme> phases = [
     DayPhaseTheme(
-      skyGradient: [Color(0xFF1B1B3A), Color(0xFFD97706), Color(0xFFFCD34D)],
-      accentColor: Color(0xFFF59E0B),
-      glowColor: Color(0xFFFBBF24),
+      skyGradient: [Color(0xFF16223F), Color(0xFF38BDF8), Color(0xFFFCD34D)],
+      accentColor: Color(0xFFFB923C),
+      glowColor: Color(0xFFFB923C),
       phaseIcon: Icons.wb_twilight_rounded,
       title: 'Sunrise',
       description: 'Fuel your day',
@@ -1794,9 +1794,9 @@ class DayPhaseTheme {
       description: 'Power through the peak',
     ),
     DayPhaseTheme(
-      skyGradient: [Color(0xFF4C1D95), Color(0xFFBE185D), Color(0xFFEA580C)],
-      accentColor: Color(0xFFEC4899),
-      glowColor: Color(0xFFF43F5E),
+      skyGradient: [Color(0xFF140D1F), Color(0xFF2D1225), Color(0xFF4C1C24)],
+      accentColor: Color(0xFFF97066),
+      glowColor: Color(0xFFF97066),
       phaseIcon: Icons.wb_twilight_outlined,
       title: 'Sunset',
       description: 'Unwind and replenish',
