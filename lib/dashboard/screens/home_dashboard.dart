@@ -9,6 +9,7 @@ import '../widgets/streak_flame.dart';
 import 'diet_plan_screen.dart';
 import 'progress_analytics_screen.dart';
 import 'rewards_screen.dart';
+import 'leaderboard_screen.dart';
 import 'profile_screen.dart';
 
 class HomeDashboard extends StatefulWidget {
@@ -164,11 +165,27 @@ class _HomeDashboardState extends State<HomeDashboard>
       case 2:
         return const ProgressAnalyticsContent(key: ValueKey('progress'));
       case 3:
-        return const StreakRewardsContent(key: ValueKey('rewards'));
+        return StreakRewardsContent(
+          key: const ValueKey('rewards'),
+          onNavigateToLeaderboard: () {
+            setState(() {
+              _currentNavIndex = 5;
+            });
+          },
+        );
       case 4:
         return ProfileContent(
           key: const ValueKey('profile'),
           onViewAchievements: () {
+            setState(() {
+              _currentNavIndex = 3;
+            });
+          },
+        );
+      case 5:
+        return LeaderboardContent(
+          key: const ValueKey('leaderboard'),
+          onBack: () {
             setState(() {
               _currentNavIndex = 3;
             });
@@ -271,30 +288,41 @@ class _HomeDashboardState extends State<HomeDashboard>
             ),
           ),
           const SizedBox(width: 12),
-          // Right side: Streak badge
-          Container(
-            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
-            decoration: BoxDecoration(
-              color: AppColors.accentOrange.withValues(alpha: 0.1),
+          // Right side: Streak badge (redirects to Streak & Rewards tab)
+          Material(
+            color: Colors.transparent,
+            child: InkWell(
+              onTap: () {
+                setState(() {
+                  _currentNavIndex = 3;
+                });
+              },
               borderRadius: BorderRadius.circular(12),
-              border: Border.all(
-                color: AppColors.accentOrange.withValues(alpha: 0.2),
-              ),
-            ),
-            child: Row(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                const StreakFlame(size: 13),
-                const SizedBox(width: 4),
-                Text(
-                  '$_currentStreak days',
-                  style: AppTextStyles.caption.copyWith(
-                    color: AppColors.accentOrange,
-                    fontWeight: FontWeight.w700,
-                    fontSize: 11,
+              child: Container(
+                padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+                decoration: BoxDecoration(
+                  color: AppColors.accentOrange.withValues(alpha: 0.1),
+                  borderRadius: BorderRadius.circular(12),
+                  border: Border.all(
+                    color: AppColors.accentOrange.withValues(alpha: 0.2),
                   ),
                 ),
-              ],
+                child: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    const StreakFlame(size: 13),
+                    const SizedBox(width: 4),
+                    Text(
+                      '$_currentStreak days',
+                      style: AppTextStyles.caption.copyWith(
+                        color: AppColors.accentOrange,
+                        fontWeight: FontWeight.w700,
+                        fontSize: 11,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
             ),
           ),
         ],
@@ -1358,7 +1386,7 @@ class _HomeDashboardState extends State<HomeDashboard>
               mainAxisAlignment: MainAxisAlignment.spaceAround,
               children: List.generate(navItems.length, (index) {
                 final item = navItems[index];
-                final isActive = index == _currentNavIndex;
+                 final isActive = index == _currentNavIndex || (_currentNavIndex == 5 && index == 3);
 
                 return Expanded(
                   child: GestureDetector(

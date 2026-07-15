@@ -775,13 +775,13 @@ class _DietPlanContentState extends State<DietPlanContent> {
       return DashboardGlassCard(
         padding: EdgeInsets.zero,
         borderRadius: 14,
-        borderColor: phaseColor.withValues(alpha: 0.2),
+        borderColor: phase.accentColor.withValues(alpha: 0.15),
         gradient: LinearGradient(
           begin: Alignment.topLeft,
           end: Alignment.bottomRight,
           colors: [
-            AppColors.bgSecondary.withValues(alpha: 0.7),
-            Color.lerp(AppColors.bgPrimary, phaseColor, 0.06)!.withValues(alpha: 0.6),
+            Color.lerp(AppColors.bgSecondary, phase.skyGradient[0], 0.05)!.withValues(alpha: 0.7),
+            Color.lerp(AppColors.bgPrimary, phase.skyGradient[1], 0.03)!.withValues(alpha: 0.6),
           ],
         ),
         child: AnimatedSize(
@@ -910,13 +910,14 @@ class _DietPlanContentState extends State<DietPlanContent> {
       return DashboardGlassCard(
         padding: EdgeInsets.zero,
         borderRadius: 14,
-        borderColor: phaseColor.withValues(alpha: 0.12),
+        borderColor: phase.accentColor.withValues(alpha: 0.22),
         gradient: LinearGradient(
           begin: Alignment.topLeft,
           end: Alignment.bottomRight,
           colors: [
-            AppColors.bgSecondary.withValues(alpha: 0.65),
-            Color.lerp(AppColors.bgPrimary, phaseColor, 0.04)!.withValues(alpha: 0.55),
+            Color.lerp(AppColors.bgSecondary, phase.skyGradient[0], 0.18)!.withValues(alpha: 0.75),
+            Color.lerp(AppColors.bgPrimary, phase.skyGradient[1], 0.15)!.withValues(alpha: 0.7),
+            Color.lerp(AppColors.bgSecondary, phase.skyGradient[2], 0.12)!.withValues(alpha: 0.65),
           ],
         ),
         child: AnimatedSize(
@@ -957,8 +958,8 @@ class _DietPlanContentState extends State<DietPlanContent> {
                           height: 28,
                           decoration: BoxDecoration(
                             shape: BoxShape.circle,
-                            border: Border.all(color: phaseColor.withValues(alpha: 0.3)),
-                            color: AppColors.bgTertiary.withValues(alpha: 0.4),
+                            border: Border.all(color: phase.accentColor.withValues(alpha: 0.35)),
+                            color: phase.accentColor.withValues(alpha: 0.1),
                           ),
                           alignment: Alignment.center,
                           child: Text(meal['icon'], style: const TextStyle(fontSize: 14)),
@@ -1065,13 +1066,13 @@ class _DietPlanContentState extends State<DietPlanContent> {
         borderRadius: BorderRadius.circular(18),
         boxShadow: [
           BoxShadow(
-            color: phaseColor.withValues(alpha: 0.18),
+            color: phase.accentColor.withValues(alpha: 0.22),
             blurRadius: 24,
             spreadRadius: -2,
             offset: const Offset(0, 4),
           ),
           BoxShadow(
-            color: phaseColor.withValues(alpha: 0.08),
+            color: phase.glowColor.withValues(alpha: 0.1),
             blurRadius: 40,
             spreadRadius: 0,
           ),
@@ -1080,13 +1081,14 @@ class _DietPlanContentState extends State<DietPlanContent> {
       child: DashboardGlassCard(
         padding: EdgeInsets.zero,
         borderRadius: 18,
-        borderColor: phaseColor.withValues(alpha: 0.4),
+        borderColor: phase.accentColor.withValues(alpha: 0.45),
         gradient: LinearGradient(
           begin: Alignment.topLeft,
           end: Alignment.bottomRight,
           colors: [
-            Color.lerp(AppColors.bgSecondary, phaseColor, 0.1)!.withValues(alpha: isEaten ? 0.85 : 0.8),
-            Color.lerp(AppColors.bgPrimary, phaseColor, 0.05)!.withValues(alpha: isEaten ? 0.75 : 0.7),
+            Color.lerp(AppColors.bgSecondary, phase.skyGradient[0], 0.28)!.withValues(alpha: isEaten ? 0.9 : 0.85),
+            Color.lerp(AppColors.bgPrimary, phase.skyGradient[1], 0.20)!.withValues(alpha: isEaten ? 0.85 : 0.8),
+            Color.lerp(AppColors.bgSecondary, phase.skyGradient[2], 0.15)!.withValues(alpha: isEaten ? 0.8 : 0.75),
           ],
         ),
         child: AnimatedSize(
@@ -1136,9 +1138,9 @@ class _DietPlanContentState extends State<DietPlanContent> {
                             shape: BoxShape.circle,
                             gradient: RadialGradient(
                               colors: [
-                                phaseColor.withValues(alpha: 0.2),
-                                phaseColor.withValues(alpha: 0.06),
-                                phaseColor.withValues(alpha: 0.0),
+                                phase.accentColor.withValues(alpha: 0.25),
+                                phase.accentColor.withValues(alpha: 0.08),
+                                phase.accentColor.withValues(alpha: 0.0),
                               ],
                               stops: const [0.0, 0.5, 1.0],
                             ),
@@ -1156,7 +1158,7 @@ class _DietPlanContentState extends State<DietPlanContent> {
                             shape: BoxShape.circle,
                             gradient: RadialGradient(
                               colors: [
-                                phase.glowColor.withValues(alpha: 0.1),
+                                phase.glowColor.withValues(alpha: 0.15),
                                 phase.glowColor.withValues(alpha: 0.0),
                               ],
                             ),
