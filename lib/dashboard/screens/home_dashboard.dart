@@ -207,6 +207,14 @@ class _HomeDashboardState extends State<HomeDashboard>
                   .fadeIn(duration: 500.ms, delay: 350.ms)
                   .slideY(
                       begin: 0.08, end: 0, duration: 500.ms, delay: 350.ms),
+              const SizedBox(height: 14),
+
+              // AI Recommendations
+              _buildAIRecommendations()
+                  .animate()
+                  .fadeIn(duration: 500.ms, delay: 480.ms)
+                  .slideY(
+                      begin: 0.08, end: 0, duration: 500.ms, delay: 480.ms),
             ]),
           ),
         ),
@@ -989,7 +997,329 @@ class _HomeDashboardState extends State<HomeDashboard>
 
 
   // ─────────────────────────────────────────────
-  // BOTTOM NAVIGATION
+  // AI RECOMMENDATIONS
+  // ─────────────────────────────────────────────
+
+  Widget _buildAIRecommendations() {
+    final insights = [
+      {
+        'title': 'Healthy Pace',
+        'subtitle': 'Weight Management',
+        'desc': 'Losing 0.5 kg/week — perfect pace that preserves lean muscle mass. Your body composition is improving.',
+        'emoji': '💚',
+        'color': AppColors.accentCyan,
+        'tag': 'TRENDING',
+        'confidence': 96,
+      },
+      {
+        'title': 'Protein Peak',
+        'subtitle': 'Nutrition Insight',
+        'desc': '18% consistency improvement this month. Sustaining this level will accelerate body recomposition.',
+        'emoji': '💪',
+        'color': AppColors.accentBlue,
+        'tag': 'NEW HIGH',
+        'confidence': 91,
+      },
+      {
+        'title': 'Hydration Goal',
+        'subtitle': 'Habit Analysis',
+        'desc': 'Daily water intake is up 25% vs last month. Optimal hydration is accelerating your metabolism.',
+        'emoji': '💧',
+        'color': AppColors.accentPurple,
+        'tag': 'STREAK',
+        'confidence': 88,
+      },
+    ];
+
+    return DashboardGlassCard(
+      padding: const EdgeInsets.all(18),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          // ── Header — same style as Tasks section ──
+          Row(
+            children: [
+              Container(
+                width: 32,
+                height: 32,
+                decoration: BoxDecoration(
+                  borderRadius: BorderRadius.circular(10),
+                  gradient: LinearGradient(
+                    begin: Alignment.topLeft,
+                    end: Alignment.bottomRight,
+                    colors: [
+                      AppColors.accentBlue.withValues(alpha: 0.22),
+                      AppColors.accentPurple.withValues(alpha: 0.22),
+                    ],
+                  ),
+                ),
+                child: const Center(
+                  child: Text('🧠', style: TextStyle(fontSize: 15)),
+                ),
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      'AI Coach',
+                      style: AppTextStyles.titleMedium.copyWith(
+                        fontWeight: FontWeight.w700,
+                        fontSize: 14,
+                      ),
+                    ),
+                    Text(
+                      'Personalized insights from your data',
+                      style: AppTextStyles.caption.copyWith(
+                        color: AppColors.textTertiary,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              // Pulsing LIVE badge
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                decoration: BoxDecoration(
+                  color: const Color(0xFF22C55E).withValues(alpha: 0.10),
+                  borderRadius: BorderRadius.circular(8),
+                  border: Border.all(color: const Color(0xFF22C55E).withValues(alpha: 0.25)),
+                ),
+                child: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Container(
+                      width: 5,
+                      height: 5,
+                      decoration: const BoxDecoration(
+                        shape: BoxShape.circle,
+                        color: Color(0xFF22C55E),
+                      ),
+                    )
+                        .animate(onPlay: (c) => c.repeat())
+                        .scaleXY(begin: 0.5, end: 1.4, duration: 850.ms, curve: Curves.easeInOut)
+                        .then()
+                        .scaleXY(begin: 1.4, end: 0.5, duration: 850.ms),
+                    const SizedBox(width: 5),
+                    Text(
+                      'LIVE',
+                      style: AppTextStyles.caption.copyWith(
+                        color: const Color(0xFF22C55E),
+                        fontWeight: FontWeight.w800,
+                        fontSize: 9,
+                        letterSpacing: 0.8,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ),
+
+          const SizedBox(height: 16),
+
+          // ── Insight rows ──
+          ...List.generate(insights.length, (index) {
+            final insight = insights[index];
+            final color = insight['color'] as Color;
+            final confidence = insight['confidence'] as int;
+            final tag = insight['tag'] as String;
+
+            return Padding(
+              padding: EdgeInsets.only(bottom: index < insights.length - 1 ? 12 : 0),
+              child: Container(
+                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 11),
+                decoration: BoxDecoration(
+                  color: color.withValues(alpha: 0.05),
+                  borderRadius: BorderRadius.circular(14),
+                  border: Border.all(color: color.withValues(alpha: 0.14)),
+                ),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Row(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        // Emoji icon chip
+                        Container(
+                          width: 34,
+                          height: 34,
+                          decoration: BoxDecoration(
+                            color: color.withValues(alpha: 0.12),
+                            borderRadius: BorderRadius.circular(10),
+                            border: Border.all(color: color.withValues(alpha: 0.22)),
+                          ),
+                          child: Center(
+                            child: Text(
+                              insight['emoji'] as String,
+                              style: const TextStyle(fontSize: 16),
+                            ),
+                          ),
+                        ),
+                        const SizedBox(width: 11),
+                        // Title + desc column
+                        Expanded(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Row(
+                                children: [
+                                  Expanded(
+                                    child: Text(
+                                      insight['title'] as String,
+                                      style: AppTextStyles.labelLarge.copyWith(
+                                        fontWeight: FontWeight.w700,
+                                        fontSize: 13,
+                                      ),
+                                    ),
+                                  ),
+                                  const SizedBox(width: 6),
+                                  // Tag badge
+                                  Container(
+                                    padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                                    decoration: BoxDecoration(
+                                      color: color.withValues(alpha: 0.12),
+                                      borderRadius: BorderRadius.circular(5),
+                                      border: Border.all(color: color.withValues(alpha: 0.25)),
+                                    ),
+                                    child: Text(
+                                      tag,
+                                      style: AppTextStyles.caption.copyWith(
+                                        color: color,
+                                        fontWeight: FontWeight.w800,
+                                        fontSize: 8,
+                                        letterSpacing: 0.6,
+                                      ),
+                                    ),
+                                  ),
+                                ],
+                              ),
+                              const SizedBox(height: 3),
+                              Text(
+                                insight['desc'] as String,
+                                style: AppTextStyles.caption.copyWith(
+                                  color: AppColors.textSecondary,
+                                  fontSize: 11,
+                                  height: 1.4,
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 9),
+                    // Category label + confidence %
+                    Row(
+                      children: [
+                        Text(
+                          insight['subtitle'] as String,
+                          style: AppTextStyles.caption.copyWith(
+                            color: color,
+                            fontSize: 9,
+                            fontWeight: FontWeight.w600,
+                          ),
+                        ),
+                        const Spacer(),
+                        Text(
+                          '$confidence% confidence',
+                          style: AppTextStyles.caption.copyWith(
+                            color: AppColors.textTertiary,
+                            fontSize: 9,
+                          ),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 5),
+                    // Confidence progress bar
+                    Stack(
+                      children: [
+                        Container(
+                          height: 4,
+                          width: double.infinity,
+                          decoration: BoxDecoration(
+                            color: AppColors.bgTertiary,
+                            borderRadius: BorderRadius.circular(4),
+                          ),
+                        ),
+                        FractionallySizedBox(
+                          widthFactor: confidence / 100,
+                          child: Container(
+                            height: 4,
+                            decoration: BoxDecoration(
+                              gradient: LinearGradient(
+                                colors: [color.withValues(alpha: 0.6), color],
+                              ),
+                              borderRadius: BorderRadius.circular(4),
+                              boxShadow: [
+                                BoxShadow(
+                                  color: color.withValues(alpha: 0.3),
+                                  blurRadius: 4,
+                                ),
+                              ],
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ],
+                ),
+              )
+                  .animate(delay: (index * 70).ms)
+                  .fadeIn(duration: 380.ms)
+                  .slideY(begin: 0.06, end: 0, duration: 380.ms, curve: Curves.easeOutCubic),
+            );
+          }),
+
+          const SizedBox(height: 14),
+
+          // ── Today's Focus banner ──
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+            decoration: BoxDecoration(
+              color: AppColors.accentOrange.withValues(alpha: 0.06),
+              borderRadius: BorderRadius.circular(12),
+              border: Border.all(color: AppColors.accentOrange.withValues(alpha: 0.18)),
+            ),
+            child: Row(
+              children: [
+                const Text('🎯', style: TextStyle(fontSize: 15)),
+                const SizedBox(width: 10),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        "TODAY'S FOCUS",
+                        style: AppTextStyles.caption.copyWith(
+                          color: AppColors.accentOrange,
+                          fontWeight: FontWeight.w800,
+                          fontSize: 9,
+                          letterSpacing: 0.8,
+                        ),
+                      ),
+                      const SizedBox(height: 2),
+                      Text(
+                        'Hit protein target + drink 1.5L more water to unlock your best recovery score.',
+                        style: AppTextStyles.caption.copyWith(
+                          color: AppColors.textSecondary,
+                          fontSize: 11,
+                          height: 1.4,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+                const SizedBox(width: 6),
+                const Icon(Icons.arrow_forward_ios_rounded, color: AppColors.textTertiary, size: 11),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
   // ─────────────────────────────────────────────
 
   Widget _buildBottomNavigation() {

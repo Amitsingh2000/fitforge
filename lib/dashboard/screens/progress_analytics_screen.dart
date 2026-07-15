@@ -64,27 +64,11 @@ class _ProgressAnalyticsContentState extends State<ProgressAnalyticsContent> {
             delegate: SliverChildListDelegate([
               const SizedBox(height: 16),
 
-              // Transformation Overview (Hero card)
-              _buildTransformationOverview()
+              // Combined Body Metrics + Weight Trend Hero Card
+              _buildBodyMetricsWithTrend()
                   .animate()
                   .fadeIn(duration: 500.ms, delay: 100.ms)
                   .slideY(begin: 0.06, end: 0, duration: 500.ms, delay: 100.ms),
-              const SizedBox(height: 20),
-
-              // Body Metrics 2x2 section
-              _buildSectionLabel('BODY METRICS'),
-              const SizedBox(height: 12),
-              _buildBodyMetricsGrid()
-                  .animate()
-                  .fadeIn(duration: 500.ms, delay: 200.ms),
-              const SizedBox(height: 20),
-
-              // Weight Trend Chart Card
-              _buildSectionLabel('WEIGHT TREND'),
-              const SizedBox(height: 12),
-              _buildWeightChartCard()
-                  .animate()
-                  .fadeIn(duration: 500.ms, delay: 300.ms),
               const SizedBox(height: 20),
 
               // Nutrition Performance Section
@@ -92,7 +76,7 @@ class _ProgressAnalyticsContentState extends State<ProgressAnalyticsContent> {
               const SizedBox(height: 12),
               _buildNutritionPerformance()
                   .animate()
-                  .fadeIn(duration: 500.ms, delay: 400.ms),
+                  .fadeIn(duration: 500.ms, delay: 300.ms),
               const SizedBox(height: 20),
 
               // Hydration Analytics
@@ -100,15 +84,7 @@ class _ProgressAnalyticsContentState extends State<ProgressAnalyticsContent> {
               const SizedBox(height: 12),
               _buildHydrationAnalytics()
                   .animate()
-                  .fadeIn(duration: 500.ms, delay: 500.ms),
-              const SizedBox(height: 20),
-
-              // Streak & Achievement Highlights
-              _buildSectionLabel('STREAK PERFORMANCE'),
-              const SizedBox(height: 12),
-              _buildStreakPerformance()
-                  .animate()
-                  .fadeIn(duration: 500.ms, delay: 600.ms),
+                  .fadeIn(duration: 500.ms, delay: 400.ms),
               const SizedBox(height: 20),
 
               // Activity Insights
@@ -116,15 +92,7 @@ class _ProgressAnalyticsContentState extends State<ProgressAnalyticsContent> {
               const SizedBox(height: 12),
               _buildActivityInsights()
                   .animate()
-                  .fadeIn(duration: 500.ms, delay: 650.ms),
-              const SizedBox(height: 20),
-
-              // AI Progress Insights
-              _buildSectionLabel('AI RECOMMENDATIONS'),
-              const SizedBox(height: 12),
-              _buildAIInsights()
-                  .animate()
-                  .fadeIn(duration: 500.ms, delay: 700.ms),
+                  .fadeIn(duration: 500.ms, delay: 500.ms),
               const SizedBox(height: 20),
 
               // Achievements Badges
@@ -132,19 +100,19 @@ class _ProgressAnalyticsContentState extends State<ProgressAnalyticsContent> {
               const SizedBox(height: 12),
               _buildAchievementsSection()
                   .animate()
-                  .fadeIn(duration: 500.ms, delay: 750.ms),
+                  .fadeIn(duration: 500.ms, delay: 600.ms),
               const SizedBox(height: 20),
 
               // Monthly Report Summary
               _buildMonthlyReportCard()
                   .animate()
-                  .fadeIn(duration: 550.ms, delay: 800.ms),
+                  .fadeIn(duration: 550.ms, delay: 650.ms),
               const SizedBox(height: 24),
 
               // Export Controls
               _buildExportSection()
                   .animate()
-                  .fadeIn(duration: 550.ms, delay: 850.ms),
+                  .fadeIn(duration: 550.ms, delay: 700.ms),
               const SizedBox(height: 16),
             ]),
           ),
@@ -196,19 +164,6 @@ class _ProgressAnalyticsContentState extends State<ProgressAnalyticsContent> {
                   ),
                 ),
               ],
-            ),
-          ),
-          // Profile avatar
-          Container(
-            width: 40,
-            height: 40,
-            decoration: BoxDecoration(
-              shape: BoxShape.circle,
-              border: Border.all(color: AppColors.glassBorder, width: 1.5),
-              image: const DecorationImage(
-                image: NetworkImage('https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&q=80&w=200'),
-                fit: BoxFit.cover,
-              ),
             ),
           ),
         ],
@@ -286,10 +241,10 @@ class _ProgressAnalyticsContentState extends State<ProgressAnalyticsContent> {
   }
 
   // ─────────────────────────────────────────────
-  // TRANSFORMATION OVERVIEW HERO CARD
+  // COMBINED BODY METRICS + WEIGHT TREND
   // ─────────────────────────────────────────────
 
-  Widget _buildTransformationOverview() {
+  Widget _buildBodyMetricsWithTrend() {
     const double currentWeight = 78.0;
     const double targetWeight = 72.0;
     const double startWeight = 84.0;
@@ -297,365 +252,330 @@ class _ProgressAnalyticsContentState extends State<ProgressAnalyticsContent> {
     const double totalGoal = startWeight - targetWeight;
     final double progressPercent = lostWeight / totalGoal;
 
+    final data = _weightDataRanges[_selectedDateRangeIndex];
+    final labels = _weightLabelsRanges[_selectedDateRangeIndex];
+
+    final metrics = [
+      {
+        'title': 'Weight',
+        'value': '78.0 kg',
+        'trend': '↓ 2.1 kg',
+        'positive': true,
+        'icon': Icons.scale_rounded,
+        'color': AppColors.accentBlue,
+      },
+      {
+        'title': 'BMI',
+        'value': '24.2',
+        'trend': '↓ 0.4',
+        'positive': true,
+        'icon': Icons.accessibility_new_rounded,
+        'color': AppColors.accentCyan,
+      },
+      {
+        'title': 'Body Fat',
+        'value': '18.4%',
+        'trend': '↓ 1.2%',
+        'positive': true,
+        'icon': Icons.local_fire_department_rounded,
+        'color': AppColors.accentCoral,
+      },
+      {
+        'title': 'Muscle',
+        'value': '60.5 kg',
+        'trend': '↑ 0.8 kg',
+        'positive': true,
+        'icon': Icons.fitness_center_rounded,
+        'color': AppColors.accentPurple,
+      },
+    ];
+
     return DashboardGlassCard(
-      child: Row(
+      padding: const EdgeInsets.all(0),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Expanded(
-            flex: 3,
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
+          // ── Top: Goal progress bar + key numbers ──
+          Container(
+            padding: const EdgeInsets.fromLTRB(20, 20, 20, 18),
+            decoration: BoxDecoration(
+              gradient: LinearGradient(
+                begin: Alignment.topLeft,
+                end: Alignment.bottomRight,
+                colors: [
+                  AppColors.accentBlue.withValues(alpha: 0.08),
+                  AppColors.accentPurple.withValues(alpha: 0.04),
+                ],
+              ),
+              borderRadius: const BorderRadius.vertical(top: Radius.circular(20)),
+            ),
+            child: Row(
               children: [
-                Row(
-                  children: [
-                    Container(
-                      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
-                      decoration: BoxDecoration(
-                        color: AppColors.accentBlue.withValues(alpha: 0.1),
-                        borderRadius: BorderRadius.circular(10),
-                        border: Border.all(color: AppColors.accentBlue.withValues(alpha: 0.2)),
-                      ),
-                      child: Text(
-                        'WEIGHT JOURNEY',
-                        style: AppTextStyles.caption.copyWith(
-                          color: AppColors.accentBlue,
+                // Radial goal ring
+                RadialProgress(
+                  progress: progressPercent,
+                  size: 88,
+                  strokeWidth: 7,
+                  progressColor: AppColors.accentBlue,
+                  trackColor: AppColors.bgTertiary,
+                  child: Column(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      Text(
+                        '${(progressPercent * 100).toInt()}%',
+                        style: AppTextStyles.titleMedium.copyWith(
                           fontWeight: FontWeight.bold,
-                          letterSpacing: 0.5,
+                          fontSize: 18,
+                          letterSpacing: -0.5,
                         ),
                       ),
-                    ),
-                  ],
+                      Text(
+                        'Goal',
+                        style: AppTextStyles.caption.copyWith(
+                          color: AppColors.textTertiary,
+                          fontSize: 9,
+                        ),
+                      ),
+                    ],
+                  ),
                 ),
-                const SizedBox(height: 16),
-                Row(
-                  children: [
-                    Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text(
-                          'Current',
-                          style: AppTextStyles.caption.copyWith(color: AppColors.textTertiary),
-                        ),
-                        const SizedBox(height: 2),
-                        Text(
-                          '${currentWeight.toStringAsFixed(1)} kg',
-                          style: AppTextStyles.titleLarge.copyWith(fontWeight: FontWeight.bold),
-                        ),
-                      ],
-                    ),
-                    const SizedBox(width: 28),
-                    Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text(
-                          'Target',
-                          style: AppTextStyles.caption.copyWith(color: AppColors.textTertiary),
-                        ),
-                        const SizedBox(height: 2),
-                        Text(
-                          '${targetWeight.toStringAsFixed(1)} kg',
-                          style: AppTextStyles.titleLarge.copyWith(
-                            fontWeight: FontWeight.bold,
-                            color: AppColors.textSecondary,
+                const SizedBox(width: 18),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Row(
+                        children: [
+                          Container(
+                            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                            decoration: BoxDecoration(
+                              color: AppColors.accentCyan.withValues(alpha: 0.1),
+                              borderRadius: BorderRadius.circular(8),
+                              border: Border.all(color: AppColors.accentCyan.withValues(alpha: 0.2)),
+                            ),
+                            child: Row(
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                const Icon(Icons.trending_down_rounded, color: AppColors.accentCyan, size: 12),
+                                const SizedBox(width: 4),
+                                Text(
+                                  'Lost ${lostWeight.toStringAsFixed(1)} kg',
+                                  style: AppTextStyles.caption.copyWith(
+                                    color: AppColors.accentCyan,
+                                    fontWeight: FontWeight.bold,
+                                    fontSize: 11,
+                                  ),
+                                ),
+                              ],
+                            ),
                           ),
-                        ),
-                      ],
-                    ),
-                  ],
-                ),
-                const SizedBox(height: 16),
-                Row(
-                  children: [
-                    const Icon(
-                      Icons.trending_down_rounded,
-                      color: AppColors.accentCyan,
-                      size: 20,
-                    ),
-                    const SizedBox(width: 8),
-                    Text(
-                      'Lost ${lostWeight.toStringAsFixed(1)} kg total',
-                      style: AppTextStyles.bodyMedium.copyWith(
-                        color: AppColors.accentCyan,
-                        fontWeight: FontWeight.w600,
+                        ],
                       ),
-                    ),
-                  ],
+                      const SizedBox(height: 10),
+                      Row(
+                        children: [
+                          Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text('Current', style: AppTextStyles.caption.copyWith(color: AppColors.textTertiary, fontSize: 10)),
+                              Text(
+                                '${currentWeight.toStringAsFixed(1)} kg',
+                                style: AppTextStyles.titleMedium.copyWith(fontWeight: FontWeight.bold, fontSize: 20),
+                              ),
+                            ],
+                          ),
+                          const SizedBox(width: 6),
+                          Icon(Icons.arrow_forward_rounded, color: AppColors.textTertiary, size: 14),
+                          const SizedBox(width: 6),
+                          Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text('Target', style: AppTextStyles.caption.copyWith(color: AppColors.textTertiary, fontSize: 10)),
+                              Text(
+                                '${targetWeight.toStringAsFixed(1)} kg',
+                                style: AppTextStyles.titleMedium.copyWith(
+                                  fontWeight: FontWeight.bold,
+                                  fontSize: 20,
+                                  color: AppColors.textSecondary,
+                                ),
+                              ),
+                            ],
+                          ),
+                        ],
+                      ),
+                    ],
+                  ),
                 ),
               ],
             ),
           ),
-          Expanded(
-            flex: 2,
-            child: Center(
-              child: RadialProgress(
-                progress: progressPercent,
-                size: 110,
-                strokeWidth: 8,
-                progressColor: AppColors.accentBlue,
-                trackColor: AppColors.bgTertiary,
-                child: Column(
-                  mainAxisAlignment: MainAxisAlignment.center,
-                  children: [
-                    Text(
-                      '${(progressPercent * 100).toInt()}%',
-                      style: AppTextStyles.titleLarge.copyWith(
-                        fontWeight: FontWeight.bold,
-                        fontSize: 22,
-                        letterSpacing: -0.5,
-                      ),
+
+          // ── Middle: 4 metric chips ──
+          Padding(
+            padding: const EdgeInsets.fromLTRB(16, 16, 16, 4),
+            child: Row(
+              children: metrics.map((m) {
+                final color = m['color'] as Color;
+                final positive = m['positive'] as bool;
+                final trend = m['trend'] as String;
+                return Expanded(
+                  child: Container(
+                    margin: const EdgeInsets.symmetric(horizontal: 3),
+                    padding: const EdgeInsets.symmetric(vertical: 10, horizontal: 8),
+                    decoration: BoxDecoration(
+                      color: color.withValues(alpha: 0.07),
+                      borderRadius: BorderRadius.circular(14),
+                      border: Border.all(color: color.withValues(alpha: 0.15)),
                     ),
-                    Text(
-                      'of Goal',
-                      style: AppTextStyles.caption.copyWith(
-                        color: AppColors.textTertiary,
-                        fontSize: 9,
-                      ),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Icon(m['icon'] as IconData, color: color, size: 15),
+                        const SizedBox(height: 6),
+                        Text(
+                          m['value'] as String,
+                          style: AppTextStyles.bodyMedium.copyWith(
+                            fontWeight: FontWeight.bold,
+                            fontSize: 13,
+                          ),
+                        ),
+                        const SizedBox(height: 2),
+                        Text(
+                          m['title'] as String,
+                          style: AppTextStyles.caption.copyWith(
+                            color: AppColors.textTertiary,
+                            fontSize: 9,
+                          ),
+                        ),
+                        const SizedBox(height: 4),
+                        Text(
+                          trend,
+                          style: AppTextStyles.caption.copyWith(
+                            color: positive ? AppColors.accentCyan : AppColors.accentCoral,
+                            fontSize: 9,
+                            fontWeight: FontWeight.w600,
+                          ),
+                        ),
+                      ],
                     ),
-                  ],
-                ),
-              ),
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-
-  // ─────────────────────────────────────────────
-  // BODY METRICS SECTION
-  // ─────────────────────────────────────────────
-
-  Widget _buildBodyMetricsGrid() {
-    return Column(
-      children: [
-        Row(
-          children: [
-            Expanded(
-              child: _buildMetricTile(
-                title: 'Weight',
-                value: '78.0 kg',
-                trendText: '↓ 2.1 kg this month',
-                isPositive: true, // Loss is positive for target weight loss
-                icon: Icons.scale_rounded,
-                accentColor: AppColors.accentBlue,
-              ),
-            ),
-            const SizedBox(width: 14),
-            Expanded(
-              child: _buildMetricTile(
-                title: 'BMI',
-                value: '24.2',
-                trendText: '↓ 0.4 this month',
-                isPositive: true,
-                icon: Icons.accessibility_new_rounded,
-                accentColor: AppColors.accentCyan,
-              ),
-            ),
-          ],
-        ),
-        const SizedBox(height: 14),
-        Row(
-          children: [
-            Expanded(
-              child: _buildMetricTile(
-                title: 'Body Fat %',
-                value: '18.4%',
-                trendText: '↓ 1.2% this month',
-                isPositive: true,
-                icon: Icons.local_fire_department_rounded,
-                accentColor: AppColors.accentCoral,
-              ),
-            ),
-            const SizedBox(width: 14),
-            Expanded(
-              child: _buildMetricTile(
-                title: 'Muscle Mass',
-                value: '60.5 kg',
-                trendText: '↑ 0.8 kg this month',
-                isPositive: true, // Muscle gain is positive
-                icon: Icons.fitness_center_rounded,
-                accentColor: AppColors.accentPurple,
-              ),
-            ),
-          ],
-        ),
-      ],
-    );
-  }
-
-  Widget _buildMetricTile({
-    required String title,
-    required String value,
-    required String trendText,
-    required bool isPositive,
-    required IconData icon,
-    required Color accentColor,
-  }) {
-    return DashboardGlassCard(
-      padding: const EdgeInsets.all(16),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-            children: [
-              Text(
-                title,
-                style: AppTextStyles.caption.copyWith(color: AppColors.textTertiary),
-              ),
-              Icon(icon, color: accentColor.withValues(alpha: 0.7), size: 18),
-            ],
-          ),
-          const SizedBox(height: 10),
-          Text(
-            value,
-            style: AppTextStyles.titleMedium.copyWith(fontWeight: FontWeight.bold, fontSize: 18),
-          ),
-          const SizedBox(height: 6),
-          Row(
-            children: [
-              Icon(
-                trendText.startsWith('↑') ? Icons.trending_up_rounded : Icons.trending_down_rounded,
-                color: isPositive ? AppColors.accentCyan : AppColors.accentCoral,
-                size: 14,
-              ),
-              const SizedBox(width: 4),
-              Expanded(
-                child: Text(
-                  trendText,
-                  style: AppTextStyles.caption.copyWith(
-                    color: isPositive ? AppColors.accentCyan : AppColors.accentCoral,
-                    fontSize: 10,
-                    fontWeight: FontWeight.w500,
                   ),
-                  overflow: TextOverflow.ellipsis,
-                ),
-              ),
-            ],
+                );
+              }).toList(),
+            ),
           ),
-        ],
-      ),
-    );
-  }
 
-  // ─────────────────────────────────────────────
-  // WEIGHT TREND CHART CARD
-  // ─────────────────────────────────────────────
-
-  Widget _buildWeightChartCard() {
-    final data = _weightDataRanges[_selectedDateRangeIndex];
-    final labels = _weightLabelsRanges[_selectedDateRangeIndex];
-
-    return DashboardGlassCard(
-      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 20),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-            children: [
-              Text(
-                'Weight Timeline',
-                style: AppTextStyles.titleMedium.copyWith(fontWeight: FontWeight.w700),
-              ),
-              Container(
-                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-                decoration: BoxDecoration(
-                  color: AppColors.bgTertiary,
-                  borderRadius: BorderRadius.circular(8),
+          // ── Bottom: Weight Trend Chart ──
+          Padding(
+            padding: const EdgeInsets.fromLTRB(16, 12, 16, 4),
+            child: Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                Text(
+                  'Weight Trend',
+                  style: AppTextStyles.labelLarge.copyWith(
+                    fontWeight: FontWeight.w700,
+                    fontSize: 13,
+                  ),
                 ),
-                child: Text(
-                  'Avg: 78.8 kg',
-                  style: AppTextStyles.caption.copyWith(color: AppColors.textSecondary),
+                Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                  decoration: BoxDecoration(
+                    color: AppColors.bgTertiary,
+                    borderRadius: BorderRadius.circular(8),
+                  ),
+                  child: Text(
+                    'Avg: 78.8 kg',
+                    style: AppTextStyles.caption.copyWith(color: AppColors.textSecondary, fontSize: 10),
+                  ),
                 ),
-              ),
-            ],
+              ],
+            ),
           ),
-          const SizedBox(height: 24),
-          // The line chart canvas
           GestureDetector(
             onPanUpdate: (details) {
-              // Simple gesture hit-testing for interactive hover points
               final box = context.findRenderObject() as RenderBox?;
               if (box != null) {
                 final localPos = box.globalToLocal(details.globalPosition);
-                // Simple mapping of x coordinate to data index (7 items)
-                final chartWidth = box.size.width - 64; // Approximate padding
+                final chartWidth = box.size.width - 64;
                 final relativeX = localPos.dx - 32;
                 if (relativeX > 0 && relativeX < chartWidth) {
                   final index = ((relativeX / chartWidth) * (data.length - 1)).round();
                   if (index >= 0 && index < data.length) {
-                    setState(() {
-                      _hoveredWeightIndex = index;
-                    });
+                    setState(() => _hoveredWeightIndex = index);
                   }
                 }
               }
             },
-            child: SizedBox(
-              height: 160,
-              child: CustomPaint(
-                size: const Size(double.infinity, 160),
-                painter: _WeightChartPainter(
-                  data: data,
-                  labels: labels,
-                  hoveredIndex: _hoveredWeightIndex,
-                  lineColor: AppColors.accentBlue,
-                  glowColor: AppColors.accentPurple,
+            child: Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 16),
+              child: SizedBox(
+                height: 140,
+                child: CustomPaint(
+                  size: const Size(double.infinity, 140),
+                  painter: _WeightChartPainter(
+                    data: data,
+                    labels: labels,
+                    hoveredIndex: _hoveredWeightIndex,
+                    lineColor: AppColors.accentBlue,
+                    glowColor: AppColors.accentPurple,
+                  ),
                 ),
               ),
             ),
           ),
           const SizedBox(height: 12),
-          // Display active hovered value details
-          Row(
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: [
-              Container(
-                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-                decoration: BoxDecoration(
-                  color: AppColors.bgSecondary,
-                  borderRadius: BorderRadius.circular(12),
-                  border: Border.all(color: AppColors.glassBorder),
-                ),
-                child: Row(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    Container(
-                      width: 8,
-                      height: 8,
-                      decoration: const BoxDecoration(
-                        shape: BoxShape.circle,
-                        color: AppColors.accentBlue,
-                      ),
-                    ),
-                    const SizedBox(width: 8),
-                    Text(
-                      '${labels[_hoveredWeightIndex]}: ',
-                      style: AppTextStyles.bodyMedium.copyWith(color: AppColors.textSecondary, fontSize: 12),
-                    ),
-                    Text(
-                      '${data[_hoveredWeightIndex].toStringAsFixed(1)} kg',
-                      style: AppTextStyles.bodyMedium.copyWith(
-                        color: AppColors.textPrimary,
-                        fontWeight: FontWeight.bold,
-                        fontSize: 12,
-                      ),
-                    ),
-                  ],
-                ),
+          Center(
+            child: Container(
+              margin: const EdgeInsets.only(bottom: 16),
+              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+              decoration: BoxDecoration(
+                color: AppColors.bgSecondary,
+                borderRadius: BorderRadius.circular(12),
+                border: Border.all(color: AppColors.glassBorder),
               ),
-            ],
+              child: Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Container(
+                    width: 8, height: 8,
+                    decoration: const BoxDecoration(shape: BoxShape.circle, color: AppColors.accentBlue),
+                  ),
+                  const SizedBox(width: 8),
+                  Text(
+                    '${labels[_hoveredWeightIndex]}: ',
+                    style: AppTextStyles.bodyMedium.copyWith(color: AppColors.textSecondary, fontSize: 12),
+                  ),
+                  Text(
+                    '${data[_hoveredWeightIndex].toStringAsFixed(1)} kg',
+                    style: AppTextStyles.bodyMedium.copyWith(
+                      color: AppColors.textPrimary,
+                      fontWeight: FontWeight.bold,
+                      fontSize: 12,
+                    ),
+                  ),
+                ],
+              ),
+            ),
           ),
         ],
       ),
     );
   }
 
+
+
   // ─────────────────────────────────────────────
-  // NUTRITION PERFORMANCE
+  // NUTRITION PERFORMANCE (Simplified)
   // ─────────────────────────────────────────────
 
   Widget _buildNutritionPerformance() {
+    final nutrients = [
+      {'label': 'Calories', 'value': '2,200', 'target': '2,500 kcal', 'progress': 0.88, 'emoji': '🔥', 'color': AppColors.accentCyan},
+      {'label': 'Protein',  'value': '138g',   'target': '150g goal',   'progress': 0.92, 'emoji': '💪', 'color': AppColors.accentBlue},
+      {'label': 'Carbs',    'value': '228g',   'target': '300g goal',   'progress': 0.76, 'emoji': '🌾', 'color': AppColors.accentOrange},
+      {'label': 'Fats',     'value': '57g',    'target': '70g goal',    'progress': 0.82, 'emoji': '🥑', 'color': AppColors.accentPurple},
+    ];
+
     return DashboardGlassCard(
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -667,61 +587,130 @@ class _ProgressAnalyticsContentState extends State<ProgressAnalyticsContent> {
                 'Nutrition Performance',
                 style: AppTextStyles.titleMedium.copyWith(fontWeight: FontWeight.w700),
               ),
-              Text(
-                'Goal Consistency',
-                style: AppTextStyles.caption.copyWith(color: AppColors.textSecondary),
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                decoration: BoxDecoration(
+                  color: AppColors.accentCyan.withValues(alpha: 0.1),
+                  borderRadius: BorderRadius.circular(8),
+                ),
+                child: Text(
+                  'Today',
+                  style: AppTextStyles.caption.copyWith(
+                    color: AppColors.accentCyan,
+                    fontWeight: FontWeight.bold,
+                    fontSize: 10,
+                  ),
+                ),
               ),
             ],
           ),
-          const SizedBox(height: 20),
-          Row(
-            mainAxisAlignment: MainAxisAlignment.spaceAround,
-            children: [
-              _buildNutritionRing(
-                progress: 0.88,
-                label: 'Calories',
-                value: '88%',
-                color: AppColors.accentCyan,
+          const SizedBox(height: 18),
+          ...nutrients.map((n) {
+            final color = n['color'] as Color;
+            final progress = n['progress'] as double;
+            return Padding(
+              padding: const EdgeInsets.only(bottom: 14),
+              child: Row(
+                children: [
+                  Text(n['emoji'] as String, style: const TextStyle(fontSize: 18)),
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Row(
+                          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                          children: [
+                            Text(
+                              n['label'] as String,
+                              style: AppTextStyles.bodyMedium.copyWith(
+                                fontWeight: FontWeight.w600,
+                                fontSize: 13,
+                              ),
+                            ),
+                            Row(
+                              children: [
+                                Text(
+                                  n['value'] as String,
+                                  style: AppTextStyles.bodyMedium.copyWith(
+                                    fontWeight: FontWeight.bold,
+                                    color: color,
+                                    fontSize: 13,
+                                  ),
+                                ),
+                                Text(
+                                  ' / ${n['target']}',
+                                  style: AppTextStyles.caption.copyWith(
+                                    color: AppColors.textTertiary,
+                                    fontSize: 10,
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ],
+                        ),
+                        const SizedBox(height: 6),
+                        Stack(
+                          children: [
+                            Container(
+                              height: 6,
+                              width: double.infinity,
+                              decoration: BoxDecoration(
+                                color: AppColors.bgTertiary,
+                                borderRadius: BorderRadius.circular(6),
+                              ),
+                            ),
+                            FractionallySizedBox(
+                              widthFactor: progress,
+                              child: Container(
+                                height: 6,
+                                decoration: BoxDecoration(
+                                  gradient: LinearGradient(
+                                    colors: [color.withValues(alpha: 0.7), color],
+                                  ),
+                                  borderRadius: BorderRadius.circular(6),
+                                  boxShadow: [
+                                    BoxShadow(
+                                      color: color.withValues(alpha: 0.3),
+                                      blurRadius: 4,
+                                    ),
+                                  ],
+                                ),
+                              ),
+                            ),
+                          ],
+                        ),
+                      ],
+                    ),
+                  ),
+                  const SizedBox(width: 10),
+                  Text(
+                    '${(progress * 100).round()}%',
+                    style: AppTextStyles.caption.copyWith(
+                      color: color,
+                      fontWeight: FontWeight.bold,
+                      fontSize: 11,
+                    ),
+                  ),
+                ],
               ),
-              _buildNutritionRing(
-                progress: 0.92,
-                label: 'Protein',
-                value: '92%',
-                color: AppColors.accentBlue,
-              ),
-              _buildNutritionRing(
-                progress: 0.76,
-                label: 'Carbs',
-                value: '76%',
-                color: AppColors.accentOrange,
-              ),
-              _buildNutritionRing(
-                progress: 0.82,
-                label: 'Fats',
-                value: '82%',
-                color: AppColors.accentPurple,
-              ),
-            ],
-          ),
-          const SizedBox(height: 16),
+            );
+          }),
           Container(
-            padding: const EdgeInsets.all(12),
+            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
             decoration: BoxDecoration(
-              color: AppColors.bgSecondary,
+              color: AppColors.accentBlue.withValues(alpha: 0.06),
               borderRadius: BorderRadius.circular(12),
+              border: Border.all(color: AppColors.accentBlue.withValues(alpha: 0.12)),
             ),
             child: Row(
               children: [
-                const Icon(
-                  Icons.verified_user_rounded,
-                  color: AppColors.accentBlue,
-                  size: 18,
-                ),
-                const SizedBox(width: 10),
+                const Icon(Icons.star_rounded, color: AppColors.accentBlue, size: 16),
+                const SizedBox(width: 8),
                 Expanded(
                   child: Text(
-                    'Protein goal achievement is at an all-time high this month (92% average consistency).',
-                    style: AppTextStyles.caption.copyWith(color: AppColors.textSecondary),
+                    'Protein at all-time high · 92% consistency this month',
+                    style: AppTextStyles.caption.copyWith(color: AppColors.textSecondary, fontSize: 11),
                   ),
                 ),
               ],
@@ -729,41 +718,6 @@ class _ProgressAnalyticsContentState extends State<ProgressAnalyticsContent> {
           ),
         ],
       ),
-    );
-  }
-
-  Widget _buildNutritionRing({
-    required double progress,
-    required String label,
-    required String value,
-    required Color color,
-  }) {
-    return Column(
-      children: [
-        RadialProgress(
-          progress: progress,
-          size: 60,
-          strokeWidth: 5,
-          progressColor: color,
-          trackColor: AppColors.bgTertiary,
-          child: Text(
-            value,
-            style: AppTextStyles.caption.copyWith(
-              fontWeight: FontWeight.bold,
-              color: AppColors.textPrimary,
-              fontSize: 10,
-            ),
-          ),
-        ),
-        const SizedBox(height: 8),
-        Text(
-          label,
-          style: AppTextStyles.caption.copyWith(
-            color: AppColors.textSecondary,
-            fontSize: 11,
-          ),
-        ),
-      ],
     );
   }
 
@@ -919,156 +873,7 @@ class _ProgressAnalyticsContentState extends State<ProgressAnalyticsContent> {
     );
   }
 
-  // ─────────────────────────────────────────────
-  // STREAK & ACHIEVEMENTS HIGHLIGHTS
-  // ─────────────────────────────────────────────
 
-  Widget _buildStreakPerformance() {
-    return Container(
-      decoration: BoxDecoration(
-        borderRadius: BorderRadius.circular(20),
-        gradient: LinearGradient(
-          begin: Alignment.topLeft,
-          end: Alignment.bottomRight,
-          colors: [
-            AppColors.accentBlue.withValues(alpha: 0.1),
-            AppColors.accentPurple.withValues(alpha: 0.08),
-          ],
-        ),
-        border: Border.all(color: AppColors.glassBorder),
-      ),
-      child: ClipRRect(
-        borderRadius: BorderRadius.circular(20),
-        child: BackdropFilter(
-          filter: ImageFilter.blur(sigmaX: 16, sigmaY: 16),
-          child: Padding(
-            padding: const EdgeInsets.all(20),
-            child: Column(
-              children: [
-                Row(
-                  children: [
-                    Container(
-                      width: 38,
-                      height: 38,
-                      decoration: BoxDecoration(
-                        shape: BoxShape.circle,
-                        color: AppColors.accentOrange.withValues(alpha: 0.15),
-                      ),
-                      child: const Center(
-                        child: Text('🔥', style: TextStyle(fontSize: 18)),
-                      ),
-                    ),
-                    const SizedBox(width: 12),
-                    Expanded(
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Text(
-                            'Active Achievements',
-                            style: AppTextStyles.titleMedium.copyWith(fontWeight: FontWeight.bold, fontSize: 16),
-                          ),
-                          Text(
-                            'Gamified consistency targets',
-                            style: AppTextStyles.caption.copyWith(color: AppColors.textTertiary),
-                          ),
-                        ],
-                      ),
-                    ),
-                  ],
-                ),
-                const SizedBox(height: 24),
-                Row(
-                  children: [
-                    Expanded(
-                      child: _buildStreakMetric(
-                        label: 'Current Streak',
-                        value: '18 Days',
-                        subLabel: 'Active since Jun 1',
-                        valueColor: AppColors.accentOrange,
-                      ),
-                    ),
-                    Container(width: 1, height: 44, color: AppColors.glassBorder),
-                    Expanded(
-                      child: _buildStreakMetric(
-                        label: 'Longest Streak',
-                        value: '43 Days',
-                        subLabel: 'Record set in May',
-                        valueColor: AppColors.textPrimary,
-                      ),
-                    ),
-                  ],
-                ),
-                const SizedBox(height: 20),
-                Container(
-                  height: 1,
-                  color: AppColors.glassBorder,
-                ),
-                const SizedBox(height: 20),
-                Row(
-                  children: [
-                    Expanded(
-                      child: _buildStreakMetric(
-                        label: 'Total XP Earned',
-                        value: '12,450',
-                        subLabel: 'Level 14 Veteran',
-                        valueColor: AppColors.accentPurple,
-                      ),
-                    ),
-                    Container(width: 1, height: 44, color: AppColors.glassBorder),
-                    Expanded(
-                      child: _buildStreakMetric(
-                        label: 'Tasks Completed',
-                        value: '327 Tasks',
-                        subLabel: '89% weekly success',
-                        valueColor: AppColors.accentBlue,
-                      ),
-                    ),
-                  ],
-                ),
-              ],
-            ),
-          ),
-        ),
-      ),
-    );
-  }
-
-  Widget _buildStreakMetric({
-    required String label,
-    required String value,
-    required String subLabel,
-    required Color valueColor,
-  }) {
-    return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 8),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.center,
-        children: [
-          Text(
-            label,
-            style: AppTextStyles.caption.copyWith(color: AppColors.textTertiary),
-          ),
-          const SizedBox(height: 4),
-          Text(
-            value,
-            style: AppTextStyles.titleMedium.copyWith(
-              fontWeight: FontWeight.bold,
-              color: valueColor,
-              fontSize: 18,
-            ),
-          ),
-          const SizedBox(height: 2),
-          Text(
-            subLabel,
-            style: AppTextStyles.caption.copyWith(
-              color: AppColors.textSecondary,
-              fontSize: 9,
-            ),
-          ),
-        ],
-      ),
-    );
-  }
 
   // ─────────────────────────────────────────────
   // ACTIVITY INSIGHTS
@@ -1189,92 +994,7 @@ class _ProgressAnalyticsContentState extends State<ProgressAnalyticsContent> {
     );
   }
 
-  // ─────────────────────────────────────────────
-  // AI PROGRESS INSIGHTS
-  // ─────────────────────────────────────────────
 
-  Widget _buildAIInsights() {
-    final insights = [
-      {
-        'title': 'Healthy Pace Established',
-        'desc': 'You are losing weight at a stable rate of 0.5kg/week, preserving muscle mass.',
-        'icon': Icons.favorite_rounded,
-        'color': AppColors.accentCyan,
-      },
-      {
-        'title': 'Protein Consistency Peak',
-        'desc': 'Your protein consistency improved by 18% this month, aiding in strength development.',
-        'icon': Icons.trending_up_rounded,
-        'color': AppColors.accentBlue,
-      },
-      {
-        'title': 'Hydration habit stabilized',
-        'desc': 'Daily water levels are up by 25% compared to May. Keep up the high fluid intake.',
-        'icon': Icons.water_drop_rounded,
-        'color': AppColors.accentCyan,
-      },
-      {
-        'title': 'Weekday Habit Pattern',
-        'desc': 'Your calorie and active goal completions are 30% higher on weekdays than weekends.',
-        'icon': Icons.calendar_today_rounded,
-        'color': AppColors.accentPurple,
-      },
-    ];
-
-    return Column(
-      children: insights.map((insight) {
-        return Padding(
-          padding: const EdgeInsets.only(bottom: 12),
-          child: DashboardGlassCard(
-            padding: const EdgeInsets.all(16),
-            child: Row(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Container(
-                  width: 36,
-                  height: 36,
-                  decoration: BoxDecoration(
-                    color: (insight['color'] as Color).withValues(alpha: 0.12),
-                    borderRadius: BorderRadius.circular(10),
-                  ),
-                  child: Center(
-                    child: Icon(
-                      insight['icon'] as IconData,
-                      color: insight['color'] as Color,
-                      size: 18,
-                    ),
-                  ),
-                ),
-                const SizedBox(width: 14),
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        insight['title'] as String,
-                        style: AppTextStyles.labelLarge.copyWith(
-                          color: AppColors.textPrimary,
-                          fontWeight: FontWeight.bold,
-                        ),
-                      ),
-                      const SizedBox(height: 4),
-                      Text(
-                        insight['desc'] as String,
-                        style: AppTextStyles.caption.copyWith(
-                          color: AppColors.textSecondary,
-                          height: 1.4,
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-              ],
-            ),
-          ),
-        );
-      }).toList(),
-    );
-  }
 
   // ─────────────────────────────────────────────
   // ACHIEVEMENTS BADGES
