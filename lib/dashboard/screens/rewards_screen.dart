@@ -111,6 +111,10 @@ class _StreakRewardsContentState extends State<StreakRewardsContent> {
             decoration: BoxDecoration(
               borderRadius: BorderRadius.circular(14),
               color: AppColors.accentOrange.withValues(alpha: 0.12),
+              border: Border.all(
+                color: AppColors.accentOrange.withValues(alpha: 0.25),
+                width: 1,
+              ),
             ),
             child: const Center(
               child: Icon(
@@ -277,19 +281,41 @@ class _StreakRewardsContentState extends State<StreakRewardsContent> {
 
               return Container(
                 decoration: BoxDecoration(
-                  color: isStreak
-                      ? AppColors.accentOrange.withValues(alpha: 0.12)
+                  gradient: isStreak
+                      ? LinearGradient(
+                          colors: [
+                            AppColors.accentOrange.withValues(alpha: 0.2),
+                            AppColors.accentOrange.withValues(alpha: 0.05),
+                          ],
+                          begin: Alignment.topLeft,
+                          end: Alignment.bottomRight,
+                        )
                       : isMissed
-                          ? AppColors.accentCoral.withValues(alpha: 0.08)
+                          ? LinearGradient(
+                              colors: [
+                                AppColors.accentCoral.withValues(alpha: 0.15),
+                                AppColors.accentCoral.withValues(alpha: 0.03),
+                              ],
+                              begin: Alignment.topLeft,
+                              end: Alignment.bottomRight,
+                            )
                           : isFuture
-                              ? Colors.transparent
-                              : AppColors.bgSecondary,
+                              ? null
+                              : LinearGradient(
+                                  colors: [
+                                    Colors.white.withValues(alpha: 0.08),
+                                    Colors.white.withValues(alpha: 0.02),
+                                  ],
+                                  begin: Alignment.topLeft,
+                                  end: Alignment.bottomRight,
+                                ),
+                  color: isFuture ? Colors.transparent : null,
                   borderRadius: BorderRadius.circular(10),
                   border: Border.all(
                     color: isStreak
-                        ? AppColors.accentOrange.withValues(alpha: 0.3)
+                        ? AppColors.accentOrange.withValues(alpha: 0.4)
                         : isMissed
-                            ? AppColors.accentCoral.withValues(alpha: 0.2)
+                            ? AppColors.accentCoral.withValues(alpha: 0.3)
                             : AppColors.glassBorder,
                   ),
                 ),
@@ -402,7 +428,7 @@ class _StreakRewardsContentState extends State<StreakRewardsContent> {
             child: Container(
               height: 8,
               width: double.infinity,
-              color: AppColors.bgTertiary,
+              color: Colors.white.withValues(alpha: 0.06),
               child: Align(
                 alignment: Alignment.centerLeft,
                 child: FractionallySizedBox(
@@ -465,13 +491,27 @@ class _StreakRewardsContentState extends State<StreakRewardsContent> {
                 child: Container(
                   padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
                   decoration: BoxDecoration(
-                    color: completed
-                        ? AppColors.accentBlue.withValues(alpha: 0.05)
-                        : AppColors.bgSecondary,
+                    gradient: completed
+                        ? LinearGradient(
+                            colors: [
+                              AppColors.accentBlue.withValues(alpha: 0.12),
+                              AppColors.accentBlue.withValues(alpha: 0.03),
+                            ],
+                            begin: Alignment.topLeft,
+                            end: Alignment.bottomRight,
+                          )
+                        : LinearGradient(
+                            colors: [
+                              Colors.white.withValues(alpha: 0.06),
+                              Colors.white.withValues(alpha: 0.01),
+                            ],
+                            begin: Alignment.topLeft,
+                            end: Alignment.bottomRight,
+                          ),
                     borderRadius: BorderRadius.circular(12),
                     border: Border.all(
                       color: completed 
-                          ? AppColors.accentBlue.withValues(alpha: 0.2) 
+                          ? AppColors.accentBlue.withValues(alpha: 0.25) 
                           : AppColors.glassBorder,
                     ),
                   ),
@@ -483,9 +523,14 @@ class _StreakRewardsContentState extends State<StreakRewardsContent> {
                         height: 32,
                         decoration: BoxDecoration(
                           color: completed
-                              ? AppColors.accentBlue.withValues(alpha: 0.1)
-                              : AppColors.bgTertiary,
+                              ? AppColors.accentBlue.withValues(alpha: 0.12)
+                              : Colors.white.withValues(alpha: 0.05),
                           borderRadius: BorderRadius.circular(8),
+                          border: Border.all(
+                            color: completed
+                                ? AppColors.accentBlue.withValues(alpha: 0.2)
+                                : AppColors.glassBorder,
+                          ),
                         ),
                         child: Center(
                           child: Text(
@@ -599,14 +644,21 @@ class _StreakRewardsContentState extends State<StreakRewardsContent> {
               return Container(
                 padding: const EdgeInsets.all(8),
                 decoration: BoxDecoration(
-                  color: AppColors.bgSecondary,
+                  gradient: LinearGradient(
+                    colors: [
+                      Colors.white.withValues(alpha: 0.06),
+                      Colors.white.withValues(alpha: 0.01),
+                    ],
+                    begin: Alignment.topLeft,
+                    end: Alignment.bottomRight,
+                  ),
                   borderRadius: BorderRadius.circular(16),
                   border: Border.all(color: AppColors.glassBorder),
                   boxShadow: [
                     BoxShadow(
-                      color: Colors.black.withValues(alpha: 0.2),
-                      blurRadius: 4,
-                      offset: const Offset(0, 2),
+                      color: Colors.black.withValues(alpha: 0.1),
+                      blurRadius: 6,
+                      offset: const Offset(0, 3),
                     ),
                   ],
                 ),
