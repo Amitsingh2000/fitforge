@@ -115,7 +115,7 @@ class _OnboardingFlowState extends State<OnboardingFlow> {
               FinalScreen(
                 userData: _allUserData,
                 onGeneratePlan: () {
-                  Navigator.of(context).pushReplacementNamed('/dashboard');
+                  Navigator.of(context).pushReplacementNamed('/billing-plans');
                 },
               ),
             ],

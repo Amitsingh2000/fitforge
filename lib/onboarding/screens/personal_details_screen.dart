@@ -102,10 +102,13 @@ class _PersonalDetailsScreenState extends State<PersonalDetailsScreen> {
             Row(
               mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: [
-                Text(
-                  'Tell us about you',
-                  style: AppTextStyles.headlineMedium,
-                ).animate().fadeIn(duration: 500.ms).slideX(begin: -0.1, end: 0),
+                Expanded(
+                  child: Text(
+                    'Tell us about you',
+                    style: AppTextStyles.headlineMedium,
+                  ).animate().fadeIn(duration: 500.ms).slideX(begin: -0.1, end: 0),
+                ),
+                const SizedBox(width: 8),
                 _buildUnitToggle()
                     .animate()
                     .fadeIn(duration: 500.ms, delay: 200.ms),

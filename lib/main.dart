@@ -10,6 +10,7 @@ import 'auth/screens/trainer_login_screen.dart';
 import 'trainer/screens/trainer_dashboard.dart';
 import 'gym_owner/screens/gym_owner_trainers_screen.dart';
 import 'gym_owner/screens/gym_owner_join_requests_screen.dart';
+import 'dashboard/screens/billing_plans_screen.dart';
 
 void main() {
   WidgetsFlutterBinding.ensureInitialized();
@@ -44,6 +45,7 @@ class FitForgeApp extends StatelessWidget {
         '/trainer-dashboard': (context) => const TrainerDashboard(),
         '/gym-owner-trainers': (context) => const GymOwnerTrainersScreen(),
         '/gym-owner-join-requests': (context) => const GymOwnerJoinRequestsScreen(),
+        '/billing-plans': (context) => const BillingPlansScreen(),
       },
     );
   }

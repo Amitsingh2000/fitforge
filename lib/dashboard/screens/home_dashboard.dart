@@ -11,6 +11,7 @@ import 'progress_analytics_screen.dart';
 import 'rewards_screen.dart';
 import 'leaderboard_screen.dart';
 import 'profile_screen.dart';
+import 'billing_plans_screen.dart';
 
 class HomeDashboard extends StatefulWidget {
   const HomeDashboard({super.key});
@@ -181,6 +182,11 @@ class _HomeDashboardState extends State<HomeDashboard>
               _currentNavIndex = 3;
             });
           },
+          onManageBilling: () {
+            setState(() {
+              _currentNavIndex = 6;
+            });
+          },
         );
       case 5:
         return LeaderboardContent(
@@ -191,6 +197,8 @@ class _HomeDashboardState extends State<HomeDashboard>
             });
           },
         );
+      case 6:
+        return const BillingPlansContent(key: ValueKey('billing'));
       case 0:
       default:
         return _buildHomeContent(key: const ValueKey('home'));
@@ -1386,7 +1394,9 @@ class _HomeDashboardState extends State<HomeDashboard>
               mainAxisAlignment: MainAxisAlignment.spaceAround,
               children: List.generate(navItems.length, (index) {
                 final item = navItems[index];
-                 final isActive = index == _currentNavIndex || (_currentNavIndex == 5 && index == 3);
+                 final isActive = index == _currentNavIndex ||
+                    (_currentNavIndex == 5 && index == 3) ||
+                    (_currentNavIndex == 6 && index == 4);
 
                 return Expanded(
                   child: GestureDetector(
