@@ -11,6 +11,7 @@ import 'trainer/screens/trainer_dashboard.dart';
 import 'gym_owner/screens/gym_owner_trainers_screen.dart';
 import 'gym_owner/screens/gym_owner_join_requests_screen.dart';
 import 'dashboard/screens/billing_plans_screen.dart';
+import 'dashboard/screens/settings_screen.dart';
 
 void main() {
   WidgetsFlutterBinding.ensureInitialized();
@@ -46,6 +47,7 @@ class FitForgeApp extends StatelessWidget {
         '/gym-owner-trainers': (context) => const GymOwnerTrainersScreen(),
         '/gym-owner-join-requests': (context) => const GymOwnerJoinRequestsScreen(),
         '/billing-plans': (context) => const BillingPlansScreen(),
+        '/settings': (context) => const SettingsScreen(),
       },
     );
   }
