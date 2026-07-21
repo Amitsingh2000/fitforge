@@ -1,84 +1,29 @@
 import 'dart:ui';
 import 'package:flutter/material.dart';
 import 'package:flutter_animate/flutter_animate.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../theme/app_theme.dart';
 import '../widgets/animated_counter.dart';
 import '../widgets/primary_button.dart';
+import '../../providers/onboarding_provider.dart';
 
-class FinalScreen extends StatefulWidget {
-  final Map<String, dynamic> userData;
+class FinalScreen extends ConsumerWidget {
   final VoidCallback onGeneratePlan;
 
   const FinalScreen({
     super.key,
-    required this.userData,
     required this.onGeneratePlan,
   });
 
   @override
-  State<FinalScreen> createState() => _FinalScreenState();
-}
+  Widget build(BuildContext context, WidgetRef ref) {
+    final onboardingState = ref.watch(onboardingProvider);
+    final dailyCalories = onboardingState.dailyCalories;
+    final protein = onboardingState.protein;
+    final carbs = onboardingState.carbs;
+    final water = onboardingState.water;
+    final goal = onboardingState.goal ?? 'Stay Fit';
 
-class _FinalScreenState extends State<FinalScreen> {
-  int get _dailyCalories {
-    final weight = (widget.userData['weight'] ?? 70) as int;
-    final height = (widget.userData['height'] ?? 170) as int;
-    final age = (widget.userData['age'] ?? 25) as int;
-    final gender = widget.userData['gender'] ?? 'Male';
-
-    double bmr;
-    if (gender == 'Male') {
-      bmr = 88.362 + (13.397 * weight) + (4.799 * height) - (5.677 * age);
-    } else {
-      bmr = 447.593 + (9.247 * weight) + (3.098 * height) - (4.330 * age);
-    }
-
-    final activity = widget.userData['activityLevel'] ?? 'Moderate';
-    double factor;
-    switch (activity) {
-      case 'Sedentary':
-        factor = 1.2;
-        break;
-      case 'Light':
-        factor = 1.375;
-        break;
-      case 'Active':
-        factor = 1.725;
-        break;
-      case 'Very Active':
-        factor = 1.9;
-        break;
-      default:
-        factor = 1.55;
-    }
-
-    final goal = widget.userData['goal'] ?? 'Stay Fit';
-    int adjustment = 0;
-    if (goal == 'Lose Weight') adjustment = -300;
-    if (goal == 'Build Muscle') adjustment = 250;
-
-    return (bmr * factor + adjustment).round();
-  }
-
-  int get _protein {
-    final weight = (widget.userData['weight'] ?? 70) as int;
-    final goal = widget.userData['goal'] ?? 'Stay Fit';
-    if (goal == 'Build Muscle') return (weight * 2.0).round();
-    if (goal == 'Lose Weight') return (weight * 1.8).round();
-    return (weight * 1.6).round();
-  }
-
-  int get _carbs {
-    return (_dailyCalories * 0.45 / 4).round();
-  }
-
-  double get _water {
-    final weight = (widget.userData['weight'] ?? 70) as int;
-    return (weight * 0.033 * 10).roundToDouble() / 10;
-  }
-
-  @override
-  Widget build(BuildContext context) {
     return SafeArea(
       child: SingleChildScrollView(
         padding: const EdgeInsets.symmetric(horizontal: 24),
@@ -113,7 +58,7 @@ class _FinalScreenState extends State<FinalScreen> {
                 ),
               ),
               child: Text(
-                widget.userData['goal'] ?? 'Stay Fit',
+                goal,
                 style: AppTextStyles.labelLarge.copyWith(
                   color: AppColors.accentBlue,
                   fontSize: 13,
@@ -130,7 +75,7 @@ class _FinalScreenState extends State<FinalScreen> {
                   child: _buildStatCard(
                     emoji: '🔥',
                     label: 'DAILY CALORIES',
-                    value: _dailyCalories.toDouble(),
+                    value: dailyCalories.toDouble(),
                     unit: 'kcal',
                     accentColor: AppColors.accentCoral,
                     delay: 300,
@@ -141,7 +86,7 @@ class _FinalScreenState extends State<FinalScreen> {
                   child: _buildStatCard(
                     emoji: '🥩',
                     label: 'PROTEIN',
-                    value: _protein.toDouble(),
+                    value: protein.toDouble(),
                     unit: 'g',
                     accentColor: AppColors.accentBlue,
                     delay: 400,
@@ -156,7 +101,7 @@ class _FinalScreenState extends State<FinalScreen> {
                   child: _buildStatCard(
                     emoji: '🌾',
                     label: 'CARBS',
-                    value: _carbs.toDouble(),
+                    value: carbs.toDouble(),
                     unit: 'g',
                     accentColor: AppColors.accentPurple,
                     delay: 500,
@@ -167,7 +112,7 @@ class _FinalScreenState extends State<FinalScreen> {
                   child: _buildStatCard(
                     emoji: '💧',
                     label: 'WATER INTAKE',
-                    value: _water,
+                    value: water,
                     unit: 'L',
                     accentColor: AppColors.accentCyan,
                     delay: 600,
@@ -222,7 +167,7 @@ class _FinalScreenState extends State<FinalScreen> {
             PrimaryButton(
               label: 'Generate My Plan',
               showShimmer: true,
-              onTap: widget.onGeneratePlan,
+              onTap: onGeneratePlan,
             )
                 .animate()
                 .fadeIn(duration: 600.ms, delay: 900.ms)

@@ -1,4 +1,6 @@
+import 'dart:ui';
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../theme/app_theme.dart';
 import 'screens/welcome_screen.dart';
 import 'screens/goal_selection_screen.dart';
@@ -6,32 +8,28 @@ import 'screens/personal_details_screen.dart';
 import 'screens/lifestyle_screen.dart';
 import 'screens/final_screen.dart';
 import 'widgets/progress_indicator.dart';
+import '../providers/onboarding_provider.dart';
+import '../auth/screens/register_screen.dart';
 
-class OnboardingFlow extends StatefulWidget {
-  const OnboardingFlow({super.key});
+class OnboardingFlow extends ConsumerStatefulWidget {
+  final int initialPage;
+  const OnboardingFlow({super.key, this.initialPage = 0});
 
   @override
-  State<OnboardingFlow> createState() => _OnboardingFlowState();
+  ConsumerState<OnboardingFlow> createState() => _OnboardingFlowState();
 }
 
-class _OnboardingFlowState extends State<OnboardingFlow> {
-  final PageController _pageController = PageController();
-  int _currentPage = 0;
+class _OnboardingFlowState extends ConsumerState<OnboardingFlow> {
+  late final PageController _pageController;
+  late int _currentPage;
+  bool _isLoading = false;
 
-  // Shared onboarding state
-  String? _selectedGoal;
-  Map<String, dynamic> _personalDetails = {
-    'gender': 'Male',
-    'age': 25,
-    'height': 170,
-    'weight': 70,
-  };
-  Map<String, String?> _lifestyleData = {
-    'activityLevel': null,
-    'dietPreference': null,
-    'experience': null,
-    'sleepSchedule': null,
-  };
+  @override
+  void initState() {
+    super.initState();
+    _currentPage = widget.initialPage;
+    _pageController = PageController(initialPage: widget.initialPage);
+  }
 
   void _goToPage(int page) {
     _pageController.animateToPage(
@@ -42,22 +40,16 @@ class _OnboardingFlowState extends State<OnboardingFlow> {
   }
 
   void _nextPage() {
-    if (_currentPage < 4) {
+    if (_currentPage < 5) {
       _goToPage(_currentPage + 1);
     }
   }
 
   void _previousPage() {
-    if (_currentPage > 1) {
+    if (_currentPage > 0) {
       _goToPage(_currentPage - 1);
     }
   }
-
-  Map<String, dynamic> get _allUserData => {
-        'goal': _selectedGoal,
-        ..._personalDetails,
-        ..._lifestyleData,
-      };
 
   @override
   void dispose() {
@@ -67,6 +59,8 @@ class _OnboardingFlowState extends State<OnboardingFlow> {
 
   @override
   Widget build(BuildContext context) {
+    final onboardingState = ref.watch(onboardingProvider);
+
     return Scaffold(
       backgroundColor: AppColors.bgPrimary,
       body: Stack(
@@ -84,38 +78,82 @@ class _OnboardingFlowState extends State<OnboardingFlow> {
                 onGetStarted: () => _goToPage(1),
               ),
 
-              // Screen 2: Goal Selection
+              // Screen 2: Register Screen (Before Onboarding)
+              RegisterScreen(
+                isEmbeddedInOnboarding: true,
+                onRegisterSuccess: () {
+                  _nextPage();
+                },
+              ),
+
+              // Screen 3: Goal Selection (Step 1)
               GoalSelectionScreen(
-                initialGoal: _selectedGoal,
+                initialGoal: onboardingState.goal,
                 onGoalSelected: (goal) {
-                  setState(() => _selectedGoal = goal);
+                  ref.read(onboardingProvider.notifier).updateGoal(goal);
                 },
                 onContinue: _nextPage,
               ),
 
-              // Screen 3: Personal Details
+              // Screen 4: Personal Details (Step 2)
               PersonalDetailsScreen(
-                initialData: _personalDetails,
+                initialData: {
+                  'gender': onboardingState.gender,
+                  'age': onboardingState.age,
+                  'height': onboardingState.height,
+                  'weight': onboardingState.weight,
+                },
                 onDataChanged: (data) {
-                  setState(() => _personalDetails = data);
+                  ref.read(onboardingProvider.notifier).updatePersonalDetails(
+                    gender: data['gender'] as String?,
+                    age: data['age'] as int?,
+                    height: data['height'] as int?,
+                    weight: data['weight'] as int?,
+                  );
                 },
                 onContinue: _nextPage,
               ),
 
-              // Screen 4: Lifestyle
+              // Screen 5: Lifestyle (Step 3)
               LifestyleScreen(
-                initialData: _lifestyleData,
+                initialData: {
+                  'activityLevel': onboardingState.activityLevel,
+                  'dietPreference': onboardingState.dietPreference,
+                  'experience': onboardingState.experience,
+                  'sleepSchedule': onboardingState.sleepSchedule,
+                },
                 onDataChanged: (data) {
-                  setState(() => _lifestyleData = data);
+                  ref.read(onboardingProvider.notifier).updateLifestyle(
+                    activityLevel: data['activityLevel'],
+                    dietPreference: data['dietPreference'],
+                    experience: data['experience'],
+                    sleepSchedule: data['sleepSchedule'],
+                  );
                 },
                 onContinue: _nextPage,
               ),
 
-              // Screen 5: Final
+              // Screen 6: Final (Plan generated)
               FinalScreen(
-                userData: _allUserData,
-                onGeneratePlan: () {
-                  Navigator.of(context).pushReplacementNamed('/billing-plans');
+                onGeneratePlan: () async {
+                  final navigator = Navigator.of(context);
+                  final scaffoldMessenger = ScaffoldMessenger.of(context);
+                  setState(() => _isLoading = true);
+                  try {
+                    await ref.read(onboardingProvider.notifier).completeOnboarding();
+                    navigator.pushReplacementNamed('/billing-plans');
+                  } catch (e) {
+                    scaffoldMessenger.showSnackBar(
+                      SnackBar(
+                        content: Text(e.toString().replaceAll('Exception: ', '')),
+                        backgroundColor: Colors.redAccent,
+                      ),
+                    );
+                  } finally {
+                    if (mounted) {
+                      setState(() => _isLoading = false);
+                    }
+                  }
                 },
               ),
             ],
@@ -154,23 +192,64 @@ class _OnboardingFlowState extends State<OnboardingFlow> {
                             ),
                           ),
                           const SizedBox(width: 16),
-                          Expanded(
-                            child: OnboardingProgressIndicator(
-                              currentStep: _currentPage - 1,
-                              totalSteps: 4,
+                          if (_currentPage >= 2 && _currentPage <= 4) ...[
+                            Expanded(
+                              child: OnboardingProgressIndicator(
+                                currentStep: _currentPage - 2,
+                                totalSteps: 3,
+                              ),
+                            ),
+                            const SizedBox(width: 16),
+                            // Page counter
+                            Text(
+                              '${_currentPage - 1}/3',
+                              style: AppTextStyles.caption.copyWith(
+                                color: AppColors.textTertiary,
+                              ),
+                            ),
+                          ] else
+                            const Spacer(),
+                        ],
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+            ),
+
+          // Glassmorphic loading overlay
+          if (_isLoading)
+            Positioned.fill(
+              child: ClipRRect(
+                child: BackdropFilter(
+                  filter: ImageFilter.blur(sigmaX: 8, sigmaY: 8),
+                  child: Container(
+                    color: Colors.black.withValues(alpha: 0.5),
+                    child: Center(
+                      child: Column(
+                        mainAxisAlignment: MainAxisAlignment.center,
+                        children: [
+                          const CircularProgressIndicator(
+                            color: AppColors.accentBlue,
+                          ),
+                          const SizedBox(height: 16),
+                          Text(
+                            'Generating your fitness plan...',
+                            style: AppTextStyles.titleMedium.copyWith(
+                              color: Colors.white,
+                              fontWeight: FontWeight.w600,
                             ),
                           ),
-                          const SizedBox(width: 16),
-                          // Page counter
+                          const SizedBox(height: 8),
                           Text(
-                            '$_currentPage/4',
+                            'This may take up to 60 seconds on first launch.',
                             style: AppTextStyles.caption.copyWith(
                               color: AppColors.textTertiary,
                             ),
                           ),
                         ],
                       ),
-                    ],
+                    ),
                   ),
                 ),
               ),

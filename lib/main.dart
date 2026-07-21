@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'theme/app_theme.dart';
 import 'onboarding/onboarding_flow.dart';
 import 'dashboard/screens/home_dashboard.dart';
@@ -12,6 +13,7 @@ import 'gym_owner/screens/gym_owner_trainers_screen.dart';
 import 'gym_owner/screens/gym_owner_join_requests_screen.dart';
 import 'dashboard/screens/billing_plans_screen.dart';
 import 'dashboard/screens/settings_screen.dart';
+import 'auth/screens/register_screen.dart';
 
 void main() {
   WidgetsFlutterBinding.ensureInitialized();
@@ -23,7 +25,7 @@ void main() {
       systemNavigationBarIconBrightness: Brightness.light,
     ),
   );
-  runApp(const FitForgeApp());
+  runApp(const ProviderScope(child: FitForgeApp()));
 }
 
 class FitForgeApp extends StatelessWidget {
@@ -37,7 +39,10 @@ class FitForgeApp extends StatelessWidget {
       theme: AppTheme.darkTheme,
       home: const OnboardingFlow(),
       routes: {
-        '/onboarding': (context) => const OnboardingFlow(),
+        '/onboarding': (context) {
+          final args = ModalRoute.of(context)?.settings.arguments as int?;
+          return OnboardingFlow(initialPage: args ?? 0);
+        },
         '/login': (context) => const LoginScreen(),
         '/dashboard': (context) => const HomeDashboard(),
         '/gym-owner-login': (context) => const GymOwnerLoginScreen(),
@@ -48,6 +53,7 @@ class FitForgeApp extends StatelessWidget {
         '/gym-owner-join-requests': (context) => const GymOwnerJoinRequestsScreen(),
         '/billing-plans': (context) => const BillingPlansScreen(),
         '/settings': (context) => const SettingsScreen(),
+        '/register': (context) => const RegisterScreen(isEmbeddedInOnboarding: false),
       },
     );
   }

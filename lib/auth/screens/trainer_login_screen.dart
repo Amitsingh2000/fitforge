@@ -1,16 +1,19 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_animate/flutter_animate.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../theme/app_theme.dart';
 import '../../onboarding/widgets/primary_button.dart';
+import '../../providers/auth_provider.dart';
+import '../../models/user.dart';
 
-class TrainerLoginScreen extends StatefulWidget {
+class TrainerLoginScreen extends ConsumerStatefulWidget {
   const TrainerLoginScreen({super.key});
 
   @override
-  State<TrainerLoginScreen> createState() => _TrainerLoginScreenState();
+  ConsumerState<TrainerLoginScreen> createState() => _TrainerLoginScreenState();
 }
 
-class _TrainerLoginScreenState extends State<TrainerLoginScreen>
+class _TrainerLoginScreenState extends ConsumerState<TrainerLoginScreen>
     with TickerProviderStateMixin {
   final _emailController = TextEditingController();
   final _passwordController = TextEditingController();
@@ -42,6 +45,22 @@ class _TrainerLoginScreenState extends State<TrainerLoginScreen>
 
   @override
   Widget build(BuildContext context) {
+    ref.listen<AuthState>(authProvider, (previous, next) {
+      if (next.status == AuthStatus.authenticated && next.user?.role == UserRole.trainer) {
+        Navigator.of(context).pushReplacementNamed('/trainer-dashboard');
+      } else if (next.status == AuthStatus.error) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(next.errorMessage ?? 'Authentication failed.'),
+            backgroundColor: Colors.redAccent,
+          ),
+        );
+      }
+    });
+
+    final authState = ref.watch(authProvider);
+    final isLoading = authState.status == AuthStatus.loading;
+
     return Scaffold(
       backgroundColor: AppColors.bgPrimary,
       body: Container(
@@ -140,7 +159,7 @@ class _TrainerLoginScreenState extends State<TrainerLoginScreen>
                           const SizedBox(height: 24),
 
                           // Login Form
-                          _buildLoginForm()
+                          _buildLoginForm(isLoading)
                               .animate()
                               .fadeIn(duration: 600.ms, delay: 500.ms)
                               .slideY(begin: 0.08, end: 0, duration: 600.ms, delay: 500.ms),
@@ -271,7 +290,7 @@ class _TrainerLoginScreenState extends State<TrainerLoginScreen>
     );
   }
 
-  Widget _buildLoginForm() {
+  Widget _buildLoginForm(bool isLoading) {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
@@ -306,11 +325,16 @@ class _TrainerLoginScreenState extends State<TrainerLoginScreen>
         ),
         const SizedBox(height: 24),
         PrimaryButton(
-          label: 'Sign In as Trainer',
-          showShimmer: true,
-          onTap: () {
-            Navigator.of(context).pushReplacementNamed('/trainer-dashboard');
-          },
+          label: isLoading ? 'Signing In...' : 'Sign In as Trainer',
+          showShimmer: !isLoading,
+          onTap: isLoading
+              ? null
+              : () {
+                  ref.read(authProvider.notifier).loginAsTrainer(
+                        _emailController.text.trim(),
+                        _passwordController.text.trim(),
+                      );
+                },
         ),
       ],
     );

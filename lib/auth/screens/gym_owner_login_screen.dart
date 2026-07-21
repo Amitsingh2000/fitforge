@@ -1,17 +1,20 @@
 import 'dart:ui';
 import 'package:flutter/material.dart';
 import 'package:flutter_animate/flutter_animate.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../theme/app_theme.dart';
 import '../../onboarding/widgets/primary_button.dart';
+import '../../providers/auth_provider.dart';
+import '../../models/user.dart';
 
-class GymOwnerLoginScreen extends StatefulWidget {
+class GymOwnerLoginScreen extends ConsumerStatefulWidget {
   const GymOwnerLoginScreen({super.key});
 
   @override
-  State<GymOwnerLoginScreen> createState() => _GymOwnerLoginScreenState();
+  ConsumerState<GymOwnerLoginScreen> createState() => _GymOwnerLoginScreenState();
 }
 
-class _GymOwnerLoginScreenState extends State<GymOwnerLoginScreen>
+class _GymOwnerLoginScreenState extends ConsumerState<GymOwnerLoginScreen>
     with TickerProviderStateMixin {
   final _emailController = TextEditingController();
   final _passwordController = TextEditingController();
@@ -43,6 +46,22 @@ class _GymOwnerLoginScreenState extends State<GymOwnerLoginScreen>
 
   @override
   Widget build(BuildContext context) {
+    ref.listen<AuthState>(authProvider, (previous, next) {
+      if (next.status == AuthStatus.authenticated && next.user?.role == UserRole.gymOwner) {
+        Navigator.of(context).pushReplacementNamed('/gym-owner-dashboard');
+      } else if (next.status == AuthStatus.error) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(next.errorMessage ?? 'Authentication failed.'),
+            backgroundColor: Colors.redAccent,
+          ),
+        );
+      }
+    });
+
+    final authState = ref.watch(authProvider);
+    final isLoading = authState.status == AuthStatus.loading;
+
     return Scaffold(
       backgroundColor: AppColors.bgPrimary,
       body: Container(
@@ -195,7 +214,7 @@ class _GymOwnerLoginScreenState extends State<GymOwnerLoginScreen>
                           const SizedBox(height: 28),
 
                           // ── Login form card ──
-                          _buildLoginFormCard()
+                          _buildLoginFormCard(isLoading)
                               .animate()
                               .fadeIn(duration: 600.ms, delay: 500.ms)
                               .slideY(
@@ -417,7 +436,7 @@ class _GymOwnerLoginScreenState extends State<GymOwnerLoginScreen>
   // LOGIN FORM (inside glass card)
   // ─────────────────────────────────────────────
 
-  Widget _buildLoginFormCard() {
+  Widget _buildLoginFormCard(bool isLoading) {
     return ClipRRect(
       borderRadius: BorderRadius.circular(24),
       child: BackdropFilter(
@@ -497,11 +516,16 @@ class _GymOwnerLoginScreenState extends State<GymOwnerLoginScreen>
 
               // Login button
               PrimaryButton(
-                label: 'Login',
-                showShimmer: true,
-                onTap: () {
-                  Navigator.of(context).pushReplacementNamed('/gym-owner-dashboard');
-                },
+                label: isLoading ? 'Logging In...' : 'Login',
+                showShimmer: !isLoading,
+                onTap: isLoading
+                    ? null
+                    : () {
+                        ref.read(authProvider.notifier).loginAsGymOwner(
+                              _emailController.text.trim(),
+                              _passwordController.text.trim(),
+                            );
+                      },
               ),
             ],
           ),
