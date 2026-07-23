@@ -4,16 +4,42 @@ class User {
   final String id;
   final String email;
   final String name;
+  final String firstName;
+  final String lastName;
   final UserRole role;
   final String? token;
+  final String? avatarUrl;
+  final String? phone;
+  final bool isEmailVerified;
+  final bool isPhoneVerified;
+  final bool isSuperAdmin;
+  final DateTime? createdAt;
 
   const User({
     required this.id,
     required this.email,
     required this.name,
+    this.firstName = '',
+    this.lastName = '',
     required this.role,
     this.token,
+    this.avatarUrl,
+    this.phone,
+    this.isEmailVerified = false,
+    this.isPhoneVerified = false,
+    this.isSuperAdmin = false,
+    this.createdAt,
   });
+
+  /// Formatted "Member Since" string, e.g. "July 2026"
+  String get memberSince {
+    if (createdAt == null) return 'Unknown';
+    const months = [
+      'January', 'February', 'March', 'April', 'May', 'June',
+      'July', 'August', 'September', 'October', 'November', 'December'
+    ];
+    return '${months[createdAt!.month - 1]} ${createdAt!.year}';
+  }
 
   Map<String, dynamic> toJson() {
     return {
@@ -64,12 +90,26 @@ class User {
         ? fullName
         : (json['fullName'] as String? ?? json['name'] as String? ?? 'User');
 
+    DateTime? createdAt;
+    final createdAtStr = json['createdAt'] as String?;
+    if (createdAtStr != null) {
+      createdAt = DateTime.tryParse(createdAtStr);
+    }
+
     return User(
       id: json['id'] as String,
       email: json['email'] as String,
       name: displayName,
+      firstName: firstName,
+      lastName: lastName,
       role: parsedRole,
       token: token,
+      avatarUrl: json['avatarUrl'] as String?,
+      phone: json['phone'] as String?,
+      isEmailVerified: json['isEmailVerified'] as bool? ?? false,
+      isPhoneVerified: json['isPhoneVerified'] as bool? ?? false,
+      isSuperAdmin: json['isSuperAdmin'] as bool? ?? false,
+      createdAt: createdAt,
     );
   }
 }

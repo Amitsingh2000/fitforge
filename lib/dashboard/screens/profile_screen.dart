@@ -2,13 +2,15 @@ import 'dart:math';
 import 'dart:ui';
 import 'package:flutter/material.dart';
 import 'package:flutter_animate/flutter_animate.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
+import '../../providers/auth_provider.dart';
 import '../../theme/app_theme.dart';
 import '../widgets/dashboard_glass_card.dart';
 import 'settings_screen.dart';
 
 /// Profile content — designed to be embedded inside the DashboardShell.
 /// Does NOT have its own Scaffold or bottom nav.
-class ProfileContent extends StatefulWidget {
+class ProfileContent extends ConsumerStatefulWidget {
   final VoidCallback onViewAchievements;
   final VoidCallback onManageBilling;
 
@@ -19,12 +21,11 @@ class ProfileContent extends StatefulWidget {
   });
 
   @override
-  State<ProfileContent> createState() => _ProfileContentState();
+  ConsumerState<ProfileContent> createState() => _ProfileContentState();
 }
 
-class _ProfileContentState extends State<ProfileContent> {
-  // Account/User states
-  String _userName = 'Amit Pardeshi';
+class _ProfileContentState extends ConsumerState<ProfileContent> {
+  // Fitness / body states (local — not from API yet)
   int _userAge = 25;
   String _userGoal = 'Build Muscle';
   double _userHeight = 175.0; // cm
@@ -203,13 +204,26 @@ class _ProfileContentState extends State<ProfileContent> {
   // ─────────────────────────────────────────────
 
   Widget _buildProfileHeader() {
+    final user = ref.watch(authProvider).user;
+    final displayName = user?.name ?? 'User';
+    final avatarUrl = user?.avatarUrl;
+    final email = user?.email ?? '';
+    final memberSince = user?.memberSince ?? '';
+    final isEmailVerified = user?.isEmailVerified ?? false;
+    final isPhoneVerified = user?.isPhoneVerified ?? false;
+    final phone = user?.phone;
+    // Initials for avatar fallback
+    final initials = displayName.trim().isNotEmpty
+        ? displayName.trim().split(' ').map((w) => w.isNotEmpty ? w[0] : '').take(2).join().toUpperCase()
+        : '?';
+
     return Padding(
       padding: const EdgeInsets.fromLTRB(20, 8, 20, 4),
       child: Column(
         children: [
           Row(
             children: [
-              // Profile Photo
+              // Profile Photo / Avatar
               Stack(
                 alignment: Alignment.bottomRight,
                 children: [
@@ -219,21 +233,42 @@ class _ProfileContentState extends State<ProfileContent> {
                     decoration: BoxDecoration(
                       shape: BoxShape.circle,
                       border: Border.all(color: AppColors.accentBlue, width: 2),
-                      image: const DecorationImage(
-                        image: NetworkImage('https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&q=80&w=200'),
-                        fit: BoxFit.cover,
-                      ),
+                      gradient: avatarUrl == null
+                          ? const LinearGradient(
+                              begin: Alignment.topLeft,
+                              end: Alignment.bottomRight,
+                              colors: [Color(0xFF1A2B5C), Color(0xFF0D1B38)],
+                            )
+                          : null,
+                      image: avatarUrl != null
+                          ? DecorationImage(
+                              image: NetworkImage(avatarUrl),
+                              fit: BoxFit.cover,
+                            )
+                          : null,
                     ),
+                    child: avatarUrl == null
+                        ? Center(
+                            child: Text(
+                              initials,
+                              style: AppTextStyles.titleMedium.copyWith(
+                                color: AppColors.accentBlue,
+                                fontWeight: FontWeight.w800,
+                                fontSize: 24,
+                              ),
+                            ),
+                          )
+                        : null,
                   ),
                   Container(
                     width: 24,
                     height: 24,
-                    decoration: const BoxDecoration(
-                      color: AppColors.accentBlue,
+                    decoration: BoxDecoration(
+                      color: isEmailVerified ? AppColors.accentBlue : AppColors.textTertiary,
                       shape: BoxShape.circle,
                     ),
-                    child: const Icon(
-                      Icons.check_rounded,
+                    child: Icon(
+                      isEmailVerified ? Icons.verified_rounded : Icons.person_rounded,
                       color: Colors.white,
                       size: 14,
                     ),
@@ -247,11 +282,14 @@ class _ProfileContentState extends State<ProfileContent> {
                   children: [
                     Row(
                       children: [
-                        Text(
-                          _userName,
-                          style: AppTextStyles.titleLarge.copyWith(
-                            fontWeight: FontWeight.w800,
-                            fontSize: 22,
+                        Flexible(
+                          child: Text(
+                            displayName,
+                            style: AppTextStyles.titleLarge.copyWith(
+                              fontWeight: FontWeight.w800,
+                              fontSize: 22,
+                            ),
+                            overflow: TextOverflow.ellipsis,
                           ),
                         ),
                         const SizedBox(width: 8),
@@ -263,7 +301,7 @@ class _ProfileContentState extends State<ProfileContent> {
                             border: Border.all(color: AppColors.accentBlue.withValues(alpha: 0.3)),
                           ),
                           child: Text(
-                            'PRO',
+                            'FREE',
                             style: AppTextStyles.caption.copyWith(
                               color: AppColors.accentBlue,
                               fontSize: 9,
@@ -283,7 +321,7 @@ class _ProfileContentState extends State<ProfileContent> {
                     ),
                     const SizedBox(height: 4),
                     Text(
-                      'Member Since: June 2026',
+                      memberSince.isNotEmpty ? 'Member Since: $memberSince' : '',
                       style: AppTextStyles.caption.copyWith(
                         color: AppColors.textTertiary,
                       ),
@@ -293,8 +331,92 @@ class _ProfileContentState extends State<ProfileContent> {
               ),
             ],
           ),
+          const SizedBox(height: 16),
+          // ── Account Info strip ─────────────────────────────────
+          Container(
+            padding: const EdgeInsets.all(14),
+            decoration: BoxDecoration(
+              color: AppColors.bgSecondary,
+              borderRadius: BorderRadius.circular(16),
+              border: Border.all(color: AppColors.glassBorder),
+            ),
+            child: Column(
+              children: [
+                _buildInfoRow(
+                  icon: Icons.email_rounded,
+                  label: 'Email',
+                  value: email.isNotEmpty ? email : '—',
+                  badge: isEmailVerified ? 'Verified' : 'Not Verified',
+                  badgeColor: isEmailVerified ? AppColors.accentCyan : AppColors.accentCoral,
+                ),
+                const SizedBox(height: 10),
+                _buildInfoRow(
+                  icon: Icons.phone_rounded,
+                  label: 'Phone',
+                  value: (phone != null && phone.isNotEmpty) ? phone : 'Not added',
+                  badge: isPhoneVerified ? 'Verified' : 'Not Verified',
+                  badgeColor: isPhoneVerified ? AppColors.accentCyan : AppColors.accentCoral,
+                ),
+              ],
+            ),
+          ),
         ],
       ),
+    );
+  }
+
+  Widget _buildInfoRow({
+    required IconData icon,
+    required String label,
+    required String value,
+    required String badge,
+    required Color badgeColor,
+  }) {
+    return Row(
+      children: [
+        Icon(icon, color: AppColors.textTertiary, size: 16),
+        const SizedBox(width: 10),
+        Expanded(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                label,
+                style: AppTextStyles.caption.copyWith(
+                  color: AppColors.textTertiary,
+                  fontSize: 9,
+                ),
+              ),
+              const SizedBox(height: 2),
+              Text(
+                value,
+                style: AppTextStyles.caption.copyWith(
+                  color: AppColors.textPrimary,
+                  fontWeight: FontWeight.w600,
+                  fontSize: 12,
+                ),
+                overflow: TextOverflow.ellipsis,
+              ),
+            ],
+          ),
+        ),
+        Container(
+          padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 3),
+          decoration: BoxDecoration(
+            color: badgeColor.withValues(alpha: 0.12),
+            borderRadius: BorderRadius.circular(6),
+            border: Border.all(color: badgeColor.withValues(alpha: 0.3)),
+          ),
+          child: Text(
+            badge,
+            style: AppTextStyles.caption.copyWith(
+              color: badgeColor,
+              fontSize: 9,
+              fontWeight: FontWeight.w700,
+            ),
+          ),
+        ),
+      ],
     );
   }
 

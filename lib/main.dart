@@ -1,6 +1,8 @@
+import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:app_links/app_links.dart';
 import 'theme/app_theme.dart';
 import 'onboarding/onboarding_flow.dart';
 import 'dashboard/screens/home_dashboard.dart';
@@ -14,6 +16,11 @@ import 'gym_owner/screens/gym_owner_join_requests_screen.dart';
 import 'dashboard/screens/billing_plans_screen.dart';
 import 'dashboard/screens/settings_screen.dart';
 import 'auth/screens/register_screen.dart';
+import 'auth/screens/forgot_password_screen.dart';
+import 'auth/screens/reset_password_screen.dart';
+import 'auth/screens/email_verification_screen.dart';
+import 'models/user.dart';
+import 'providers/auth_provider.dart';
 
 void main() {
   WidgetsFlutterBinding.ensureInitialized();
@@ -37,7 +44,7 @@ class FitForgeApp extends StatelessWidget {
       title: 'FitForge',
       debugShowCheckedModeBanner: false,
       theme: AppTheme.darkTheme,
-      home: const OnboardingFlow(),
+      home: const _AppEntry(),
       routes: {
         '/onboarding': (context) {
           final args = ModalRoute.of(context)?.settings.arguments as int?;
@@ -50,13 +57,123 @@ class FitForgeApp extends StatelessWidget {
         '/trainer-login': (context) => const TrainerLoginScreen(),
         '/trainer-dashboard': (context) => const TrainerDashboard(),
         '/gym-owner-trainers': (context) => const GymOwnerTrainersScreen(),
-        '/gym-owner-join-requests': (context) => const GymOwnerJoinRequestsScreen(),
+        '/gym-owner-join-requests': (context) =>
+            const GymOwnerJoinRequestsScreen(),
         '/billing-plans': (context) => const BillingPlansScreen(),
         '/settings': (context) => const SettingsScreen(),
-        '/register': (context) => const RegisterScreen(isEmbeddedInOnboarding: false),
+        '/register': (context) =>
+            const RegisterScreen(isEmbeddedInOnboarding: false),
+        '/forgot-password': (context) => const ForgotPasswordScreen(),
+        '/reset-password': (context) => const ResetPasswordScreen(),
+        '/verify-email': (context) => const EmailVerificationScreen(),
       },
     );
   }
 }
 
+/// App entry widget that restores a persisted session on cold start.
+/// Shows a splash/loading screen while checking stored tokens, then routes
+/// to the appropriate screen.
+class _AppEntry extends ConsumerStatefulWidget {
+  const _AppEntry();
 
+  @override
+  ConsumerState<_AppEntry> createState() => _AppEntryState();
+}
+
+class _AppEntryState extends ConsumerState<_AppEntry> {
+  late final AppLinks _appLinks;
+  StreamSubscription<Uri>? _linkSub;
+
+  @override
+  void initState() {
+    super.initState();
+    _appLinks = AppLinks();
+
+    // Listen for incoming deep links (Google OAuth callback)
+    _linkSub = _appLinks.uriLinkStream.listen((uri) {
+      _handleDeepLink(uri);
+    });
+
+    // Restore session asynchronously after the first frame
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      ref.read(authProvider.notifier).tryRestoreSession();
+    });
+  }
+
+  void _handleDeepLink(Uri uri) {
+    // Expected: fitforge://oauth/callback?accessToken=...&refreshToken=...
+    final accessToken = uri.queryParameters['accessToken'];
+    final refreshToken = uri.queryParameters['refreshToken'];
+    if (accessToken != null && refreshToken != null) {
+      ref.read(authProvider.notifier).handleOAuthCallback(
+            accessToken: accessToken,
+            refreshToken: refreshToken,
+          );
+    }
+  }
+
+  @override
+  void dispose() {
+    _linkSub?.cancel();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final authState = ref.watch(authProvider);
+
+    switch (authState.status) {
+      case AuthStatus.initial:
+      case AuthStatus.loading:
+        // Splash screen while checking stored tokens
+        return const _SplashScreen();
+
+      case AuthStatus.authenticated:
+        final role = authState.user?.role;
+        if (role == UserRole.gymOwner) {
+          return const GymOwnerDashboard();
+        } else if (role == UserRole.trainer) {
+          return const TrainerDashboard();
+        } else {
+          return const HomeDashboard();
+        }
+
+      case AuthStatus.unauthenticated:
+      case AuthStatus.error:
+        return const OnboardingFlow();
+    }
+  }
+}
+
+class _SplashScreen extends StatelessWidget {
+  const _SplashScreen();
+
+  @override
+  Widget build(BuildContext context) {
+    return const Scaffold(
+      backgroundColor: AppColors.bgPrimary,
+      body: Center(
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            CircularProgressIndicator(
+              color: AppColors.accentBlue,
+              strokeWidth: 2,
+            ),
+            SizedBox(height: 24),
+            Text(
+              'FITFORGE',
+              style: TextStyle(
+                color: Colors.white,
+                fontSize: 18,
+                fontWeight: FontWeight.w800,
+                letterSpacing: 4,
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}

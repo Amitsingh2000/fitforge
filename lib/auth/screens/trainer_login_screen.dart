@@ -323,7 +323,22 @@ class _TrainerLoginScreenState extends ConsumerState<TrainerLoginScreen>
             ),
           ),
         ),
-        const SizedBox(height: 24),
+        const SizedBox(height: 10),
+        Align(
+          alignment: Alignment.centerRight,
+          child: GestureDetector(
+            onTap: () => Navigator.of(context).pushNamed('/forgot-password'),
+            child: Text(
+              'Forgot Password?',
+              style: AppTextStyles.bodyMedium.copyWith(
+                color: AppColors.accentCyan,
+                fontWeight: FontWeight.w500,
+                fontSize: 13,
+              ),
+            ),
+          ),
+        ),
+        const SizedBox(height: 14),
         PrimaryButton(
           label: isLoading ? 'Signing In...' : 'Sign In as Trainer',
           showShimmer: !isLoading,

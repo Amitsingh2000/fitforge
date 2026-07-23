@@ -501,7 +501,7 @@ class _GymOwnerLoginScreenState extends ConsumerState<GymOwnerLoginScreen>
               Align(
                 alignment: Alignment.centerRight,
                 child: GestureDetector(
-                  onTap: () {},
+                  onTap: () => Navigator.of(context).pushNamed('/forgot-password'),
                   child: Text(
                     'Forgot Password?',
                     style: AppTextStyles.bodyMedium.copyWith(

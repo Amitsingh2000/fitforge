@@ -81,9 +81,10 @@ class _RegisterScreenState extends ConsumerState<RegisterScreen>
     ref.listen<AuthState>(authProvider, (previous, next) {
       if (next.status == AuthStatus.authenticated) {
         if (widget.isEmbeddedInOnboarding) {
-          widget.onRegisterSuccess?.call();
+          // Navigate to email verification before continuing onboarding
+          Navigator.of(context).pushNamed('/verify-email');
         } else {
-          Navigator.of(context).pushReplacementNamed('/onboarding', arguments: 2);
+          Navigator.of(context).pushReplacementNamed('/verify-email');
         }
       } else if (next.status == AuthStatus.error) {
         ScaffoldMessenger.of(context).showSnackBar(

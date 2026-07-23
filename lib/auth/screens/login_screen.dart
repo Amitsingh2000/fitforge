@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_animate/flutter_animate.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:url_launcher/url_launcher.dart';
 import '../../theme/app_theme.dart';
 import '../../onboarding/widgets/primary_button.dart';
 import '../../providers/auth_provider.dart';
@@ -438,7 +439,7 @@ class _LoginScreenState extends ConsumerState<LoginScreen>
         Align(
           alignment: Alignment.centerRight,
           child: GestureDetector(
-            onTap: () {},
+            onTap: () => Navigator.of(context).pushNamed('/forgot-password'),
             child: Text(
               'Forgot Password?',
               style: AppTextStyles.bodyMedium.copyWith(
@@ -607,6 +608,14 @@ class _LoginScreenState extends ConsumerState<LoginScreen>
                   AppColors.accentOrange.withValues(alpha: 0.06),
                 ],
                 iconColor: AppColors.accentCoral,
+                onTap: () async {
+                  final uri = Uri.parse(
+                      'https://fitos-backend-55g6.onrender.com/api/v1/auth/google');
+                  if (await canLaunchUrl(uri)) {
+                    await launchUrl(uri,
+                        mode: LaunchMode.externalApplication);
+                  }
+                },
               ),
             ),
             const SizedBox(width: 14),
@@ -633,9 +642,10 @@ class _LoginScreenState extends ConsumerState<LoginScreen>
     IconData? icon,
     required List<Color> gradientColors,
     required Color iconColor,
+    VoidCallback? onTap,
   }) {
     return GestureDetector(
-      onTap: () {},
+      onTap: onTap,
       child: Container(
         padding: const EdgeInsets.symmetric(vertical: 14),
         decoration: BoxDecoration(
