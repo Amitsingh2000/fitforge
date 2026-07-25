@@ -10,6 +10,10 @@ import 'token_storage_service.dart';
 final tokenProvider = StateProvider<String?>((ref) => null);
 final refreshTokenProvider = StateProvider<String?>((ref) => null);
 
+void _log(String message) {
+  if (kDebugMode) debugPrint(message);
+}
+
 // ─────────────────────────────────────────────
 // Dio provider with full interceptor chain
 // ─────────────────────────────────────────────
@@ -25,13 +29,73 @@ final dioProvider = Provider<Dio>((ref) {
     },
   ));
 
+  // Shared in-flight refresh so concurrent 401s (e.g. two screens' requests
+  // failing together right as the access token expires) await one refresh
+  // call instead of each firing their own. The backend rotates-and-invalidates
+  // refresh tokens on every use, so a second independent refresh call would
+  // present an already-consumed token and be treated as theft — revoking
+  // every session. All concurrent 401 handlers must share this one Future.
+  Future<String>? refreshInFlight;
+
+  Future<String> refreshAccessToken() {
+    return refreshInFlight ??= () async {
+      final storedRefreshToken = ref.read(refreshTokenProvider);
+      if (storedRefreshToken == null) {
+        throw StateError('No refresh token available.');
+      }
+      try {
+        final refreshDio = Dio(BaseOptions(
+          baseUrl: 'https://fitos-backend-55g6.onrender.com/api/v1',
+          connectTimeout: const Duration(seconds: 30),
+          receiveTimeout: const Duration(seconds: 30),
+          headers: {
+            'Accept': 'application/json',
+            'Content-Type': 'application/json',
+          },
+        ));
+
+        final refreshResponse = await refreshDio.post('/auth/refresh',
+            data: {'refreshToken': storedRefreshToken});
+
+        final respData = refreshResponse.data;
+        Map<String, dynamic> tokenData;
+        if (respData is Map && respData['success'] == true) {
+          tokenData = Map<String, dynamic>.from(respData['data'] as Map);
+        } else {
+          tokenData = Map<String, dynamic>.from(respData as Map);
+        }
+
+        final newAccessToken = tokenData['accessToken'] as String;
+        final newRefreshToken =
+            tokenData['refreshToken'] as String? ?? storedRefreshToken;
+
+        ref.read(tokenProvider.notifier).state = newAccessToken;
+        ref.read(refreshTokenProvider.notifier).state = newRefreshToken;
+        await tokenStorageService.saveTokens(
+          accessToken: newAccessToken,
+          refreshToken: newRefreshToken,
+        );
+
+        _log('✅ [Auth] Token refreshed successfully.');
+        return newAccessToken;
+      } catch (refreshError) {
+        _log('❌ [Auth] Token refresh failed: $refreshError — logging out.');
+        ref.read(tokenProvider.notifier).state = null;
+        ref.read(refreshTokenProvider.notifier).state = null;
+        await tokenStorageService.clearTokens();
+        rethrow;
+      } finally {
+        refreshInFlight = null;
+      }
+    }();
+  }
+
   // ── 1. Request interceptor: attach Bearer token ──────────────────────────
   dio.interceptors.add(InterceptorsWrapper(
     onRequest: (options, handler) {
-      debugPrint(
-          '🚀 [API Request] ${options.method} ${options.baseUrl}${options.path}');
+      _log('🚀 [API Request] ${options.method} ${options.baseUrl}${options.path}');
       if (options.data != null) {
-        debugPrint('📦 Payload: ${options.data}');
+        _log('📦 Payload: ${options.data}');
       }
 
       final token = ref.read(tokenProvider);
@@ -43,9 +107,8 @@ final dioProvider = Provider<Dio>((ref) {
 
     // ── 2. Response interceptor: unwrap { success, data } envelope ─────────
     onResponse: (response, handler) {
-      debugPrint(
-          '✅ [API Response] ${response.statusCode} ${response.requestOptions.method} ${response.requestOptions.baseUrl}${response.requestOptions.path}');
-      debugPrint('📄 Data: ${response.data}');
+      _log('✅ [API Response] ${response.statusCode} ${response.requestOptions.method} ${response.requestOptions.baseUrl}${response.requestOptions.path}');
+      _log('📄 Data: ${response.data}');
 
       if (response.data is Map && response.data['success'] == true) {
         response.data = response.data['data'];
@@ -60,67 +123,18 @@ final dioProvider = Provider<Dio>((ref) {
       // ── Token refresh logic ──────────────────────────────────────────────
       if (statusCode == 401) {
         final storedRefreshToken = ref.read(refreshTokenProvider);
-
-        // Don't try to refresh if we're already on auth endpoints
-        final path = e.requestOptions.path;
-        final isAuthEndpoint = path.startsWith('/auth/');
+        final isAuthEndpoint = e.requestOptions.path.startsWith('/auth/');
 
         if (storedRefreshToken != null && !isAuthEndpoint) {
-          debugPrint('🔄 [Auth] Access token expired. Attempting refresh...');
           try {
-            // Use a fresh Dio instance so we don't enter an interceptor loop
-            final refreshDio = Dio(BaseOptions(
-              baseUrl: 'https://fitos-backend-55g6.onrender.com/api/v1',
-              connectTimeout: const Duration(seconds: 30),
-              receiveTimeout: const Duration(seconds: 30),
-              headers: {
-                'Accept': 'application/json',
-                'Content-Type': 'application/json',
-              },
-            ));
-
-            final refreshResponse = await refreshDio.post('/auth/refresh',
-                data: {'refreshToken': storedRefreshToken});
-
-            final respData = refreshResponse.data;
-            Map<String, dynamic> tokenData;
-
-            // Unwrap envelope if present
-            if (respData is Map && respData['success'] == true) {
-              tokenData = Map<String, dynamic>.from(respData['data'] as Map);
-            } else {
-              tokenData = Map<String, dynamic>.from(respData as Map);
-            }
-
-            final newAccessToken = tokenData['accessToken'] as String;
-            final newRefreshToken =
-                tokenData['refreshToken'] as String? ?? storedRefreshToken;
-
-            // Update in-memory tokens
-            ref.read(tokenProvider.notifier).state = newAccessToken;
-            ref.read(refreshTokenProvider.notifier).state = newRefreshToken;
-
-            // Persist new tokens
-            await tokenStorageService.saveTokens(
-              accessToken: newAccessToken,
-              refreshToken: newRefreshToken,
-            );
-
-            debugPrint('✅ [Auth] Token refreshed successfully.');
-
-            // Retry the original failed request with the new token
+            final newAccessToken = await refreshAccessToken();
             final retryOptions = e.requestOptions;
             retryOptions.headers['Authorization'] = 'Bearer $newAccessToken';
             final retryResponse = await dio.fetch(retryOptions);
             return handler.resolve(retryResponse);
-          } catch (refreshError) {
-            debugPrint(
-                '❌ [Auth] Token refresh failed: $refreshError — logging out.');
-            // Clear all stored tokens; the auth provider will detect this
-            ref.read(tokenProvider.notifier).state = null;
-            ref.read(refreshTokenProvider.notifier).state = null;
-            await tokenStorageService.clearTokens();
-            // Fall through to propagate the original 401
+          } catch (_) {
+            // Fall through to propagate the original 401 — refreshAccessToken
+            // already cleared local session state on failure.
           }
         }
       }
@@ -139,8 +153,7 @@ final dioProvider = Provider<Dio>((ref) {
           errMsg = errData['error']?.toString() ?? 'Something went wrong';
         }
 
-        debugPrint(
-            '❌ [API Error] $statusCode ${e.requestOptions.method} ${e.requestOptions.path} — $errMsg');
+        _log('❌ [API Error] $statusCode ${e.requestOptions.method} ${e.requestOptions.path} — $errMsg');
 
         return handler.next(DioException(
           requestOptions: e.requestOptions,
@@ -151,9 +164,8 @@ final dioProvider = Provider<Dio>((ref) {
         ));
       }
 
-      debugPrint(
-          '❌ [API Error] $statusCode ${e.requestOptions.method} ${e.requestOptions.path}');
-      debugPrint('💬 Message: ${e.message}');
+      _log('❌ [API Error] $statusCode ${e.requestOptions.method} ${e.requestOptions.path}');
+      _log('💬 Message: ${e.message}');
       return handler.next(e);
     },
   ));

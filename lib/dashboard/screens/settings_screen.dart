@@ -1,7 +1,9 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_animate/flutter_animate.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import '../../admin/screens/certification_review_screen.dart';
 import '../../models/user_session.dart';
+import '../../providers/auth_provider.dart';
 import '../../services/member_service.dart';
 import '../../theme/app_theme.dart';
 import '../widgets/dashboard_glass_card.dart';
@@ -102,12 +104,10 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
     try {
       final service = ref.read(memberServiceProvider);
       await service.logoutAllDevices();
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('All devices logged out')),
-        );
-        _loadSessions();
-      }
+      // The current device's session was just revoked too — clear local
+      // state and let the app fall back to the login screen, rather than
+      // leaving the UI showing a session that no longer exists server-side.
+      await ref.read(authProvider.notifier).logout();
     } catch (e) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
@@ -150,6 +150,16 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
                       .animate()
                       .fadeIn(duration: 500.ms, delay: 150.ms),
                   const SizedBox(height: 20),
+
+                  // Platform admin (only visible to super admins)
+                  if (ref.watch(authProvider).user?.isSuperAdmin == true) ...[
+                    _buildSectionLabel('PLATFORM ADMIN'),
+                    const SizedBox(height: 12),
+                    _buildAdminSection()
+                        .animate()
+                        .fadeIn(duration: 500.ms, delay: 175.ms),
+                    const SizedBox(height: 20),
+                  ],
 
                   // Support & Help
                   _buildSectionLabel('SUPPORT'),
@@ -506,6 +516,35 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
   // ─────────────────────────────────────────────
   // SUPPORT SECTION
   // ─────────────────────────────────────────────
+
+  Widget _buildAdminSection() {
+    return DashboardGlassCard(
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+      child: GestureDetector(
+        onTap: () {
+          Navigator.of(context).push(
+            MaterialPageRoute(builder: (_) => const CertificationReviewScreen()),
+          );
+        },
+        child: Padding(
+          padding: const EdgeInsets.symmetric(vertical: 12),
+          child: Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              Row(
+                children: [
+                  const Icon(Icons.fact_check_outlined, color: AppColors.textTertiary, size: 18),
+                  const SizedBox(width: 12),
+                  Text('Certification Review Queue', style: AppTextStyles.bodyMedium.copyWith(color: AppColors.textPrimary)),
+                ],
+              ),
+              const Icon(Icons.chevron_right_rounded, color: AppColors.textTertiary, size: 20),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
 
   Widget _buildSupportSection() {
     final supportItems = [

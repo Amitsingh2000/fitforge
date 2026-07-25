@@ -8,7 +8,12 @@ import '../../providers/gym_provider.dart';
 import '../../services/gym_owner_service.dart';
 import '../../theme/app_theme.dart';
 import '../../dashboard/widgets/dashboard_glass_card.dart';
-import '../../dashboard/widgets/linear_progress_bar.dart';
+import '../../dashboard/widgets/state_views.dart';
+import 'add_member_screen.dart';
+import 'bulk_import_screen.dart';
+import 'member_detail_screen.dart';
+
+const _statusFilters = ['All', 'Active', 'Expired', 'Frozen', 'Pending'];
 
 class GymOwnerMembersTab extends ConsumerStatefulWidget {
   const GymOwnerMembersTab({super.key});
@@ -23,326 +28,202 @@ class _GymOwnerMembersTabState extends ConsumerState<GymOwnerMembersTab> {
   String? _selectedTrainerFilter;
   final TextEditingController _searchController = TextEditingController();
 
-  List<GymMember> _liveMembers = [];
-  List<GymTrainer> _liveTrainers = [];
-  bool _membersLoading = true;
+  List<GymMember> _members = [];
+  List<GymTrainer> _trainers = [];
+  bool _loading = true;
+  String? _error;
 
   @override
   void initState() {
     super.initState();
-    WidgetsBinding.instance.addPostFrameCallback((_) {
-      _loadMembers();
-    });
+    WidgetsBinding.instance.addPostFrameCallback((_) => _loadMembers());
   }
 
   Future<void> _loadMembers() async {
     final gymId = ref.read(currentGymIdProvider);
     if (gymId == null || gymId.isEmpty) {
-      if (mounted) setState(() => _membersLoading = false);
+      if (mounted) setState(() => _loading = false);
       return;
     }
 
-    setState(() => _membersLoading = true);
+    setState(() {
+      _loading = true;
+      _error = null;
+    });
 
     try {
       final service = ref.read(gymOwnerServiceProvider);
-      final members = await service.getMembers(
-        gymId,
-        status: _selectedFilter != 'All' ? _selectedFilter.toUpperCase() : null,
-        search: _searchQuery.isNotEmpty ? _searchQuery : null,
-      );
-      final trainers = await service.getTrainersRoster(gymId);
-
+      final results = await Future.wait([
+        service.getMembers(gymId),
+        service.getTrainersRoster(gymId),
+      ]);
       if (mounted) {
         setState(() {
-          _liveMembers = members;
-          _liveTrainers = trainers;
-          _membersLoading = false;
+          _members = results[0] as List<GymMember>;
+          _trainers = results[1] as List<GymTrainer>;
+          _loading = false;
         });
       }
-    } catch (_) {
-      if (mounted) setState(() => _membersLoading = false);
+    } catch (e) {
+      if (mounted) {
+        setState(() {
+          _loading = false;
+          _error = friendlyApiError(e);
+        });
+      }
     }
   }
 
-  Future<void> _updateMemberStatus(GymMember member, String newStatus) async {
+  Future<void> _removeMember(GymMember member) async {
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        backgroundColor: AppColors.bgSecondary,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+        title: const Text('Remove member?', style: TextStyle(color: AppColors.textPrimary)),
+        content: Text(
+          'This removes ${member.fullName} from the gym roster.',
+          style: const TextStyle(color: AppColors.textSecondary),
+        ),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text('Cancel')),
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, true),
+            child: const Text('Remove', style: TextStyle(color: AppColors.accentCoral)),
+          ),
+        ],
+      ),
+    );
+    if (confirmed != true) return;
+
     final gymId = ref.read(currentGymIdProvider);
     if (gymId == null) return;
-
     try {
-      final service = ref.read(gymOwnerServiceProvider);
-      await service.updateMemberStatus(gymId, member.membershipId, status: newStatus);
+      await ref.read(gymOwnerServiceProvider).removeMember(gymId, member.membershipId);
       if (mounted) {
+        setState(() => _members.removeWhere((m) => m.membershipId == member.membershipId));
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Updated ${member.fullName} to $newStatus')),
+          SnackBar(content: Text('${member.fullName} removed')),
         );
-        _loadMembers();
       }
     } catch (e) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Failed to update status: $e')),
+          SnackBar(content: Text('Failed to remove member: ${friendlyApiError(e)}')),
         );
       }
     }
   }
 
-  Future<void> _assignTrainer(GymMember member, GymTrainer trainer) async {
+  Future<void> _configureTrainer(GymMember trainer) async {
+    final shiftController = TextEditingController();
+    final commissionController = TextEditingController();
+    final saved = await showModalBottomSheet<bool>(
+      context: context,
+      backgroundColor: Colors.transparent,
+      isScrollControlled: true,
+      builder: (ctx) => Padding(
+        padding: EdgeInsets.only(bottom: MediaQuery.of(ctx).viewInsets.bottom),
+        child: Container(
+          decoration: const BoxDecoration(
+            color: AppColors.bgSecondary,
+            borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
+          ),
+          padding: const EdgeInsets.fromLTRB(20, 20, 20, 24),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text('${trainer.fullName} — Shift & Commission',
+                  style: AppTextStyles.titleMedium.copyWith(fontWeight: FontWeight.w700)),
+              const SizedBox(height: 16),
+              TextField(
+                controller: shiftController,
+                style: const TextStyle(color: AppColors.textPrimary),
+                decoration: InputDecoration(
+                  labelText: 'Shift schedule',
+                  hintText: 'e.g. Mon-Sat 6am-2pm',
+                  labelStyle: const TextStyle(color: AppColors.textSecondary),
+                  hintStyle: const TextStyle(color: AppColors.textTertiary),
+                  filled: true,
+                  fillColor: AppColors.bgTertiary,
+                  border: OutlineInputBorder(borderRadius: BorderRadius.circular(14), borderSide: BorderSide.none),
+                ),
+              ),
+              const SizedBox(height: 12),
+              TextField(
+                controller: commissionController,
+                keyboardType: const TextInputType.numberWithOptions(decimal: true),
+                style: const TextStyle(color: AppColors.textPrimary),
+                decoration: InputDecoration(
+                  labelText: 'Commission %',
+                  hintText: '0-100',
+                  labelStyle: const TextStyle(color: AppColors.textSecondary),
+                  hintStyle: const TextStyle(color: AppColors.textTertiary),
+                  filled: true,
+                  fillColor: AppColors.bgTertiary,
+                  border: OutlineInputBorder(borderRadius: BorderRadius.circular(14), borderSide: BorderSide.none),
+                ),
+              ),
+              const SizedBox(height: 16),
+              SizedBox(
+                width: double.infinity,
+                child: ElevatedButton(
+                  onPressed: () => Navigator.pop(ctx, true),
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: AppColors.accentBlue,
+                    padding: const EdgeInsets.symmetric(vertical: 14),
+                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+                  ),
+                  child: const Text('Save', style: TextStyle(fontWeight: FontWeight.w700)),
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+
+    if (saved != true) return;
     final gymId = ref.read(currentGymIdProvider);
     if (gymId == null) return;
-
     try {
-      final service = ref.read(gymOwnerServiceProvider);
-      await service.assignTrainer(
-        gymId: gymId,
-        membershipId: member.membershipId,
-        trainerId: trainer.trainerId,
-      );
+      await ref.read(gymOwnerServiceProvider).updateTrainerConfig(
+            gymId: gymId,
+            membershipId: trainer.membershipId,
+            shiftSchedule: shiftController.text.trim().isEmpty ? null : shiftController.text.trim(),
+            commissionPercent: double.tryParse(commissionController.text.trim()),
+          );
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Assigned ${trainer.name} to ${member.fullName}')),
-        );
-        _loadMembers();
+        ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Trainer config updated')));
       }
     } catch (e) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Failed to assign trainer: $e')),
+          SnackBar(content: Text('Failed to update: ${friendlyApiError(e)}')),
         );
       }
     }
   }
 
-  final List<String> _statusFilters = [
-    'All',
-    'Active',
-    'Expired',
-    'Pending',
-  ];
+  List<GymMember> get _filteredMembers {
+    var members = _members;
 
-  final List<String> _trainers = [
-    'Coach Anil',
-    'Coach Meera',
-    'Coach Raj',
-    'Coach Dia',
-  ];
-
-  final List<Map<String, dynamic>> _allMembers = [
-    {
-      'name': 'Rahul Sharma',
-      'initials': 'RS',
-      'phone': '+91 98765 43210',
-      'status': 'Active',
-      'membershipPlan': 'Premium',
-      'planExpiry': '15 Dec 2026',
-      'attendance': 0.92,
-      'goal': 'Weight Loss',
-      'trainer': 'Coach Anil',
-      'progress': 0.78,
-      'joinDate': '12 Jan 2026',
-      'gradientColors': [AppColors.accentBlue, AppColors.accentCyan],
-    },
-    {
-      'name': 'Priya Patel',
-      'initials': 'PP',
-      'phone': '+91 87654 32109',
-      'status': 'Active',
-      'membershipPlan': 'Standard',
-      'planExpiry': '3 Sep 2026',
-      'attendance': 0.88,
-      'goal': 'Muscle Gain',
-      'trainer': 'Coach Meera',
-      'progress': 0.65,
-      'joinDate': '3 Feb 2026',
-      'gradientColors': [AppColors.accentPurple, AppColors.accentCoral],
-    },
-    {
-      'name': 'Vikram Singh',
-      'initials': 'VS',
-      'phone': '+91 76543 21098',
-      'status': 'Expired',
-      'membershipPlan': 'Basic',
-      'planExpiry': '8 May 2026',
-      'attendance': 0.45,
-      'goal': 'Endurance',
-      'trainer': 'Coach Raj',
-      'progress': 0.32,
-      'joinDate': '8 Nov 2025',
-      'gradientColors': [AppColors.accentOrange, AppColors.accentCoral],
-    },
-    {
-      'name': 'Sneha Gupta',
-      'initials': 'SG',
-      'phone': '+91 65432 10987',
-      'status': 'Active',
-      'membershipPlan': 'Premium',
-      'planExpiry': '20 Jan 2027',
-      'attendance': 0.95,
-      'goal': 'Flexibility',
-      'trainer': 'Coach Anil',
-      'progress': 0.88,
-      'joinDate': '20 Mar 2026',
-      'gradientColors': [AppColors.accentCyan, AppColors.accentBlue],
-    },
-    {
-      'name': 'Arjun Reddy',
-      'initials': 'AR',
-      'phone': '+91 54321 09876',
-      'status': 'Active',
-      'membershipPlan': 'Premium',
-      'planExpiry': '15 Nov 2026',
-      'attendance': 0.76,
-      'goal': 'Strength',
-      'trainer': 'Coach Meera',
-      'progress': 0.55,
-      'joinDate': '15 Apr 2026',
-      'gradientColors': [AppColors.accentBlue, AppColors.accentPurple],
-    },
-    {
-      'name': 'Deepa Nair',
-      'initials': 'DN',
-      'phone': '+91 43210 98765',
-      'status': 'Pending',
-      'membershipPlan': 'Standard',
-      'planExpiry': '28 Aug 2026',
-      'attendance': 0.20,
-      'goal': 'Weight Loss',
-      'trainer': 'Coach Raj',
-      'progress': 0.10,
-      'joinDate': '28 Jun 2026',
-      'gradientColors': [AppColors.accentPurple, const Color(0xFFA855F7)],
-    },
-    {
-      'name': 'Karan Mehta',
-      'initials': 'KM',
-      'phone': '+91 32109 87654',
-      'status': 'Active',
-      'membershipPlan': 'Premium',
-      'planExpiry': '5 Feb 2027',
-      'attendance': 0.84,
-      'goal': 'Body Building',
-      'trainer': 'Coach Anil',
-      'progress': 0.72,
-      'joinDate': '5 Jan 2026',
-      'gradientColors': [AppColors.accentCoral, AppColors.accentOrange],
-    },
-    {
-      'name': 'Ananya Iyer',
-      'initials': 'AI',
-      'phone': '+91 21098 76543',
-      'status': 'Expired',
-      'membershipPlan': 'Basic',
-      'planExpiry': '22 Mar 2026',
-      'attendance': 0.38,
-      'goal': 'Cardio Fitness',
-      'trainer': 'Coach Meera',
-      'progress': 0.28,
-      'joinDate': '22 Sep 2025',
-      'gradientColors': [AppColors.accentOrange, AppColors.accentCyan],
-    },
-    {
-      'name': 'Rohan Das',
-      'initials': 'RD',
-      'phone': '+91 10987 65432',
-      'status': 'Pending',
-      'membershipPlan': 'Premium',
-      'planExpiry': '10 Jul 2026',
-      'attendance': 0.0,
-      'goal': 'Muscle Gain',
-      'trainer': 'Coach Dia',
-      'progress': 0.0,
-      'joinDate': '1 Jul 2026',
-      'gradientColors': [const Color(0xFF6366F1), AppColors.accentBlue],
-    },
-    {
-      'name': 'Meera Joshi',
-      'initials': 'MJ',
-      'phone': '+91 09876 54321',
-      'status': 'Active',
-      'membershipPlan': 'Standard',
-      'planExpiry': '18 Oct 2026',
-      'attendance': 0.81,
-      'goal': 'Weight Loss',
-      'trainer': 'Coach Dia',
-      'progress': 0.60,
-      'joinDate': '18 Apr 2026',
-      'gradientColors': [AppColors.accentCyan, const Color(0xFF06B6D4)],
-    },
-    {
-      'name': 'Aditya Kapoor',
-      'initials': 'AK',
-      'phone': '+91 88765 12340',
-      'status': 'Active',
-      'membershipPlan': 'Premium',
-      'planExpiry': '22 Mar 2027',
-      'attendance': 0.91,
-      'goal': 'Strength',
-      'trainer': 'Coach Raj',
-      'progress': 0.83,
-      'joinDate': '22 Sep 2025',
-      'gradientColors': [AppColors.accentBlue, const Color(0xFF6366F1)],
-    },
-    {
-      'name': 'Nisha Verma',
-      'initials': 'NV',
-      'phone': '+91 77654 23410',
-      'status': 'Expired',
-      'membershipPlan': 'Basic',
-      'planExpiry': '5 Apr 2026',
-      'attendance': 0.30,
-      'goal': 'Flexibility',
-      'trainer': 'Coach Meera',
-      'progress': 0.22,
-      'joinDate': '5 Oct 2025',
-      'gradientColors': [AppColors.accentCoral, AppColors.accentPurple],
-    },
-  ];
-
-  List<Map<String, dynamic>> get _filteredMembers {
-    var members = _allMembers;
-
-    // Use live API members if available
-    if (_liveMembers.isNotEmpty) {
-      members = _liveMembers.map((lm) {
-        return {
-          'membershipId': lm.membershipId,
-          'userId': lm.userId,
-          'name': lm.fullName,
-          'initials': lm.firstName.isNotEmpty ? lm.firstName[0] : 'M',
-          'phone': lm.phone ?? 'No phone',
-          'status': lm.status[0] + lm.status.substring(1).toLowerCase(),
-          'membershipPlan': lm.planName ?? 'Standard',
-          'planExpiry': lm.endDate != null ? '${lm.endDate!.day}/${lm.endDate!.month}/${lm.endDate!.year}' : 'Active',
-          'attendance': 0.85,
-          'goal': 'General Fitness',
-          'trainer': lm.assignedTrainerName ?? 'Unassigned',
-          'progress': 0.70,
-          'joinDate': lm.startDate != null ? '${lm.startDate!.day}/${lm.startDate!.month}/${lm.startDate!.year}' : 'Recent',
-          'gradientColors': [AppColors.accentBlue, AppColors.accentCyan],
-          'liveModel': lm,
-        };
-      }).toList();
-    }
-
-    // Filter by status
     if (_selectedFilter != 'All') {
-      members = members.where((m) => (m['status'] as String).toLowerCase() == _selectedFilter.toLowerCase()).toList();
+      members = members.where((m) => m.status.toUpperCase() == _selectedFilter.toUpperCase()).toList();
     }
 
-    // Filter by trainer
     if (_selectedTrainerFilter != null) {
-      members = members
-          .where((m) => m['trainer'] == _selectedTrainerFilter)
-          .toList();
+      members = members.where((m) => m.assignedTrainerName == _selectedTrainerFilter).toList();
     }
 
-    // Filter by search query (name or phone)
     if (_searchQuery.isNotEmpty) {
+      final query = _searchQuery.toLowerCase().replaceAll(' ', '');
       members = members.where((m) {
-        final name = (m['name'] as String).toLowerCase();
-        final phone = (m['phone'] as String).replaceAll(' ', '');
-        final query = _searchQuery.toLowerCase().replaceAll(' ', '');
-        return name.contains(query) || phone.contains(query);
+        final name = m.fullName.toLowerCase();
+        final phone = (m.phone ?? '').replaceAll(' ', '');
+        final email = m.email.toLowerCase();
+        return name.contains(query) || phone.contains(query) || email.contains(query);
       }).toList();
     }
 
@@ -361,220 +242,163 @@ class _GymOwnerMembersTabState extends ConsumerState<GymOwnerMembersTab> {
 
     return Stack(
       children: [
-        CustomScrollView(
-          physics: const BouncingScrollPhysics(),
-          slivers: [
-            // ── Header ──
-            SliverToBoxAdapter(
-              child: Padding(
-                padding: const EdgeInsets.fromLTRB(20, 16, 20, 4),
-                child: Row(
-                  children: [
-                    Container(
-                      width: 44,
-                      height: 44,
-                      decoration: BoxDecoration(
-                        borderRadius: BorderRadius.circular(14),
-                        gradient: LinearGradient(
-                          begin: Alignment.topLeft,
-                          end: Alignment.bottomRight,
-                          colors: [
-                            AppColors.accentBlue,
-                            AppColors.accentBlue.withValues(alpha: 0.7),
-                          ],
-                        ),
-                      ),
-                      child: const Center(
-                        child: Icon(
-                          Icons.people_rounded,
-                          color: Colors.white,
-                          size: 22,
-                        ),
-                      ),
-                    ),
-                    const SizedBox(width: 14),
-                    Expanded(
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Text(
-                            'Members Management',
-                            style: AppTextStyles.titleMedium.copyWith(
-                              fontWeight: FontWeight.w700,
-                            ),
-                          ),
-                          const SizedBox(height: 2),
-                          Text(
-                            '${_allMembers.length} total members',
-                            style: AppTextStyles.caption.copyWith(
-                              color: AppColors.textSecondary,
-                            ),
-                          ),
-                        ],
-                      ),
-                    ),
-                  ],
-                ),
-              )
-                  .animate()
-                  .fadeIn(duration: 500.ms)
-                  .slideY(begin: -0.05, end: 0, duration: 500.ms),
-            ),
-
-            // ── Search Bar ──
-            SliverToBoxAdapter(
-              child: Padding(
-                padding: const EdgeInsets.fromLTRB(20, 12, 20, 12),
-                child: _buildSearchBar(),
-              )
-                  .animate()
-                  .fadeIn(duration: 500.ms, delay: 100.ms)
-                  .slideY(
-                      begin: 0.05, end: 0, duration: 500.ms, delay: 100.ms),
-            ),
-
-            // ── Status Filter Chips ──
-            SliverToBoxAdapter(
-              child: SizedBox(
-                height: 38,
-                child: ListView.separated(
-                  padding: const EdgeInsets.symmetric(horizontal: 20),
-                  scrollDirection: Axis.horizontal,
-                  itemCount: _statusFilters.length + 1, // +1 for trainer chip
-                  separatorBuilder: (_, __) => const SizedBox(width: 8),
-                  itemBuilder: (context, index) {
-                    if (index < _statusFilters.length) {
-                      return _buildStatusFilterChip(_statusFilters[index]);
-                    }
-                    // Trainer dropdown chip
-                    return _buildTrainerFilterChip();
-                  },
-                ),
-              )
-                  .animate()
-                  .fadeIn(duration: 500.ms, delay: 180.ms)
-                  .slideY(
-                      begin: 0.05, end: 0, duration: 500.ms, delay: 180.ms),
-            ),
-
-            // ── Filtered Count Badge ──
-            SliverToBoxAdapter(
-              child: Padding(
-                padding: const EdgeInsets.fromLTRB(24, 14, 20, 6),
-                child: Row(
-                  children: [
-                    Container(
-                      padding: const EdgeInsets.symmetric(
-                          horizontal: 10, vertical: 4),
-                      decoration: BoxDecoration(
-                        borderRadius: BorderRadius.circular(8),
-                        color: AppColors.accentBlue.withValues(alpha: 0.08),
-                        border: Border.all(
-                          color: AppColors.accentBlue.withValues(alpha: 0.2),
-                        ),
-                      ),
-                      child: Text(
-                        'Showing ${filtered.length} of ${_allMembers.length} members',
-                        style: AppTextStyles.caption.copyWith(
-                          color: AppColors.accentBlue,
-                          fontWeight: FontWeight.w600,
-                          fontSize: 10,
-                        ),
-                      ),
-                    ),
-                  ],
-                ),
-              )
-                  .animate()
-                  .fadeIn(duration: 400.ms, delay: 250.ms),
-            ),
-
-            // ── Member Cards List ──
-            if (filtered.isEmpty)
+        RefreshIndicator(
+          onRefresh: _loadMembers,
+          color: AppColors.accentBlue,
+          child: CustomScrollView(
+            physics: const AlwaysScrollableScrollPhysics(parent: BouncingScrollPhysics()),
+            slivers: [
+              SliverToBoxAdapter(child: _buildHeader()),
               SliverToBoxAdapter(
                 child: Padding(
-                  padding: const EdgeInsets.symmetric(vertical: 60),
-                  child: Center(
-                    child: Column(
-                      children: [
-                        Icon(
-                          Icons.person_search_rounded,
-                          color: AppColors.textTertiary.withValues(alpha: 0.4),
-                          size: 56,
-                        ),
-                        const SizedBox(height: 12),
-                        Text(
-                          'No members found',
-                          style: AppTextStyles.titleMedium.copyWith(
-                            color: AppColors.textTertiary,
-                          ),
-                        ),
-                        const SizedBox(height: 4),
-                        Text(
-                          'Try adjusting your search or filters',
-                          style: AppTextStyles.caption.copyWith(
-                            color: AppColors.textDisabled,
-                            fontSize: 12,
-                          ),
-                        ),
-                      ],
-                    ),
+                  padding: const EdgeInsets.fromLTRB(20, 12, 20, 12),
+                  child: _buildSearchBar(),
+                ).animate().fadeIn(duration: 500.ms, delay: 100.ms),
+              ),
+              SliverToBoxAdapter(child: _buildFilterChips()),
+              SliverToBoxAdapter(child: _buildCountBadge(filtered.length)),
+              if (_loading)
+                const SliverFillRemaining(
+                  hasScrollBody: false,
+                  child: Padding(padding: EdgeInsets.only(top: 60), child: LoadingView(message: 'Loading members…')),
+                )
+              else if (_error != null)
+                SliverFillRemaining(
+                  hasScrollBody: false,
+                  child: Padding(
+                    padding: const EdgeInsets.only(top: 40),
+                    child: ErrorRetryView(message: _error!, onRetry: _loadMembers),
                   ),
                 )
-                    .animate()
-                    .fadeIn(duration: 500.ms, delay: 300.ms),
-              ),
-
-            if (filtered.isNotEmpty)
-              SliverPadding(
-                padding: const EdgeInsets.fromLTRB(20, 4, 20, 130),
-                sliver: SliverList(
-                  delegate: SliverChildBuilderDelegate(
-                    (context, index) {
-                      final member = filtered[index];
-                      return Padding(
-                        padding: const EdgeInsets.only(bottom: 14),
-                        child: _buildMemberCard(member)
-                            .animate()
-                            .fadeIn(
-                                duration: 400.ms,
-                                delay: Duration(
-                                    milliseconds: 280 + index * 50))
-                            .slideY(
-                                begin: 0.04,
-                                end: 0,
-                                duration: 400.ms,
-                                delay: Duration(
-                                    milliseconds: 280 + index * 50)),
-                      );
-                    },
-                    childCount: filtered.length,
+              else if (filtered.isEmpty)
+                SliverFillRemaining(
+                  hasScrollBody: false,
+                  child: Padding(
+                    padding: const EdgeInsets.only(top: 40),
+                    child: _members.isEmpty
+                        ? EmptyStateView(
+                            icon: Icons.people_outline_rounded,
+                            title: 'No members yet',
+                            subtitle: 'Add your first member or share an invite code so people can join.',
+                            actionLabel: 'Add Member',
+                            onAction: _openAddMember,
+                          )
+                        : const EmptyStateView(
+                            icon: Icons.person_search_rounded,
+                            title: 'No members found',
+                            subtitle: 'Try adjusting your search or filters',
+                          ),
+                  ),
+                )
+              else
+                SliverPadding(
+                  padding: const EdgeInsets.fromLTRB(20, 4, 20, 130),
+                  sliver: SliverList(
+                    delegate: SliverChildBuilderDelegate(
+                      (context, index) {
+                        final member = filtered[index];
+                        return Padding(
+                          padding: const EdgeInsets.only(bottom: 14),
+                          child: _buildMemberCard(member)
+                              .animate()
+                              .fadeIn(duration: 400.ms, delay: Duration(milliseconds: 280 + index * 50))
+                              .slideY(begin: 0.04, end: 0, duration: 400.ms, delay: Duration(milliseconds: 280 + index * 50)),
+                        );
+                      },
+                      childCount: filtered.length,
+                    ),
                   ),
                 ),
-              ),
-          ],
+            ],
+          ),
         ),
-
-        // ── Floating Action Button ──
         Positioned(
           bottom: 90,
           right: 20,
           child: _buildFAB()
               .animate()
-              .scale(
-                  begin: const Offset(0, 0),
-                  end: const Offset(1, 1),
-                  duration: 500.ms,
-                  delay: 500.ms,
-                  curve: Curves.elasticOut),
+              .scale(begin: const Offset(0, 0), end: const Offset(1, 1), duration: 500.ms, delay: 500.ms, curve: Curves.elasticOut),
         ),
       ],
     );
   }
 
-  // ═══════════════════════════════════════════════
-  //  SEARCH BAR
-  // ═══════════════════════════════════════════════
+  Future<void> _openAddMember() async {
+    final result = await Navigator.of(context).push(
+      MaterialPageRoute(builder: (_) => const AddMemberScreen()),
+    );
+    if (result != null) _loadMembers();
+  }
+
+  Widget _buildHeader() {
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(20, 16, 20, 4),
+      child: Row(
+        children: [
+          Container(
+            width: 44,
+            height: 44,
+            decoration: BoxDecoration(
+              borderRadius: BorderRadius.circular(14),
+              gradient: LinearGradient(
+                begin: Alignment.topLeft,
+                end: Alignment.bottomRight,
+                colors: [AppColors.accentBlue, AppColors.accentBlue.withValues(alpha: 0.7)],
+              ),
+            ),
+            child: const Center(child: Icon(Icons.people_rounded, color: Colors.white, size: 22)),
+          ),
+          const SizedBox(width: 14),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text('Members Management', style: AppTextStyles.titleMedium.copyWith(fontWeight: FontWeight.w700)),
+                const SizedBox(height: 2),
+                Text(
+                  _loading ? 'Loading…' : '${_members.length} total members',
+                  style: AppTextStyles.caption.copyWith(color: AppColors.textSecondary),
+                ),
+              ],
+            ),
+          ),
+          IconButton(
+            onPressed: () async {
+              final result = await Navigator.of(context).push(
+                MaterialPageRoute(builder: (_) => const BulkImportScreen()),
+              );
+              if (result == true) _loadMembers();
+            },
+            icon: const Icon(Icons.upload_file_rounded, color: AppColors.textSecondary),
+            tooltip: 'Bulk import from CSV/Excel',
+          ),
+        ],
+      ),
+    ).animate().fadeIn(duration: 500.ms).slideY(begin: -0.05, end: 0, duration: 500.ms);
+  }
+
+  Widget _buildCountBadge(int filteredCount) {
+    if (_loading || _error != null) return const SizedBox.shrink();
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(24, 14, 20, 6),
+      child: Row(
+        children: [
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+            decoration: BoxDecoration(
+              borderRadius: BorderRadius.circular(8),
+              color: AppColors.accentBlue.withValues(alpha: 0.08),
+              border: Border.all(color: AppColors.accentBlue.withValues(alpha: 0.2)),
+            ),
+            child: Text(
+              'Showing $filteredCount of ${_members.length} members',
+              style: AppTextStyles.caption.copyWith(color: AppColors.accentBlue, fontWeight: FontWeight.w600, fontSize: 10),
+            ),
+          ),
+        ],
+      ),
+    ).animate().fadeIn(duration: 400.ms, delay: 250.ms);
+  }
 
   Widget _buildSearchBar() {
     return ClipRRect(
@@ -591,39 +415,22 @@ class _GymOwnerMembersTabState extends ConsumerState<GymOwnerMembersTab> {
           child: TextField(
             controller: _searchController,
             onChanged: (value) => setState(() => _searchQuery = value),
-            style: AppTextStyles.bodyMedium.copyWith(
-              color: AppColors.textPrimary,
-              fontSize: 14,
-            ),
+            style: AppTextStyles.bodyMedium.copyWith(color: AppColors.textPrimary, fontSize: 14),
             decoration: InputDecoration(
-              hintText: 'Search by name or phone...',
-              hintStyle: AppTextStyles.bodyMedium.copyWith(
-                color: AppColors.textTertiary,
-                fontSize: 14,
-              ),
-              prefixIcon: const Icon(
-                Icons.search_rounded,
-                color: AppColors.textTertiary,
-                size: 20,
-              ),
+              hintText: 'Search by name, phone, or email...',
+              hintStyle: AppTextStyles.bodyMedium.copyWith(color: AppColors.textTertiary, fontSize: 14),
+              prefixIcon: const Icon(Icons.search_rounded, color: AppColors.textTertiary, size: 20),
               suffixIcon: _searchQuery.isNotEmpty
                   ? GestureDetector(
                       onTap: () {
                         _searchController.clear();
                         setState(() => _searchQuery = '');
                       },
-                      child: const Icon(
-                        Icons.close_rounded,
-                        color: AppColors.textTertiary,
-                        size: 18,
-                      ),
+                      child: const Icon(Icons.close_rounded, color: AppColors.textTertiary, size: 18),
                     )
                   : null,
               border: InputBorder.none,
-              contentPadding: const EdgeInsets.symmetric(
-                horizontal: 16,
-                vertical: 14,
-              ),
+              contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
             ),
           ),
         ),
@@ -631,21 +438,29 @@ class _GymOwnerMembersTabState extends ConsumerState<GymOwnerMembersTab> {
     );
   }
 
-  // ═══════════════════════════════════════════════
-  //  FILTER CHIPS
-  // ═══════════════════════════════════════════════
+  Widget _buildFilterChips() {
+    return SizedBox(
+      height: 38,
+      child: ListView.separated(
+        padding: const EdgeInsets.symmetric(horizontal: 20),
+        scrollDirection: Axis.horizontal,
+        itemCount: _statusFilters.length + 1,
+        separatorBuilder: (_, __) => const SizedBox(width: 8),
+        itemBuilder: (context, index) {
+          if (index < _statusFilters.length) {
+            return _buildStatusFilterChip(_statusFilters[index]);
+          }
+          return _buildTrainerFilterChip();
+        },
+      ),
+    ).animate().fadeIn(duration: 500.ms, delay: 180.ms);
+  }
 
   Widget _buildStatusFilterChip(String filter) {
-    final isSelected =
-        filter == _selectedFilter && _selectedTrainerFilter == null;
-
-    // Count for each filter
-    int count;
-    if (filter == 'All') {
-      count = _allMembers.length;
-    } else {
-      count = _allMembers.where((m) => m['status'] == filter).length;
-    }
+    final isSelected = filter == _selectedFilter && _selectedTrainerFilter == null;
+    final count = filter == 'All'
+        ? _members.length
+        : _members.where((m) => m.status.toUpperCase() == filter.toUpperCase()).length;
 
     return GestureDetector(
       onTap: () => setState(() {
@@ -657,47 +472,27 @@ class _GymOwnerMembersTabState extends ConsumerState<GymOwnerMembersTab> {
         padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
         decoration: BoxDecoration(
           borderRadius: BorderRadius.circular(12),
-          color: isSelected
-              ? AppColors.accentBlue.withValues(alpha: 0.15)
-              : AppColors.glassBg,
-          border: Border.all(
-            color: isSelected
-                ? AppColors.accentBlue.withValues(alpha: 0.4)
-                : AppColors.glassBorder,
-            width: 1,
-          ),
+          color: isSelected ? AppColors.accentBlue.withValues(alpha: 0.15) : AppColors.glassBg,
+          border: Border.all(color: isSelected ? AppColors.accentBlue.withValues(alpha: 0.4) : AppColors.glassBorder, width: 1),
         ),
         child: Row(
           mainAxisSize: MainAxisSize.min,
           children: [
-            Text(
-              filter,
-              style: AppTextStyles.caption.copyWith(
-                color:
-                    isSelected ? AppColors.accentBlue : AppColors.textSecondary,
-                fontWeight: isSelected ? FontWeight.w600 : FontWeight.w500,
-                fontSize: 12,
-              ),
-            ),
+            Text(filter,
+                style: AppTextStyles.caption.copyWith(
+                    color: isSelected ? AppColors.accentBlue : AppColors.textSecondary,
+                    fontWeight: isSelected ? FontWeight.w600 : FontWeight.w500,
+                    fontSize: 12)),
             const SizedBox(width: 6),
             Container(
               padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 1),
               decoration: BoxDecoration(
                 borderRadius: BorderRadius.circular(6),
-                color: isSelected
-                    ? AppColors.accentBlue.withValues(alpha: 0.2)
-                    : AppColors.bgTertiary,
+                color: isSelected ? AppColors.accentBlue.withValues(alpha: 0.2) : AppColors.bgTertiary,
               ),
-              child: Text(
-                '$count',
-                style: AppTextStyles.caption.copyWith(
-                  color: isSelected
-                      ? AppColors.accentBlue
-                      : AppColors.textTertiary,
-                  fontWeight: FontWeight.w700,
-                  fontSize: 9,
-                ),
-              ),
+              child: Text('$count',
+                  style: AppTextStyles.caption.copyWith(
+                      color: isSelected ? AppColors.accentBlue : AppColors.textTertiary, fontWeight: FontWeight.w700, fontSize: 9)),
             ),
           ],
         ),
@@ -710,51 +505,27 @@ class _GymOwnerMembersTabState extends ConsumerState<GymOwnerMembersTab> {
     final label = isSelected ? _selectedTrainerFilter! : 'Trainer';
 
     return GestureDetector(
-      onTap: () => _showTrainerFilterSheet(),
+      onTap: _showTrainerFilterSheet,
       child: AnimatedContainer(
         duration: const Duration(milliseconds: 200),
         padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
         decoration: BoxDecoration(
           borderRadius: BorderRadius.circular(12),
-          color: isSelected
-              ? AppColors.accentPurple.withValues(alpha: 0.15)
-              : AppColors.glassBg,
-          border: Border.all(
-            color: isSelected
-                ? AppColors.accentPurple.withValues(alpha: 0.4)
-                : AppColors.glassBorder,
-            width: 1,
-          ),
+          color: isSelected ? AppColors.accentPurple.withValues(alpha: 0.15) : AppColors.glassBg,
+          border: Border.all(color: isSelected ? AppColors.accentPurple.withValues(alpha: 0.4) : AppColors.glassBorder, width: 1),
         ),
         child: Row(
           mainAxisSize: MainAxisSize.min,
           children: [
-            Icon(
-              Icons.fitness_center_rounded,
-              color: isSelected
-                  ? AppColors.accentPurple
-                  : AppColors.textTertiary,
-              size: 13,
-            ),
+            Icon(Icons.fitness_center_rounded, color: isSelected ? AppColors.accentPurple : AppColors.textTertiary, size: 13),
             const SizedBox(width: 5),
-            Text(
-              label,
-              style: AppTextStyles.caption.copyWith(
-                color: isSelected
-                    ? AppColors.accentPurple
-                    : AppColors.textSecondary,
-                fontWeight: isSelected ? FontWeight.w600 : FontWeight.w500,
-                fontSize: 12,
-              ),
-            ),
+            Text(label,
+                style: AppTextStyles.caption.copyWith(
+                    color: isSelected ? AppColors.accentPurple : AppColors.textSecondary,
+                    fontWeight: isSelected ? FontWeight.w600 : FontWeight.w500,
+                    fontSize: 12)),
             const SizedBox(width: 3),
-            Icon(
-              Icons.arrow_drop_down_rounded,
-              color: isSelected
-                  ? AppColors.accentPurple
-                  : AppColors.textTertiary,
-              size: 16,
-            ),
+            Icon(Icons.arrow_drop_down_rounded, color: isSelected ? AppColors.accentPurple : AppColors.textTertiary, size: 16),
           ],
         ),
       ),
@@ -762,6 +533,12 @@ class _GymOwnerMembersTabState extends ConsumerState<GymOwnerMembersTab> {
   }
 
   void _showTrainerFilterSheet() {
+    if (_trainers.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('No trainers in this gym yet')),
+      );
+      return;
+    }
     showModalBottomSheet(
       context: context,
       backgroundColor: Colors.transparent,
@@ -769,49 +546,23 @@ class _GymOwnerMembersTabState extends ConsumerState<GymOwnerMembersTab> {
         return Container(
           decoration: BoxDecoration(
             color: AppColors.bgSecondary,
-            borderRadius:
-                const BorderRadius.vertical(top: Radius.circular(24)),
+            borderRadius: const BorderRadius.vertical(top: Radius.circular(24)),
             border: Border.all(color: AppColors.glassBorder),
           ),
           padding: const EdgeInsets.fromLTRB(20, 16, 20, 32),
           child: Column(
             mainAxisSize: MainAxisSize.min,
             children: [
-              // Handle bar
-              Container(
-                width: 40,
-                height: 4,
-                decoration: BoxDecoration(
-                  borderRadius: BorderRadius.circular(2),
-                  color: AppColors.textDisabled,
-                ),
-              ),
+              Container(width: 40, height: 4, decoration: BoxDecoration(borderRadius: BorderRadius.circular(2), color: AppColors.textDisabled)),
               const SizedBox(height: 20),
-              Text(
-                'Filter by Trainer',
-                style: AppTextStyles.titleMedium.copyWith(
-                  fontWeight: FontWeight.w700,
-                ),
-              ),
+              Text('Filter by Trainer', style: AppTextStyles.titleMedium.copyWith(fontWeight: FontWeight.w700)),
               const SizedBox(height: 16),
-
-              // All trainers option
-              _buildTrainerOption(null, 'All Trainers',
-                  Icons.groups_rounded, _selectedTrainerFilter == null),
+              _buildTrainerOption(null, 'All Trainers', Icons.groups_rounded, _selectedTrainerFilter == null),
               const SizedBox(height: 8),
-
-              // Each trainer
-              ..._trainers.map((trainer) {
-                return Padding(
-                  padding: const EdgeInsets.only(bottom: 8),
-                  child: _buildTrainerOption(
-                    trainer,
-                    trainer,
-                    Icons.fitness_center_rounded,
-                    _selectedTrainerFilter == trainer,
-                  ),
-                );
-              }),
+              ..._trainers.map((t) => Padding(
+                    padding: const EdgeInsets.only(bottom: 8),
+                    child: _buildTrainerOption(t.name, t.name, Icons.fitness_center_rounded, _selectedTrainerFilter == t.name),
+                  )),
             ],
           ),
         );
@@ -819,15 +570,12 @@ class _GymOwnerMembersTabState extends ConsumerState<GymOwnerMembersTab> {
     );
   }
 
-  Widget _buildTrainerOption(
-      String? value, String label, IconData icon, bool isSelected) {
+  Widget _buildTrainerOption(String? value, String label, IconData icon, bool isSelected) {
     return GestureDetector(
       onTap: () {
         setState(() {
           _selectedTrainerFilter = value;
-          if (value != null) {
-            _selectedFilter = 'All';
-          }
+          if (value != null) _selectedFilter = 'All';
         });
         Navigator.pop(context);
       },
@@ -835,331 +583,189 @@ class _GymOwnerMembersTabState extends ConsumerState<GymOwnerMembersTab> {
         padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
         decoration: BoxDecoration(
           borderRadius: BorderRadius.circular(14),
-          color: isSelected
-              ? AppColors.accentPurple.withValues(alpha: 0.12)
-              : AppColors.glassBg,
-          border: Border.all(
-            color: isSelected
-                ? AppColors.accentPurple.withValues(alpha: 0.4)
-                : AppColors.glassBorder,
-          ),
+          color: isSelected ? AppColors.accentPurple.withValues(alpha: 0.12) : AppColors.glassBg,
+          border: Border.all(color: isSelected ? AppColors.accentPurple.withValues(alpha: 0.4) : AppColors.glassBorder),
         ),
         child: Row(
           children: [
-            Icon(
-              icon,
-              color: isSelected
-                  ? AppColors.accentPurple
-                  : AppColors.textTertiary,
-              size: 18,
-            ),
+            Icon(icon, color: isSelected ? AppColors.accentPurple : AppColors.textTertiary, size: 18),
             const SizedBox(width: 12),
             Expanded(
-              child: Text(
-                label,
-                style: AppTextStyles.bodyMedium.copyWith(
-                  color: isSelected
-                      ? AppColors.accentPurple
-                      : AppColors.textPrimary,
-                  fontWeight:
-                      isSelected ? FontWeight.w600 : FontWeight.w400,
-                ),
-              ),
+              child: Text(label,
+                  style: AppTextStyles.bodyMedium.copyWith(
+                      color: isSelected ? AppColors.accentPurple : AppColors.textPrimary,
+                      fontWeight: isSelected ? FontWeight.w600 : FontWeight.w400)),
             ),
-            if (isSelected)
-              Icon(
-                Icons.check_circle_rounded,
-                color: AppColors.accentPurple,
-                size: 20,
-              ),
+            if (isSelected) const Icon(Icons.check_circle_rounded, color: AppColors.accentPurple, size: 20),
           ],
         ),
       ),
     );
   }
 
-  // ═══════════════════════════════════════════════
-  //  MEMBER CARD
-  // ═══════════════════════════════════════════════
-
-  Widget _buildMemberCard(Map<String, dynamic> member) {
-    final gradientColors = member['gradientColors'] as List<Color>;
-    final status = member['status'] as String;
-
+  Widget _buildMemberCard(GymMember member) {
     Color statusColor;
     IconData statusIcon;
-    switch (status) {
-      case 'Active':
+    switch (member.status.toUpperCase()) {
+      case 'ACTIVE':
         statusColor = AppColors.accentCyan;
         statusIcon = Icons.check_circle_outline_rounded;
         break;
-      case 'Expired':
+      case 'EXPIRED':
         statusColor = AppColors.accentCoral;
         statusIcon = Icons.error_outline_rounded;
         break;
-      case 'Pending':
+      case 'FROZEN':
         statusColor = AppColors.accentOrange;
-        statusIcon = Icons.hourglass_top_rounded;
+        statusIcon = Icons.ac_unit_rounded;
         break;
       default:
         statusColor = AppColors.textTertiary;
-        statusIcon = Icons.help_outline_rounded;
+        statusIcon = Icons.hourglass_top_rounded;
     }
+    final isTrainer = member.role.toUpperCase() == 'TRAINER';
+    final gradientColors = isTrainer
+        ? [AppColors.accentPurple, AppColors.accentCoral]
+        : [AppColors.accentBlue, AppColors.accentCyan];
 
     return DashboardGlassCard(
       padding: const EdgeInsets.all(16),
       borderRadius: 18,
       child: Column(
         children: [
-          // ── Top Row: Avatar + Info + Status ──
           Row(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              // Avatar
               Container(
                 width: 50,
                 height: 50,
                 decoration: BoxDecoration(
                   borderRadius: BorderRadius.circular(16),
-                  gradient: LinearGradient(
-                    begin: Alignment.topLeft,
-                    end: Alignment.bottomRight,
-                    colors: gradientColors,
-                  ),
-                  boxShadow: [
-                    BoxShadow(
-                      color: gradientColors[0].withValues(alpha: 0.3),
-                      blurRadius: 10,
-                      offset: const Offset(0, 4),
-                    ),
-                  ],
+                  gradient: LinearGradient(begin: Alignment.topLeft, end: Alignment.bottomRight, colors: gradientColors),
+                  boxShadow: [BoxShadow(color: gradientColors[0].withValues(alpha: 0.3), blurRadius: 10, offset: const Offset(0, 4))],
                 ),
                 child: Center(
                   child: Text(
-                    member['initials'] as String,
-                    style: AppTextStyles.labelLarge.copyWith(
-                      color: Colors.white,
-                      fontWeight: FontWeight.w700,
-                      fontSize: 17,
-                    ),
+                    member.firstName.isNotEmpty ? member.firstName[0].toUpperCase() : 'M',
+                    style: AppTextStyles.labelLarge.copyWith(color: Colors.white, fontWeight: FontWeight.w700, fontSize: 17),
                   ),
                 ),
               ),
               const SizedBox(width: 14),
-
-              // Name + Phone + Plan
               Expanded(
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    // Name
-                    Text(
-                      member['name'] as String,
-                      style: AppTextStyles.labelLarge.copyWith(
-                        fontSize: 15,
-                        fontWeight: FontWeight.w600,
-                      ),
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                    ),
+                    Text(member.fullName,
+                        style: AppTextStyles.labelLarge.copyWith(fontSize: 15, fontWeight: FontWeight.w600),
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis),
                     const SizedBox(height: 3),
-
-                    // Phone
                     Row(
                       children: [
-                        Icon(
-                          Icons.phone_outlined,
-                          color: AppColors.textTertiary,
-                          size: 12,
-                        ),
+                        Icon(Icons.phone_outlined, color: AppColors.textTertiary, size: 12),
                         const SizedBox(width: 4),
-                        Text(
-                          member['phone'] as String,
-                          style: AppTextStyles.caption.copyWith(
-                            color: AppColors.textSecondary,
-                            fontSize: 11,
-                          ),
-                        ),
+                        Text(member.phone ?? 'No phone',
+                            style: AppTextStyles.caption.copyWith(color: AppColors.textSecondary, fontSize: 11)),
                       ],
                     ),
                     const SizedBox(height: 5),
-
-                    // Membership Plan pill
                     Container(
-                      padding: const EdgeInsets.symmetric(
-                          horizontal: 8, vertical: 3),
+                      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
                       decoration: BoxDecoration(
                         borderRadius: BorderRadius.circular(8),
                         color: gradientColors[0].withValues(alpha: 0.1),
-                        border: Border.all(
-                          color: gradientColors[0].withValues(alpha: 0.25),
-                        ),
+                        border: Border.all(color: gradientColors[0].withValues(alpha: 0.25)),
                       ),
                       child: Text(
-                        '${member['membershipPlan']} • Exp ${member['planExpiry']}',
-                        style: AppTextStyles.caption.copyWith(
-                          color: gradientColors[0],
-                          fontWeight: FontWeight.w600,
-                          fontSize: 9,
-                        ),
+                        isTrainer
+                            ? 'Trainer'
+                            : '${member.planName ?? 'No plan'}${member.endDate != null ? ' • Exp ${_fmtDate(member.endDate!)}' : ''}',
+                        style: AppTextStyles.caption.copyWith(color: gradientColors[0], fontWeight: FontWeight.w600, fontSize: 9),
                       ),
                     ),
                   ],
                 ),
               ),
               const SizedBox(width: 8),
-
-              // Status badge
               Container(
-                padding: const EdgeInsets.symmetric(
-                    horizontal: 8, vertical: 4),
+                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
                 decoration: BoxDecoration(
                   borderRadius: BorderRadius.circular(10),
                   color: statusColor.withValues(alpha: 0.12),
-                  border: Border.all(
-                    color: statusColor.withValues(alpha: 0.3),
-                    width: 1,
-                  ),
+                  border: Border.all(color: statusColor.withValues(alpha: 0.3), width: 1),
                 ),
                 child: Row(
                   mainAxisSize: MainAxisSize.min,
                   children: [
                     Icon(statusIcon, color: statusColor, size: 11),
                     const SizedBox(width: 3),
-                    Text(
-                      status,
-                      style: AppTextStyles.caption.copyWith(
-                        color: statusColor,
-                        fontWeight: FontWeight.w600,
-                        fontSize: 10,
-                      ),
-                    ),
+                    Text(member.status, style: AppTextStyles.caption.copyWith(color: statusColor, fontWeight: FontWeight.w600, fontSize: 10)),
                   ],
                 ),
               ),
             ],
           ),
-
-          const SizedBox(height: 12),
-
-          // ── Goal + Trainer row ──
-          Row(
-            children: [
-              Icon(
-                Icons.flag_rounded,
-                color: AppColors.textTertiary,
-                size: 13,
-              ),
-              const SizedBox(width: 4),
-              Text(
-                member['goal'] as String,
-                style: AppTextStyles.caption.copyWith(
-                  color: AppColors.textSecondary,
-                  fontSize: 11,
-                ),
-              ),
-              const SizedBox(width: 12),
-              Container(
-                width: 1,
-                height: 12,
-                color: AppColors.glassBorder,
-              ),
-              const SizedBox(width: 12),
-              Icon(
-                Icons.fitness_center_rounded,
-                color: AppColors.textTertiary,
-                size: 13,
-              ),
-              const SizedBox(width: 4),
-              Text(
-                member['trainer'] as String,
-                style: AppTextStyles.caption.copyWith(
-                  color: AppColors.textSecondary,
-                  fontSize: 11,
-                ),
-              ),
-            ],
-          ),
-
-          const SizedBox(height: 12),
-
-          // ── Attendance bar ──
-          _buildProgressRow(
-            label: 'Attendance',
-            value: member['attendance'] as double,
-            color: AppColors.accentCyan,
-          ),
-
-          const SizedBox(height: 8),
-
-          // ── Progress bar ──
-          _buildProgressRow(
-            label: 'Progress',
-            value: member['progress'] as double,
-            color: gradientColors[0],
-          ),
-
+          if (member.assignedTrainerName != null) ...[
+            const SizedBox(height: 12),
+            Row(
+              children: [
+                Icon(Icons.fitness_center_rounded, color: AppColors.textTertiary, size: 13),
+                const SizedBox(width: 4),
+                Text(member.assignedTrainerName!, style: AppTextStyles.caption.copyWith(color: AppColors.textSecondary, fontSize: 11)),
+              ],
+            ),
+          ],
           const SizedBox(height: 14),
-
-          // ── Divider ──
-          Container(
-            height: 1,
-            color: AppColors.glassBorder,
-          ),
-
+          Container(height: 1, color: AppColors.glassBorder),
           const SizedBox(height: 12),
-
-          // ── Action Buttons Row ──
           Row(
             children: [
               _buildActionButton(
                 icon: Icons.visibility_rounded,
                 label: 'View',
                 color: AppColors.accentBlue,
-                onTap: () => _showSnackBar(
-                    'Viewing profile of ${member['name']}'),
-              ),
-              const SizedBox(width: 8),
-              _buildActionButton(
-                icon: Icons.edit_rounded,
-                label: 'Assign Coach',
-                color: AppColors.accentPurple,
                 onTap: () {
-                  final lm = member['liveModel'] as GymMember?;
-                  if (lm != null && _liveTrainers.isNotEmpty) {
-                    _assignTrainer(lm, _liveTrainers.first);
-                  } else {
-                    _showSnackBar('Editing ${member['name']}');
-                  }
+                  final gymId = ref.read(currentGymIdProvider);
+                  if (gymId == null) return;
+                  Navigator.of(context).push(
+                    MaterialPageRoute(
+                      builder: (_) => MemberDetailScreen(gymId: gymId, membershipId: member.membershipId, initial: member),
+                    ),
+                  ).then((removed) {
+                    if (removed == true) _loadMembers();
+                  });
                 },
               ),
               const SizedBox(width: 8),
-              _buildActionButton(
-                icon: Icons.autorenew_rounded,
-                label: 'Renew',
-                color: AppColors.accentCyan,
-                onTap: () {
-                  final lm = member['liveModel'] as GymMember?;
-                  if (lm != null) {
-                    _updateMemberStatus(lm, 'ACTIVE');
-                  } else {
-                    _showSnackBar('Renewing membership for ${member['name']}');
-                  }
-                },
-              ),
+              if (isTrainer)
+                _buildActionButton(
+                  icon: Icons.schedule_rounded,
+                  label: 'Shift & Pay',
+                  color: AppColors.accentPurple,
+                  onTap: () => _configureTrainer(member),
+                )
+              else
+                _buildActionButton(
+                  icon: Icons.note_alt_outlined,
+                  label: 'Details',
+                  color: AppColors.accentPurple,
+                  onTap: () {
+                    final gymId = ref.read(currentGymIdProvider);
+                    if (gymId == null) return;
+                    Navigator.of(context).push(
+                      MaterialPageRoute(
+                        builder: (_) => MemberDetailScreen(gymId: gymId, membershipId: member.membershipId, initial: member),
+                      ),
+                    );
+                  },
+                ),
               const SizedBox(width: 8),
               _buildActionButton(
-                icon: Icons.block_rounded,
-                label: 'Deactivate',
+                icon: Icons.person_remove_rounded,
+                label: 'Remove',
                 color: AppColors.accentCoral,
-                onTap: () {
-                  final lm = member['liveModel'] as GymMember?;
-                  if (lm != null) {
-                    _updateMemberStatus(lm, 'INACTIVE');
-                  } else {
-                    _showSnackBar('Deactivating ${member['name']}');
-                  }
-                },
+                onTap: () => _removeMember(member),
               ),
             ],
           ),
@@ -1168,54 +774,7 @@ class _GymOwnerMembersTabState extends ConsumerState<GymOwnerMembersTab> {
     );
   }
 
-  // ═══════════════════════════════════════════════
-  //  PROGRESS ROW
-  // ═══════════════════════════════════════════════
-
-  Widget _buildProgressRow({
-    required String label,
-    required double value,
-    required Color color,
-  }) {
-    return Row(
-      children: [
-        SizedBox(
-          width: 62,
-          child: Text(
-            label,
-            style: AppTextStyles.caption.copyWith(
-              color: AppColors.textTertiary,
-              fontSize: 10,
-            ),
-          ),
-        ),
-        Expanded(
-          child: LinearProgressBar(
-            progress: value,
-            color: color,
-            height: 4,
-          ),
-        ),
-        const SizedBox(width: 8),
-        SizedBox(
-          width: 32,
-          child: Text(
-            '${(value * 100).toInt()}%',
-            textAlign: TextAlign.right,
-            style: AppTextStyles.caption.copyWith(
-              color: AppColors.textSecondary,
-              fontWeight: FontWeight.w600,
-              fontSize: 10,
-            ),
-          ),
-        ),
-      ],
-    );
-  }
-
-  // ═══════════════════════════════════════════════
-  //  ACTION BUTTON
-  // ═══════════════════════════════════════════════
+  String _fmtDate(DateTime d) => '${d.day}/${d.month}/${d.year}';
 
   Widget _buildActionButton({
     required IconData icon,
@@ -1231,23 +790,13 @@ class _GymOwnerMembersTabState extends ConsumerState<GymOwnerMembersTab> {
           decoration: BoxDecoration(
             borderRadius: BorderRadius.circular(10),
             color: color.withValues(alpha: 0.08),
-            border: Border.all(
-              color: color.withValues(alpha: 0.2),
-              width: 1,
-            ),
+            border: Border.all(color: color.withValues(alpha: 0.2), width: 1),
           ),
           child: Column(
             children: [
               Icon(icon, color: color, size: 16),
               const SizedBox(height: 3),
-              Text(
-                label,
-                style: AppTextStyles.caption.copyWith(
-                  color: color,
-                  fontWeight: FontWeight.w600,
-                  fontSize: 8,
-                ),
-              ),
+              Text(label, style: AppTextStyles.caption.copyWith(color: color, fontWeight: FontWeight.w600, fontSize: 8)),
             ],
           ),
         ),
@@ -1255,69 +804,21 @@ class _GymOwnerMembersTabState extends ConsumerState<GymOwnerMembersTab> {
     );
   }
 
-  // ═══════════════════════════════════════════════
-  //  FLOATING ACTION BUTTON
-  // ═══════════════════════════════════════════════
-
   Widget _buildFAB() {
     return GestureDetector(
-      onTap: () => _showSnackBar('Add Member form coming soon'),
+      onTap: _openAddMember,
       child: Container(
         width: 56,
         height: 56,
         decoration: BoxDecoration(
           borderRadius: BorderRadius.circular(18),
-          gradient: const LinearGradient(
-            begin: Alignment.topLeft,
-            end: Alignment.bottomRight,
-            colors: [AppColors.accentBlue, Color(0xFF6366F1)],
-          ),
+          gradient: const LinearGradient(begin: Alignment.topLeft, end: Alignment.bottomRight, colors: [AppColors.accentBlue, Color(0xFF6366F1)]),
           boxShadow: [
-            BoxShadow(
-              color: AppColors.accentBlue.withValues(alpha: 0.4),
-              blurRadius: 16,
-              offset: const Offset(0, 6),
-            ),
-            BoxShadow(
-              color: AppColors.accentBlue.withValues(alpha: 0.15),
-              blurRadius: 32,
-              offset: const Offset(0, 12),
-            ),
+            BoxShadow(color: AppColors.accentBlue.withValues(alpha: 0.4), blurRadius: 16, offset: const Offset(0, 6)),
+            BoxShadow(color: AppColors.accentBlue.withValues(alpha: 0.15), blurRadius: 32, offset: const Offset(0, 12)),
           ],
         ),
-        child: const Center(
-          child: Icon(
-            Icons.person_add_rounded,
-            color: Colors.white,
-            size: 24,
-          ),
-        ),
-      ),
-    );
-  }
-
-  // ═══════════════════════════════════════════════
-  //  HELPERS
-  // ═══════════════════════════════════════════════
-
-  void _showSnackBar(String message) {
-    ScaffoldMessenger.of(context).hideCurrentSnackBar();
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: Text(
-          message,
-          style: AppTextStyles.bodyMedium.copyWith(
-            color: Colors.white,
-            fontSize: 13,
-          ),
-        ),
-        backgroundColor: AppColors.bgElevated,
-        behavior: SnackBarBehavior.floating,
-        shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.circular(12),
-        ),
-        margin: const EdgeInsets.fromLTRB(20, 0, 20, 100),
-        duration: const Duration(seconds: 2),
+        child: const Center(child: Icon(Icons.person_add_rounded, color: Colors.white, size: 24)),
       ),
     );
   }

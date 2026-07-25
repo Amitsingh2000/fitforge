@@ -402,13 +402,13 @@ class _BillingPlansContentState extends ConsumerState<BillingPlansContent>
 
   Widget _buildCurrentPlanCard() {
     final tier = _entitlements.tier;
-    final planTitle = tier == 'PREMIUM'
+    final planTitle = _entitlements.isPremium && tier != 'TRIAL_FULL'
         ? 'FitForge Pro'
-        : (tier == 'TRIAL' ? 'FitForge 7-Day Trial' : 'FitForge Free');
+        : (_entitlements.isTrial ? 'FitForge 7-Day Trial' : 'FitForge Free');
     final statusText = _subscriptionLoading
         ? 'Loading'
         : (_subscription.status.isNotEmpty ? _subscription.status : tier);
-    final isAc = tier != 'FREE';
+    final isAc = !_entitlements.isFree;
 
     return Container(
       decoration: BoxDecoration(

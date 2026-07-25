@@ -9,6 +9,7 @@ import '../../providers/auth_provider.dart';
 import '../../services/member_service.dart';
 import '../../theme/app_theme.dart';
 import '../widgets/dashboard_glass_card.dart';
+import 'edit_profile_screen.dart';
 import 'join_gym_screen.dart';
 import 'qr_checkin_screen.dart';
 import 'referral_screen.dart';
@@ -40,6 +41,7 @@ class _ProfileContentState extends ConsumerState<ProfileContent> {
   void initState() {
     super.initState();
     _loadSubscriptionData();
+    _loadFitnessProfile();
   }
 
   Future<void> _loadSubscriptionData() async {
@@ -60,6 +62,24 @@ class _ProfileContentState extends ConsumerState<ProfileContent> {
           _subscriptionLoading = false;
         });
       }
+    }
+  }
+
+  /// Syncs age/goal/height/weight display from the real backend profile
+  /// (`GET /members/me/profile`) instead of the fixed placeholder values
+  /// these fields used to carry regardless of what the user onboarded with.
+  Future<void> _loadFitnessProfile() async {
+    try {
+      final profile = await ref.read(memberServiceProvider).getMyFitnessProfile();
+      if (!mounted) return;
+      setState(() {
+        if (profile.age != null) _userAge = profile.age!;
+        _userGoal = profile.goalLabel;
+        if (profile.heightCm != null) _userHeight = profile.heightCm!;
+        if (profile.weightKg != null) _userWeight = profile.weightKg!;
+      });
+    } catch (_) {
+      // Keep placeholder values if the profile hasn't been filled yet.
     }
   }
 
@@ -217,28 +237,59 @@ class _ProfileContentState extends ConsumerState<ProfileContent> {
               fontSize: 24,
             ),
           ),
-          GestureDetector(
-            onTap: () {
-              Navigator.of(context).push(
-                MaterialPageRoute(
-                  builder: (context) => const SettingsScreen(),
+          Row(
+            children: [
+              GestureDetector(
+                onTap: () async {
+                  final result = await Navigator.of(context).push(
+                    MaterialPageRoute(
+                      builder: (context) => const EditProfileScreen(),
+                    ),
+                  );
+                  if (result == true) {
+                    _loadFitnessProfile();
+                  }
+                },
+                child: Container(
+                  width: 38,
+                  height: 38,
+                  margin: const EdgeInsets.only(right: 10),
+                  decoration: BoxDecoration(
+                    borderRadius: BorderRadius.circular(10),
+                    color: AppColors.bgTertiary,
+                    border: Border.all(color: AppColors.glassBorder),
+                  ),
+                  child: const Icon(
+                    Icons.edit_outlined,
+                    color: AppColors.textPrimary,
+                    size: 18,
+                  ),
                 ),
-              );
-            },
-            child: Container(
-              width: 38,
-              height: 38,
-              decoration: BoxDecoration(
-                borderRadius: BorderRadius.circular(10),
-                color: AppColors.bgTertiary,
-                border: Border.all(color: AppColors.glassBorder),
               ),
-              child: const Icon(
-                Icons.settings_rounded,
-                color: AppColors.textPrimary,
-                size: 18,
+              GestureDetector(
+                onTap: () {
+                  Navigator.of(context).push(
+                    MaterialPageRoute(
+                      builder: (context) => const SettingsScreen(),
+                    ),
+                  );
+                },
+                child: Container(
+                  width: 38,
+                  height: 38,
+                  decoration: BoxDecoration(
+                    borderRadius: BorderRadius.circular(10),
+                    color: AppColors.bgTertiary,
+                    border: Border.all(color: AppColors.glassBorder),
+                  ),
+                  child: const Icon(
+                    Icons.settings_rounded,
+                    color: AppColors.textPrimary,
+                    size: 18,
+                  ),
+                ),
               ),
-            ),
+            ],
           ),
         ],
       ),
@@ -347,7 +398,9 @@ class _ProfileContentState extends ConsumerState<ProfileContent> {
                             border: Border.all(color: AppColors.accentBlue.withValues(alpha: 0.3)),
                           ),
                           child: Text(
-                            'FREE',
+                            _entitlements.isFree
+                                ? 'FREE'
+                                : (_entitlements.isPremium ? 'PREMIUM' : 'TRIAL'),
                             style: AppTextStyles.caption.copyWith(
                               color: AppColors.accentBlue,
                               fontSize: 9,
@@ -1009,7 +1062,7 @@ class _ProfileContentState extends ConsumerState<ProfileContent> {
     final tier = _entitlements.tier;
     final planName = tier == 'PREMIUM'
         ? 'FitForge Pro Plan'
-        : (tier == 'TRIAL' ? 'FitForge 7-Day Trial' : 'FitForge Free Plan');
+        : (_entitlements.isTrial ? 'FitForge 7-Day Trial' : 'FitForge Free Plan');
     final statusText = _subscriptionLoading
         ? 'Loading...'
         : (_subscription.status.isNotEmpty ? _subscription.status : tier);
@@ -1023,7 +1076,7 @@ class _ProfileContentState extends ConsumerState<ProfileContent> {
           end: Alignment.bottomRight,
           colors: tier == 'PREMIUM'
               ? const [Color(0xFF1B2A4A), Color(0xFF0F1528)]
-              : (tier == 'TRIAL'
+              : (_entitlements.isTrial
                   ? const [Color(0xFF2A1B4A), Color(0xFF180F28)]
                   : const [Color(0xFF1A1F2C), Color(0xFF11141D)]),
         ),
@@ -1064,7 +1117,7 @@ class _ProfileContentState extends ConsumerState<ProfileContent> {
                   padding:
                       const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
                   decoration: BoxDecoration(
-                    color: (tier == 'FREE'
+                    color: (_entitlements.isFree
                             ? AppColors.textTertiary
                             : AppColors.accentBlue)
                         .withValues(alpha: 0.12),
@@ -1073,7 +1126,7 @@ class _ProfileContentState extends ConsumerState<ProfileContent> {
                   child: Text(
                     statusText,
                     style: AppTextStyles.caption.copyWith(
-                      color: tier == 'FREE'
+                      color: _entitlements.isFree
                           ? AppColors.textTertiary
                           : AppColors.accentBlue,
                       fontWeight: FontWeight.bold,

@@ -24,6 +24,50 @@ class _EmailVerificationScreenState
   bool _resentSuccess = false;
   String? _resendError;
 
+  bool _tokenHandled = false;
+  bool _isVerifying = false;
+  bool _verifySuccess = false;
+  String? _verifyError;
+
+  // Auto-verify if a token arrived via deep link (fitforge://.../verify-email?token=...).
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    if (_tokenHandled) return;
+    final args = ModalRoute.of(context)?.settings.arguments as Map<String, String>?;
+    final token = args?['token'];
+    if (token != null && token.isNotEmpty) {
+      _tokenHandled = true;
+      _verifyWithToken(token);
+    }
+  }
+
+  Future<void> _verifyWithToken(String token) async {
+    setState(() {
+      _isVerifying = true;
+      _verifyError = null;
+    });
+    try {
+      final dio = ref.read(dioProvider);
+      await dio.post('/auth/verify-email', data: {'token': token});
+      if (mounted) {
+        setState(() { _isVerifying = false; _verifySuccess = true; });
+        Future.delayed(const Duration(milliseconds: 900), () {
+          if (mounted) _continueAnyway();
+        });
+      }
+    } on DioException catch (e) {
+      if (mounted) {
+        setState(() {
+          _isVerifying = false;
+          _verifyError = e.message ?? 'This verification link is invalid or has expired.';
+        });
+      }
+    } catch (e) {
+      if (mounted) setState(() { _isVerifying = false; _verifyError = e.toString(); });
+    }
+  }
+
   Future<void> _resendVerification() async {
     setState(() {
       _isResending = true;
@@ -218,7 +262,33 @@ class _EmailVerificationScreenState
                       ),
                     ).animate().fadeIn(duration: 600.ms, delay: 250.ms),
 
-                    const SizedBox(height: 32),
+                    const SizedBox(height: 24),
+
+                    if (_isVerifying)
+                      _buildFeedbackBanner(
+                        message: 'Verifying your email…',
+                        color: AppColors.accentBlue,
+                        icon: Icons.hourglass_top_rounded,
+                      ).animate().fadeIn(duration: 300.ms),
+
+                    if (_verifySuccess)
+                      _buildFeedbackBanner(
+                        message: 'Email verified! Taking you in…',
+                        color: const Color(0xFF10B981),
+                        icon: Icons.verified_rounded,
+                      ).animate().fadeIn(duration: 300.ms),
+
+                    if (_verifyError != null)
+                      _buildFeedbackBanner(
+                        message: _verifyError!,
+                        color: Colors.redAccent,
+                        icon: Icons.error_outline_rounded,
+                      ).animate().fadeIn(duration: 300.ms),
+
+                    if (_isVerifying || _verifySuccess || _verifyError != null)
+                      const SizedBox(height: 8),
+
+                    const SizedBox(height: 8),
 
                     // ── Info card ──────────────────────────────────────────
                     _buildInfoCard()

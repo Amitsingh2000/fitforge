@@ -96,42 +96,17 @@ class AuthNotifier extends StateNotifier<AuthState> {
   // LOGIN
   // ──────────────────────────────────────────────────────────────────────────
 
-  Future<void> login(String email, String password) async {
-    state = AuthState.loading();
-    if (email.isEmpty || password.isEmpty) {
-      state = AuthState.error('Email and password cannot be empty.');
-      return;
-    }
-    try {
-      final dio = _ref.read(dioProvider);
-      final response = await dio.post('/auth/login', data: {
-        'email': email,
-        'password': password,
-      });
-
-      final tokenData = response.data as Map<String, dynamic>;
-      final accessToken = tokenData['accessToken'] as String;
-      final refreshToken = tokenData['refreshToken'] as String;
-
-      await _saveTokens(accessToken, refreshToken);
-
-      final userResponse = await dio.get('/users/me');
-      final userData = userResponse.data as Map<String, dynamic>;
-
-      final user = User.fromBackendJson(userData, token: accessToken);
-      state = AuthState.authenticated(user);
-    } on DioException catch (e) {
-      state = AuthState.error(e.message ?? 'Login failed');
-    } catch (e) {
-      state = AuthState.error(e.toString());
-    }
-  }
-
-  // ──────────────────────────────────────────────────────────────────────────
-  // LOGIN AS TRAINER
-  // ──────────────────────────────────────────────────────────────────────────
-
-  Future<void> loginAsTrainer(String email, String password) async {
+  /// Shared login path: POST /auth/login + GET /users/me + token persist.
+  /// [requiredRole] is a client-side UX check only (server enforces real
+  /// authorization on every subsequent call) — it lets the trainer/gym-owner
+  /// login screens reject an account of the wrong type with a clear message
+  /// instead of silently landing them on the wrong dashboard.
+  Future<void> _performLogin(
+    String email,
+    String password, {
+    UserRole? requiredRole,
+    String? wrongRoleMessage,
+  }) async {
     state = AuthState.loading();
     if (email.isEmpty || password.isEmpty) {
       state = AuthState.error('Email and password cannot be empty.');
@@ -155,10 +130,9 @@ class AuthNotifier extends StateNotifier<AuthState> {
 
       final user = User.fromBackendJson(userData, token: accessToken);
 
-      if (user.role != UserRole.trainer) {
+      if (requiredRole != null && user.role != requiredRole) {
         await _clearSession();
-        state = AuthState.error(
-            'Access denied. You are not registered as a Trainer.');
+        state = AuthState.error(wrongRoleMessage ?? 'Access denied.');
         return;
       }
 
@@ -170,48 +144,40 @@ class AuthNotifier extends StateNotifier<AuthState> {
     }
   }
 
-  // ──────────────────────────────────────────────────────────────────────────
-  // LOGIN AS GYM OWNER
-  // ──────────────────────────────────────────────────────────────────────────
-
-  Future<void> loginAsGymOwner(String email, String password) async {
-    state = AuthState.loading();
-    if (email.isEmpty || password.isEmpty) {
-      state = AuthState.error('Email and password cannot be empty.');
-      return;
-    }
+  /// Re-fetches `GET /users/me` and refreshes the in-memory user — used
+  /// after profile edits (name/phone/avatar/onboarding) so the UI reflects
+  /// the save immediately instead of showing stale data until next login.
+  Future<void> refreshUser() async {
+    if (state.status != AuthStatus.authenticated) return;
     try {
       final dio = _ref.read(dioProvider);
-      final response = await dio.post('/auth/login', data: {
-        'email': email,
-        'password': password,
-      });
-
-      final tokenData = response.data as Map<String, dynamic>;
-      final accessToken = tokenData['accessToken'] as String;
-      final refreshToken = tokenData['refreshToken'] as String;
-
-      await _saveTokens(accessToken, refreshToken);
-
+      final token = _ref.read(tokenProvider);
       final userResponse = await dio.get('/users/me');
       final userData = userResponse.data as Map<String, dynamic>;
-
-      final user = User.fromBackendJson(userData, token: accessToken);
-
-      if (user.role != UserRole.gymOwner) {
-        await _clearSession();
-        state = AuthState.error(
-            'Access denied. You are not registered as a Gym Owner.');
-        return;
-      }
-
+      final user = User.fromBackendJson(userData, token: token);
       state = AuthState.authenticated(user);
-    } on DioException catch (e) {
-      state = AuthState.error(e.message ?? 'Login failed');
-    } catch (e) {
-      state = AuthState.error(e.toString());
+    } catch (_) {
+      // Keep the existing state — a transient failure here shouldn't log
+      // the user out or blank the screen.
     }
   }
+
+  Future<void> login(String email, String password) =>
+      _performLogin(email, password);
+
+  Future<void> loginAsTrainer(String email, String password) => _performLogin(
+        email,
+        password,
+        requiredRole: UserRole.trainer,
+        wrongRoleMessage: 'Access denied. You are not registered as a Trainer.',
+      );
+
+  Future<void> loginAsGymOwner(String email, String password) => _performLogin(
+        email,
+        password,
+        requiredRole: UserRole.gymOwner,
+        wrongRoleMessage: 'Access denied. You are not registered as a Gym Owner.',
+      );
 
   // ──────────────────────────────────────────────────────────────────────────
   // REGISTER

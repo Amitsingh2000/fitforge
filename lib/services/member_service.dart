@@ -1,6 +1,7 @@
 import 'package:dio/dio.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../models/user_session.dart';
+import '../models/member_profile.dart';
 import '../models/member_subscription.dart';
 import '../models/member_entitlements.dart';
 import '../models/presigned_upload.dart';
@@ -94,6 +95,48 @@ class MemberService {
     if (data.isNotEmpty) {
       await dio.patch('/users/me', data: data);
     }
+  }
+
+  // ────────────────────────────────────────────────────────────────────────────
+  // GOAL-INTAKE / FITNESS PROFILE
+  // ────────────────────────────────────────────────────────────────────────────
+
+  /// The member's goal-intake profile (age, goal, experience, diet, etc.).
+  Future<MemberProfile> getMyFitnessProfile() async {
+    final res = await dio.get('/members/me/profile');
+    return MemberProfile.fromJson(Map<String, dynamic>.from(res.data as Map));
+  }
+
+  /// Update goal-intake fields. All params optional — only non-null fields
+  /// are sent, matching the backend's progressive-save design.
+  Future<MemberProfile> updateMyFitnessProfile({
+    String? dateOfBirth,
+    String? sex,
+    double? heightCm,
+    double? weightKg,
+    String? goal,
+    String? experienceLevel,
+    String? dietaryPreference,
+    String? budgetBand,
+    String? equipmentAccess,
+    String? injuriesNotes,
+    String? weeklyFocus,
+  }) async {
+    final data = <String, dynamic>{};
+    if (dateOfBirth != null) data['dateOfBirth'] = dateOfBirth;
+    if (sex != null) data['sex'] = sex;
+    if (heightCm != null) data['heightCm'] = heightCm;
+    if (weightKg != null) data['weightKg'] = weightKg;
+    if (goal != null) data['goal'] = goal;
+    if (experienceLevel != null) data['experienceLevel'] = experienceLevel;
+    if (dietaryPreference != null) data['dietaryPreference'] = dietaryPreference;
+    if (budgetBand != null) data['budgetBand'] = budgetBand;
+    if (equipmentAccess != null) data['equipmentAccess'] = equipmentAccess;
+    if (injuriesNotes != null) data['injuriesNotes'] = injuriesNotes;
+    if (weeklyFocus != null) data['weeklyFocus'] = weeklyFocus;
+
+    final res = await dio.patch('/members/me/profile', data: data);
+    return MemberProfile.fromJson(Map<String, dynamic>.from(res.data as Map));
   }
 
   // ────────────────────────────────────────────────────────────────────────────

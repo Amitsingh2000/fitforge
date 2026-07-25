@@ -121,6 +121,8 @@ class _OnboardingFlowState extends ConsumerState<OnboardingFlow> {
                   'dietPreference': onboardingState.dietPreference,
                   'experience': onboardingState.experience,
                   'sleepSchedule': onboardingState.sleepSchedule,
+                  'equipmentAccess': onboardingState.equipmentAccess,
+                  'budgetBand': onboardingState.budgetBand,
                 },
                 onDataChanged: (data) {
                   ref.read(onboardingProvider.notifier).updateLifestyle(
@@ -129,6 +131,10 @@ class _OnboardingFlowState extends ConsumerState<OnboardingFlow> {
                     experience: data['experience'],
                     sleepSchedule: data['sleepSchedule'],
                   );
+                  ref.read(onboardingProvider.notifier).updateEquipmentAndBudget(
+                        equipmentAccess: data['equipmentAccess'],
+                        budgetBand: data['budgetBand'],
+                      );
                 },
                 onContinue: _nextPage,
               ),

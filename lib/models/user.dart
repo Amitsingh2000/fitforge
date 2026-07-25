@@ -18,6 +18,16 @@ class User {
   final DateTime? createdAt;
   final List<GymMembership> gymMemberships;
 
+  /// Whether this user has ever started the member goal-intake profile
+  /// (`memberProfile` is non-null on the backend once any field is saved).
+  /// `false` for a brand-new registrant who hasn't touched onboarding yet.
+  final bool hasMemberProfile;
+
+  /// Whether `POST /members/me/complete-onboarding` has been called —
+  /// drives whether a standalone member is routed into the onboarding
+  /// wizard or straight to their dashboard on app start/login.
+  final bool isOnboardingComplete;
+
   const User({
     required this.id,
     required this.email,
@@ -33,6 +43,8 @@ class User {
     this.isSuperAdmin = false,
     this.createdAt,
     this.gymMemberships = const [],
+    this.hasMemberProfile = false,
+    this.isOnboardingComplete = false,
   });
 
   /// Formatted "Member Since" string, e.g. "July 2026"
@@ -112,6 +124,8 @@ class User {
       createdAt = DateTime.tryParse(createdAtStr);
     }
 
+    final memberProfile = json['memberProfile'] as Map<String, dynamic>?;
+
     return User(
       id: json['id'] as String,
       email: json['email'] as String,
@@ -127,6 +141,8 @@ class User {
       isSuperAdmin: json['isSuperAdmin'] as bool? ?? false,
       createdAt: createdAt,
       gymMemberships: parsedMemberships,
+      hasMemberProfile: memberProfile != null,
+      isOnboardingComplete: memberProfile?['onboardingCompletedAt'] != null,
     );
   }
 }

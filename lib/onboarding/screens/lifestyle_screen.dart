@@ -25,6 +25,8 @@ class _LifestyleScreenState extends State<LifestyleScreen> {
   late String? _dietPreference;
   late String? _experience;
   late String? _sleepSchedule;
+  late String? _equipmentAccess;
+  late String? _budgetBand;
 
   @override
   void initState() {
@@ -33,13 +35,19 @@ class _LifestyleScreenState extends State<LifestyleScreen> {
     _dietPreference = widget.initialData['dietPreference'];
     _experience = widget.initialData['experience'];
     _sleepSchedule = widget.initialData['sleepSchedule'];
+    _equipmentAccess = widget.initialData['equipmentAccess'];
+    _budgetBand = widget.initialData['budgetBand'];
   }
 
+  // Required by the backend to complete onboarding: goal, experience, diet
+  // preference, equipment access, budget band. Activity level and sleep are
+  // used for the local calorie estimate only, so they're collected but not
+  // gating — matches what completeOnboarding() actually validates.
   bool get _isComplete =>
-      _activityLevel != null &&
       _dietPreference != null &&
       _experience != null &&
-      _sleepSchedule != null;
+      _equipmentAccess != null &&
+      _budgetBand != null;
 
   void _emitData() {
     widget.onDataChanged({
@@ -47,6 +55,8 @@ class _LifestyleScreenState extends State<LifestyleScreen> {
       'dietPreference': _dietPreference,
       'experience': _experience,
       'sleepSchedule': _sleepSchedule,
+      'equipmentAccess': _equipmentAccess,
+      'budgetBand': _budgetBand,
     });
   }
 
@@ -150,6 +160,44 @@ class _LifestyleScreenState extends State<LifestyleScreen> {
                 .animate()
                 .fadeIn(duration: 400.ms, delay: 550.ms)
                 .slideY(begin: 0.1, end: 0, duration: 400.ms, delay: 550.ms),
+            const SizedBox(height: 28),
+
+            _buildSectionLabel('Equipment Access')
+                .animate()
+                .fadeIn(duration: 400.ms, delay: 580.ms),
+            const SizedBox(height: 12),
+            ChipSelector(
+              options: const [
+                'Full Gym',
+                'Home Equipment',
+                'No Equipment',
+              ],
+              selectedOption: _equipmentAccess,
+              onSelected: (v) {
+                setState(() => _equipmentAccess = v);
+                _emitData();
+              },
+            )
+                .animate()
+                .fadeIn(duration: 400.ms, delay: 600.ms)
+                .slideY(begin: 0.1, end: 0, duration: 400.ms, delay: 600.ms),
+            const SizedBox(height: 28),
+
+            _buildSectionLabel('Budget for Food & Supplements')
+                .animate()
+                .fadeIn(duration: 400.ms, delay: 620.ms),
+            const SizedBox(height: 12),
+            ChipSelector(
+              options: const ['Low', 'Medium', 'High'],
+              selectedOption: _budgetBand,
+              onSelected: (v) {
+                setState(() => _budgetBand = v);
+                _emitData();
+              },
+            )
+                .animate()
+                .fadeIn(duration: 400.ms, delay: 640.ms)
+                .slideY(begin: 0.1, end: 0, duration: 400.ms, delay: 640.ms),
             const SizedBox(height: 36),
 
             PrimaryButton(

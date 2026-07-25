@@ -22,6 +22,7 @@ import 'auth/screens/reset_password_screen.dart';
 import 'auth/screens/email_verification_screen.dart';
 import 'models/user.dart';
 import 'providers/auth_provider.dart';
+import 'providers/onboarding_provider.dart';
 
 void main() {
   WidgetsFlutterBinding.ensureInitialized();
@@ -85,6 +86,7 @@ class _AppEntry extends ConsumerStatefulWidget {
 class _AppEntryState extends ConsumerState<_AppEntry> {
   late final AppLinks _appLinks;
   StreamSubscription<Uri>? _linkSub;
+  bool _onboardingHydrationTriggered = false;
 
   @override
   void initState() {
@@ -111,6 +113,22 @@ class _AppEntryState extends ConsumerState<_AppEntry> {
             accessToken: accessToken,
             refreshToken: refreshToken,
           );
+      return;
+    }
+
+    // Expected: fitforge://<host>/verify-email?token=... or
+    // fitforge://<host>/reset-password?token=... — the backend builds these
+    // from FRONTEND_URL, which must be set to the app's deep-link scheme for
+    // this to fire (falls back to manual token paste otherwise, see those
+    // screens). Matched on path segment so it's independent of host/scheme.
+    final token = uri.queryParameters['token'];
+    if (token != null && uri.pathSegments.contains('verify-email')) {
+      Navigator.of(context).pushNamed('/verify-email', arguments: {'token': token});
+      return;
+    }
+    if (token != null && uri.pathSegments.contains('reset-password')) {
+      Navigator.of(context).pushNamed('/reset-password', arguments: {'token': token});
+      return;
     }
   }
 
@@ -134,11 +152,19 @@ class _AppEntryState extends ConsumerState<_AppEntry> {
         // Auto-select gym if user has exactly one gym membership
         _autoSelectGymIfNeeded();
 
-        final role = authState.user?.role;
+        final user = authState.user;
+        final role = user?.role;
         if (role == UserRole.gymOwner || role == UserRole.frontDesk) {
           return const GymOwnerDashboard();
         } else if (role == UserRole.trainer) {
           return const TrainerDashboard();
+        } else if (user != null && !user.isOnboardingComplete) {
+          // Standalone/gym member who registered but never finished the
+          // goal-intake wizard (or is resuming after the app was killed
+          // mid-flow) — land back in the wizard instead of a half-set-up
+          // dashboard. Rehydrate any progress already saved server-side.
+          _hydrateOnboardingIfNeeded();
+          return const OnboardingFlow(initialPage: 2);
         } else {
           return const HomeDashboard();
         }
@@ -147,6 +173,17 @@ class _AppEntryState extends ConsumerState<_AppEntry> {
       case AuthStatus.error:
         return const OnboardingFlow();
     }
+  }
+
+  /// Loads any goal-intake profile fields already saved server-side into the
+  /// onboarding wizard's local state, once per app session — so a user
+  /// resuming an incomplete onboarding doesn't start from a blank wizard.
+  void _hydrateOnboardingIfNeeded() {
+    if (_onboardingHydrationTriggered) return;
+    _onboardingHydrationTriggered = true;
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      ref.read(onboardingProvider.notifier).hydrateFromBackend();
+    });
   }
 
   /// If the authenticated user has exactly one gym membership,

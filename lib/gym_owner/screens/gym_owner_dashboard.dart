@@ -3,13 +3,14 @@ import 'package:flutter/material.dart';
 import 'package:flutter_animate/flutter_animate.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../models/gym_dashboard_data.dart';
+import '../../models/gym_member.dart';
 import '../../models/gym_trainer.dart';
+import '../../providers/auth_provider.dart';
 import '../../providers/gym_provider.dart';
 import '../../services/gym_owner_service.dart';
 import '../../theme/app_theme.dart';
 import '../../dashboard/widgets/dashboard_glass_card.dart';
-import '../../dashboard/widgets/linear_progress_bar.dart';
-import '../../dashboard/widgets/radial_progress.dart';
+import 'add_member_screen.dart';
 import 'create_gym_screen.dart';
 import 'gym_owner_members_tab.dart';
 import 'gym_owner_referrals_tab.dart';
@@ -31,9 +32,15 @@ class _GymOwnerDashboardState extends ConsumerState<GymOwnerDashboard>
   GymDashboardToday _todayStats = const GymDashboardToday();
   GymDashboardMonthly _monthlyStats = const GymDashboardMonthly();
   List<GymTrainer> _trainerRoster = [];
+  List<GymMember> _memberPreview = [];
   bool _dashboardLoading = true;
 
   String get _gymName => ref.watch(selectedGymProvider)?.gymName ?? 'FitForge Gym';
+
+  String get _ownerInitials {
+    final firstName = ref.watch(authProvider).user?.firstName ?? '';
+    return firstName.isNotEmpty ? firstName[0].toUpperCase() : 'G';
+  }
 
   @override
   void initState() {
@@ -62,12 +69,14 @@ class _GymOwnerDashboardState extends ConsumerState<GymOwnerDashboard>
       final today = await service.getTodayDashboard(gymId);
       final monthly = await service.getMonthlyDashboard(gymId);
       final trainers = await service.getTrainersRoster(gymId);
+      final members = await service.getMembers(gymId, role: 'MEMBER', limit: 10);
 
       if (mounted) {
         setState(() {
           _todayStats = today;
           _monthlyStats = monthly;
           _trainerRoster = trainers;
+          _memberPreview = members;
           _dashboardLoading = false;
         });
       }
@@ -79,7 +88,6 @@ class _GymOwnerDashboardState extends ConsumerState<GymOwnerDashboard>
   }
 
   // ── Gym data ──
-  final String _ownerInitials = 'AK';
   final String _membershipPlan = 'Pro Plan';
   final int _notificationCount = 3;
 
@@ -155,98 +163,6 @@ class _GymOwnerDashboardState extends ConsumerState<GymOwnerDashboard>
       'label': 'View Analytics',
       'icon': Icons.insights_rounded,
       'gradient': [AppColors.accentOrange, const Color(0xFFF59E0B)],
-    },
-  ];
-
-  final List<Map<String, dynamic>> _members = [
-    {
-      'name': 'Rahul Sharma',
-      'initials': 'RS',
-      'status': 'Active',
-      'attendance': 0.92,
-      'goal': 'Weight Loss',
-      'trainer': 'Coach Anil',
-      'progress': 0.78,
-      'gradientColors': [AppColors.accentBlue, AppColors.accentCyan],
-    },
-    {
-      'name': 'Priya Patel',
-      'initials': 'PP',
-      'status': 'Active',
-      'attendance': 0.88,
-      'goal': 'Muscle Gain',
-      'trainer': 'Coach Meera',
-      'progress': 0.65,
-      'gradientColors': [AppColors.accentPurple, AppColors.accentCoral],
-    },
-    {
-      'name': 'Vikram Singh',
-      'initials': 'VS',
-      'status': 'Inactive',
-      'attendance': 0.45,
-      'goal': 'Endurance',
-      'trainer': 'Coach Raj',
-      'progress': 0.32,
-      'gradientColors': [AppColors.accentOrange, AppColors.accentCoral],
-    },
-    {
-      'name': 'Sneha Gupta',
-      'initials': 'SG',
-      'status': 'Active',
-      'attendance': 0.95,
-      'goal': 'Flexibility',
-      'trainer': 'Coach Anil',
-      'progress': 0.88,
-      'gradientColors': [AppColors.accentCyan, AppColors.accentBlue],
-    },
-    {
-      'name': 'Arjun Reddy',
-      'initials': 'AR',
-      'status': 'Active',
-      'attendance': 0.76,
-      'goal': 'Strength',
-      'trainer': 'Coach Meera',
-      'progress': 0.55,
-      'gradientColors': [AppColors.accentBlue, AppColors.accentPurple],
-    },
-  ];
-
-  final List<Map<String, dynamic>> _trainers = [
-    {
-      'name': 'Coach Anil',
-      'initials': 'CA',
-      'activeClients': 18,
-      'satisfaction': 4.8,
-      'retention': 0.94,
-      'status': 'Available',
-      'gradientColors': [AppColors.accentBlue, const Color(0xFF6366F1)],
-    },
-    {
-      'name': 'Coach Meera',
-      'initials': 'CM',
-      'activeClients': 22,
-      'satisfaction': 4.9,
-      'retention': 0.97,
-      'status': 'In Session',
-      'gradientColors': [AppColors.accentPurple, AppColors.accentCoral],
-    },
-    {
-      'name': 'Coach Raj',
-      'initials': 'CR',
-      'activeClients': 15,
-      'satisfaction': 4.6,
-      'retention': 0.88,
-      'status': 'Available',
-      'gradientColors': [AppColors.accentCyan, AppColors.accentBlue],
-    },
-    {
-      'name': 'Coach Dia',
-      'initials': 'CD',
-      'activeClients': 12,
-      'satisfaction': 4.7,
-      'retention': 0.91,
-      'status': 'Off Duty',
-      'gradientColors': [AppColors.accentOrange, const Color(0xFFF59E0B)],
     },
   ];
 
@@ -886,42 +802,55 @@ class _GymOwnerDashboardState extends ConsumerState<GymOwnerDashboard>
   // ─────────────────────────────────────────────
 
   Widget _buildMembersHorizontalList() {
+    if (_memberPreview.isEmpty) {
+      return Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 20),
+        child: _buildInlineEmptyRow(
+          icon: Icons.people_outline_rounded,
+          text: 'No members yet',
+          actionLabel: 'Add Member',
+          onAction: () async {
+            final result = await Navigator.of(context).push(
+              MaterialPageRoute(builder: (_) => const AddMemberScreen()),
+            );
+            if (result != null) _loadDashboardData();
+          },
+        ),
+      );
+    }
     return SizedBox(
-      height: 230,
+      height: 150,
       child: ListView.separated(
         padding: const EdgeInsets.symmetric(horizontal: 20),
         scrollDirection: Axis.horizontal,
         physics: const BouncingScrollPhysics(),
-        itemCount: _members.length,
+        itemCount: _memberPreview.length,
         separatorBuilder: (_, __) => const SizedBox(width: 14),
-        itemBuilder: (context, index) {
-          return _buildMemberCard(_members[index]);
-        },
+        itemBuilder: (context, index) => _buildMemberCard(_memberPreview[index]),
       ),
     );
   }
 
-  Widget _buildMemberCard(Map<String, dynamic> member) {
-    final gradientColors = member['gradientColors'] as List<Color>;
-    final isActive = member['status'] == 'Active';
+  Widget _buildMemberCard(GymMember member) {
+    final isActive = member.status.toUpperCase() == 'ACTIVE';
+    final statusColor = isActive ? AppColors.accentCyan : AppColors.accentOrange;
+    const gradientColors = [AppColors.accentBlue, AppColors.accentCyan];
 
     return DashboardGlassCard(
       padding: const EdgeInsets.all(16),
       borderRadius: 18,
       child: SizedBox(
-        width: 180,
+        width: 160,
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            // Avatar + Status row
             Row(
               children: [
-                // Avatar
                 Container(
                   width: 42,
                   height: 42,
-                  decoration: BoxDecoration(
-                    borderRadius: BorderRadius.circular(14),
+                  decoration: const BoxDecoration(
+                    borderRadius: BorderRadius.all(Radius.circular(14)),
                     gradient: LinearGradient(
                       begin: Alignment.topLeft,
                       end: Alignment.bottomRight,
@@ -930,117 +859,62 @@ class _GymOwnerDashboardState extends ConsumerState<GymOwnerDashboard>
                   ),
                   child: Center(
                     child: Text(
-                      member['initials'] as String,
-                      style: AppTextStyles.labelLarge.copyWith(
-                        color: Colors.white,
-                        fontWeight: FontWeight.w700,
-                        fontSize: 15,
-                      ),
+                      member.firstName.isNotEmpty ? member.firstName[0].toUpperCase() : 'M',
+                      style: AppTextStyles.labelLarge.copyWith(color: Colors.white, fontWeight: FontWeight.w700, fontSize: 15),
                     ),
                   ),
                 ),
                 const Spacer(),
-                // Status badge
                 Container(
-                  padding:
-                      const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
                   decoration: BoxDecoration(
                     borderRadius: BorderRadius.circular(10),
-                    color: isActive
-                        ? AppColors.accentCyan.withValues(alpha: 0.12)
-                        : AppColors.accentOrange.withValues(alpha: 0.12),
-                    border: Border.all(
-                      color: isActive
-                          ? AppColors.accentCyan.withValues(alpha: 0.3)
-                          : AppColors.accentOrange.withValues(alpha: 0.3),
-                      width: 1,
-                    ),
+                    color: statusColor.withValues(alpha: 0.12),
+                    border: Border.all(color: statusColor.withValues(alpha: 0.3), width: 1),
                   ),
-                  child: Text(
-                    member['status'] as String,
-                    style: AppTextStyles.caption.copyWith(
-                      color: isActive
-                          ? AppColors.accentCyan
-                          : AppColors.accentOrange,
-                      fontWeight: FontWeight.w600,
-                      fontSize: 9,
-                    ),
-                  ),
-                ),
-                const SizedBox(width: 4),
-                // Progress ring
-                RadialProgress(
-                  progress: member['progress'] as double,
-                  size: 28,
-                  strokeWidth: 3,
-                  progressColor: gradientColors[0],
-                  child: Text(
-                    '${((member['progress'] as double) * 100).toInt()}',
-                    style: const TextStyle(
-                      color: AppColors.textPrimary,
-                      fontSize: 7,
-                      fontWeight: FontWeight.w700,
-                    ),
-                  ),
+                  child: Text(member.status,
+                      style: AppTextStyles.caption.copyWith(color: statusColor, fontWeight: FontWeight.w600, fontSize: 9)),
                 ),
               ],
             ),
             const SizedBox(height: 12),
-
-            // Name
+            Text(member.fullName,
+                style: AppTextStyles.labelLarge.copyWith(fontSize: 14, fontWeight: FontWeight.w600),
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis),
+            const SizedBox(height: 4),
             Text(
-              member['name'] as String,
-              style: AppTextStyles.labelLarge.copyWith(
-                fontSize: 14,
-                fontWeight: FontWeight.w600,
-              ),
+              member.planName ?? 'No active plan',
+              style: AppTextStyles.caption.copyWith(color: AppColors.textTertiary, fontSize: 10),
               maxLines: 1,
               overflow: TextOverflow.ellipsis,
-            ),
-            const SizedBox(height: 2),
-
-            // Goal + trainer
-            Text(
-              '${member['goal']} • ${member['trainer']}',
-              style: AppTextStyles.caption.copyWith(
-                color: AppColors.textTertiary,
-                fontSize: 10,
-              ),
-              maxLines: 1,
-              overflow: TextOverflow.ellipsis,
-            ),
-            const SizedBox(height: 10),
-
-            // Attendance progress
-            Row(
-              children: [
-                Text(
-                  'Attendance',
-                  style: AppTextStyles.caption.copyWith(
-                    color: AppColors.textTertiary,
-                    fontSize: 10,
-                  ),
-                ),
-                const Spacer(),
-                Text(
-                  '${((member['attendance'] as double) * 100).toInt()}%',
-                  style: AppTextStyles.caption.copyWith(
-                    color: AppColors.textSecondary,
-                    fontWeight: FontWeight.w600,
-                    fontSize: 10,
-                  ),
-                ),
-              ],
-            ),
-            const SizedBox(height: 6),
-            LinearProgressBar(
-              progress: member['attendance'] as double,
-              color: gradientColors[0],
-              height: 4,
             ),
           ],
         ),
       ),
+    );
+  }
+
+  Widget _buildInlineEmptyRow({
+    required IconData icon,
+    required String text,
+    String? actionLabel,
+    VoidCallback? onAction,
+  }) {
+    return Row(
+      children: [
+        Icon(icon, color: AppColors.textTertiary, size: 18),
+        const SizedBox(width: 8),
+        Text(text, style: AppTextStyles.caption.copyWith(color: AppColors.textTertiary)),
+        if (actionLabel != null && onAction != null) ...[
+          const Spacer(),
+          GestureDetector(
+            onTap: onAction,
+            child: Text(actionLabel,
+                style: AppTextStyles.caption.copyWith(color: AppColors.accentBlue, fontWeight: FontWeight.w600)),
+          ),
+        ],
+      ],
     );
   }
 
@@ -1049,46 +923,42 @@ class _GymOwnerDashboardState extends ConsumerState<GymOwnerDashboard>
   // ─────────────────────────────────────────────
 
   Widget _buildTrainersHorizontalList() {
+    if (_trainerRoster.isEmpty) {
+      return Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 20),
+        child: _buildInlineEmptyRow(
+          icon: Icons.fitness_center_rounded,
+          text: 'No trainers yet',
+          actionLabel: 'Invite Trainer',
+          onAction: () => Navigator.pushNamed(context, '/gym-owner-trainers'),
+        ),
+      );
+    }
     return SizedBox(
-      height: 210,
+      height: 130,
       child: ListView.separated(
         padding: const EdgeInsets.symmetric(horizontal: 20),
         scrollDirection: Axis.horizontal,
         physics: const BouncingScrollPhysics(),
-        itemCount: _trainers.length,
+        itemCount: _trainerRoster.length,
         separatorBuilder: (_, __) => const SizedBox(width: 14),
-        itemBuilder: (context, index) {
-          return _buildTrainerCard(_trainers[index]);
-        },
+        itemBuilder: (context, index) => _buildTrainerCard(_trainerRoster[index]),
       ),
     );
   }
 
-  Widget _buildTrainerCard(Map<String, dynamic> trainer) {
-    final gradientColors = trainer['gradientColors'] as List<Color>;
-    final status = trainer['status'] as String;
-
-    Color statusColor;
-    switch (status) {
-      case 'Available':
-        statusColor = AppColors.accentCyan;
-        break;
-      case 'In Session':
-        statusColor = AppColors.accentOrange;
-        break;
-      default:
-        statusColor = AppColors.textTertiary;
-    }
+  Widget _buildTrainerCard(GymTrainer trainer) {
+    final statusColor = trainer.status.toUpperCase() == 'ACTIVE' ? AppColors.accentCyan : AppColors.textTertiary;
+    const gradientColors = [AppColors.accentPurple, AppColors.accentCoral];
 
     return DashboardGlassCard(
       padding: const EdgeInsets.all(16),
       borderRadius: 18,
       child: SizedBox(
-        width: 175,
+        width: 165,
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            // Avatar + status dot
             Row(
               children: [
                 Stack(
@@ -1096,22 +966,14 @@ class _GymOwnerDashboardState extends ConsumerState<GymOwnerDashboard>
                     Container(
                       width: 44,
                       height: 44,
-                      decoration: BoxDecoration(
-                        borderRadius: BorderRadius.circular(14),
-                        gradient: LinearGradient(
-                          begin: Alignment.topLeft,
-                          end: Alignment.bottomRight,
-                          colors: gradientColors,
-                        ),
+                      decoration: const BoxDecoration(
+                        borderRadius: BorderRadius.all(Radius.circular(14)),
+                        gradient: LinearGradient(begin: Alignment.topLeft, end: Alignment.bottomRight, colors: gradientColors),
                       ),
                       child: Center(
                         child: Text(
-                          trainer['initials'] as String,
-                          style: AppTextStyles.labelLarge.copyWith(
-                            color: Colors.white,
-                            fontWeight: FontWeight.w700,
-                            fontSize: 15,
-                          ),
+                          trainer.name.isNotEmpty ? trainer.name[0].toUpperCase() : 'T',
+                          style: AppTextStyles.labelLarge.copyWith(color: Colors.white, fontWeight: FontWeight.w700, fontSize: 15),
                         ),
                       ),
                     ),
@@ -1124,112 +986,26 @@ class _GymOwnerDashboardState extends ConsumerState<GymOwnerDashboard>
                         decoration: BoxDecoration(
                           color: statusColor,
                           shape: BoxShape.circle,
-                          border: Border.all(
-                            color: AppColors.bgPrimary,
-                            width: 2,
-                          ),
+                          border: Border.all(color: AppColors.bgPrimary, width: 2),
                         ),
                       ),
                     ),
                   ],
                 ),
                 const Spacer(),
-                // Status pill
-                Container(
-                  padding:
-                      const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
-                  decoration: BoxDecoration(
-                    borderRadius: BorderRadius.circular(10),
-                    color: statusColor.withValues(alpha: 0.12),
-                    border: Border.all(
-                      color: statusColor.withValues(alpha: 0.3),
-                      width: 1,
-                    ),
-                  ),
-                  child: Text(
-                    status,
-                    style: AppTextStyles.caption.copyWith(
-                      color: statusColor,
-                      fontWeight: FontWeight.w600,
-                      fontSize: 9,
-                    ),
-                  ),
-                ),
               ],
             ),
             const SizedBox(height: 12),
-
-            // Name
-            Text(
-              trainer['name'] as String,
-              style: AppTextStyles.labelLarge.copyWith(
-                fontSize: 14,
-                fontWeight: FontWeight.w600,
-              ),
-            ),
+            Text(trainer.name,
+                style: AppTextStyles.labelLarge.copyWith(fontSize: 14, fontWeight: FontWeight.w600),
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis),
             const SizedBox(height: 4),
-
-            // Active clients + satisfaction
-            Row(
-              children: [
-                Icon(
-                  Icons.people_outline_rounded,
-                  color: AppColors.textTertiary,
-                  size: 13,
-                ),
-                const SizedBox(width: 4),
-                Text(
-                  '${trainer['activeClients']} clients',
-                  style: AppTextStyles.caption.copyWith(
-                    color: AppColors.textSecondary,
-                    fontSize: 10,
-                  ),
-                ),
-                const Spacer(),
-                Icon(
-                  Icons.star_rounded,
-                  color: AppColors.accentOrange,
-                  size: 13,
-                ),
-                const SizedBox(width: 2),
-                Text(
-                  '${trainer['satisfaction']}',
-                  style: AppTextStyles.caption.copyWith(
-                    color: AppColors.accentOrange,
-                    fontWeight: FontWeight.w600,
-                    fontSize: 10,
-                  ),
-                ),
-              ],
-            ),
-            const SizedBox(height: 12),
-
-            // Retention score
-            Row(
-              children: [
-                Text(
-                  'Retention',
-                  style: AppTextStyles.caption.copyWith(
-                    color: AppColors.textTertiary,
-                    fontSize: 10,
-                  ),
-                ),
-                const Spacer(),
-                Text(
-                  '${((trainer['retention'] as double) * 100).toInt()}%',
-                  style: AppTextStyles.caption.copyWith(
-                    color: AppColors.textSecondary,
-                    fontWeight: FontWeight.w600,
-                    fontSize: 10,
-                  ),
-                ),
-              ],
-            ),
-            const SizedBox(height: 6),
-            LinearProgressBar(
-              progress: trainer['retention'] as double,
-              color: gradientColors[0],
-              height: 4,
+            Text(
+              trainer.specialization,
+              style: AppTextStyles.caption.copyWith(color: AppColors.textTertiary, fontSize: 10),
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
             ),
           ],
         ),

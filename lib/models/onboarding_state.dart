@@ -8,6 +8,8 @@ class OnboardingState {
   final String? dietPreference;
   final String? experience;
   final String? sleepSchedule;
+  final String? equipmentAccess;
+  final String? budgetBand;
 
   const OnboardingState({
     this.goal,
@@ -19,6 +21,8 @@ class OnboardingState {
     this.dietPreference,
     this.experience,
     this.sleepSchedule,
+    this.equipmentAccess,
+    this.budgetBand,
   });
 
   OnboardingState copyWith({
@@ -31,6 +35,8 @@ class OnboardingState {
     String? dietPreference,
     String? experience,
     String? sleepSchedule,
+    String? equipmentAccess,
+    String? budgetBand,
   }) {
     return OnboardingState(
       goal: goal ?? this.goal,
@@ -42,8 +48,20 @@ class OnboardingState {
       dietPreference: dietPreference ?? this.dietPreference,
       experience: experience ?? this.experience,
       sleepSchedule: sleepSchedule ?? this.sleepSchedule,
+      equipmentAccess: equipmentAccess ?? this.equipmentAccess,
+      budgetBand: budgetBand ?? this.budgetBand,
     );
   }
+
+  /// Whether every backend-required field has been collected — mirrors what
+  /// `POST /members/me/complete-onboarding` itself checks, so the UI can
+  /// gate the final step accurately instead of discovering gaps from a 400.
+  bool get isCompleteForBackend =>
+      goal != null &&
+      experience != null &&
+      dietPreference != null &&
+      equipmentAccess != null &&
+      budgetBand != null;
 
   // Dynamic calculations moved from FinalScreen
 
@@ -108,48 +126,67 @@ class OnboardingState {
       'dietPreference': dietPreference,
       'experience': experience,
       'sleepSchedule': sleepSchedule,
+      'equipmentAccess': equipmentAccess,
+      'budgetBand': budgetBand,
     };
   }
 
+  /// Maps to `UpdateMemberProfileDto` — used for progressive per-step PATCHes
+  /// as well as the final submit. Only includes fields the user has actually
+  /// set (plus the always-present numeric fields, which carry sane defaults
+  /// even before the user touches them) — never fabricates values for fields
+  /// with no real default, so a partial wizard produces a partial PATCH
+  /// instead of silently writing made-up data.
   Map<String, dynamic> toBackendJson() {
-    // Goal mapping
-    String mappedGoal = 'GENERAL_FITNESS';
-    if (goal == 'Lose Weight') mappedGoal = 'FAT_LOSS';
-    if (goal == 'Build Muscle') mappedGoal = 'MUSCLE_GAIN';
-    if (goal == 'Stay Fit') mappedGoal = 'GENERAL_FITNESS';
-    if (goal == 'Improve Lifestyle') mappedGoal = 'GENERAL_FITNESS';
-
-    // Sex mapping
-    String mappedSex = 'MALE';
-    if (gender == 'Female') mappedSex = 'FEMALE';
-
-    // Date of Birth mapping from age
-    final currentYear = DateTime.now().year;
-    final birthYear = currentYear - age;
-    final mappedDob = '$birthYear-01-01';
-
-    // Experience mapping
-    String mappedExp = 'BEGINNER';
-    if (experience == 'Intermediate') mappedExp = 'INTERMEDIATE';
-    if (experience == 'Advanced') mappedExp = 'ADVANCED';
-
-    // Diet mapping
-    String mappedDiet = 'NON_VEG';
-    if (dietPreference == 'Vegetarian') mappedDiet = 'VEG';
-    if (dietPreference == 'Vegan') mappedDiet = 'VEGAN';
-
-    return {
-      'goal': mappedGoal,
-      'sex': mappedSex,
-      'dateOfBirth': mappedDob,
+    final json = <String, dynamic>{
+      'sex': gender == 'Female' ? 'FEMALE' : 'MALE',
+      'dateOfBirth': '${DateTime.now().year - age}-01-01',
       'heightCm': height,
       'weightKg': weight,
-      'experienceLevel': mappedExp,
-      'dietaryPreference': mappedDiet,
-      // Add safe default fields required by the backend to pass validations
-      'budgetBand': 'MEDIUM',
-      'equipmentAccess': 'FULL_GYM',
-      'weeklyFocus': 'Train 4x this week; hit targets daily.',
     };
+
+    if (goal != null) {
+      json['goal'] = switch (goal) {
+        'Lose Weight' => 'FAT_LOSS',
+        'Build Muscle' => 'MUSCLE_GAIN',
+        'Stay Fit' => 'GENERAL_FITNESS',
+        'Improve Lifestyle' => 'GENERAL_FITNESS',
+        _ => 'GENERAL_FITNESS',
+      };
+    }
+
+    if (experience != null) {
+      json['experienceLevel'] = switch (experience) {
+        'Intermediate' => 'INTERMEDIATE',
+        'Advanced' => 'ADVANCED',
+        _ => 'BEGINNER',
+      };
+    }
+
+    if (dietPreference != null) {
+      json['dietaryPreference'] = switch (dietPreference) {
+        'Vegetarian' => 'VEG',
+        'Vegan' => 'VEGAN',
+        _ => 'NON_VEG',
+      };
+    }
+
+    if (equipmentAccess != null) {
+      json['equipmentAccess'] = switch (equipmentAccess) {
+        'Home Equipment' => 'HOME_EQUIPMENT',
+        'No Equipment' => 'NO_EQUIPMENT',
+        _ => 'FULL_GYM',
+      };
+    }
+
+    if (budgetBand != null) {
+      json['budgetBand'] = switch (budgetBand) {
+        'Low' => 'LOW',
+        'High' => 'HIGH',
+        _ => 'MEDIUM',
+      };
+    }
+
+    return json;
   }
 }

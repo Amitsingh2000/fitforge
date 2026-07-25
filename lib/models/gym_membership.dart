@@ -36,6 +36,22 @@ class GymMembership {
     );
   }
 
+  GymMembership copyWith({
+    String? gymId,
+    String? gymName,
+    GymRole? role,
+    String? membershipId,
+    String? status,
+  }) {
+    return GymMembership(
+      gymId: gymId ?? this.gymId,
+      gymName: gymName ?? this.gymName,
+      role: role ?? this.role,
+      membershipId: membershipId ?? this.membershipId,
+      status: status ?? this.status,
+    );
+  }
+
   Map<String, dynamic> toJson() => {
         'gymId': gymId,
         'gymName': gymName,

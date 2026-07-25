@@ -596,41 +596,22 @@ class _LoginScreenState extends ConsumerState<LoginScreen>
         ),
         const SizedBox(height: 18),
 
-        // Social buttons
-        Row(
-          children: [
-            Expanded(
-              child: _buildSocialButton(
-                label: 'Google',
-                iconText: 'G',
-                gradientColors: [
-                  AppColors.accentCoral.withValues(alpha: 0.1),
-                  AppColors.accentOrange.withValues(alpha: 0.06),
-                ],
-                iconColor: AppColors.accentCoral,
-                onTap: () async {
-                  final uri = Uri.parse(
-                      'https://fitos-backend-55g6.onrender.com/api/v1/auth/google');
-                  if (await canLaunchUrl(uri)) {
-                    await launchUrl(uri,
-                        mode: LaunchMode.externalApplication);
-                  }
-                },
-              ),
-            ),
-            const SizedBox(width: 14),
-            Expanded(
-              child: _buildSocialButton(
-                label: 'Apple',
-                icon: Icons.apple_rounded,
-                gradientColors: [
-                  Colors.white.withValues(alpha: 0.08),
-                  Colors.white.withValues(alpha: 0.04),
-                ],
-                iconColor: AppColors.textPrimary,
-              ),
-            ),
+        // Social button — only Google Sign-In is backed by the API today.
+        _buildSocialButton(
+          label: 'Google',
+          iconText: 'G',
+          gradientColors: [
+            AppColors.accentCoral.withValues(alpha: 0.1),
+            AppColors.accentOrange.withValues(alpha: 0.06),
           ],
+          iconColor: AppColors.accentCoral,
+          onTap: () async {
+            final uri = Uri.parse(
+                'https://fitos-backend-55g6.onrender.com/api/v1/auth/google');
+            if (await canLaunchUrl(uri)) {
+              await launchUrl(uri, mode: LaunchMode.externalApplication);
+            }
+          },
         ),
       ],
     );
