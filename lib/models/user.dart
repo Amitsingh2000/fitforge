@@ -1,4 +1,6 @@
-enum UserRole { client, trainer, gymOwner }
+import 'gym_membership.dart';
+
+enum UserRole { client, trainer, gymOwner, frontDesk }
 
 class User {
   final String id;
@@ -14,6 +16,7 @@ class User {
   final bool isPhoneVerified;
   final bool isSuperAdmin;
   final DateTime? createdAt;
+  final List<GymMembership> gymMemberships;
 
   const User({
     required this.id,
@@ -29,6 +32,7 @@ class User {
     this.isPhoneVerified = false,
     this.isSuperAdmin = false,
     this.createdAt,
+    this.gymMemberships = const [],
   });
 
   /// Formatted "Member Since" string, e.g. "July 2026"
@@ -62,14 +66,26 @@ class User {
   }
 
   factory User.fromBackendJson(Map<String, dynamic> json, {String? token}) {
-    final memberships = json['gymMemberships'] as List?;
+    final membershipsRaw = json['gymMemberships'] as List?;
     UserRole parsedRole = UserRole.client;
 
-    if (memberships != null) {
-      for (var m in memberships) {
+    // Parse the full gym-membership objects (§2 — preserve gymId etc.)
+    final List<GymMembership> parsedMemberships = membershipsRaw
+            ?.map((m) =>
+                GymMembership.fromJson(Map<String, dynamic>.from(m as Map)))
+            .toList() ??
+        [];
+
+    // Derive the top-level role from the richest membership (existing logic,
+    // now also handles FRONT_DESK)
+    if (membershipsRaw != null) {
+      for (var m in membershipsRaw) {
         final roleStr = m['role'] as String?;
         if (roleStr == 'GYM_OWNER' || roleStr == 'GYM_MANAGER') {
           parsedRole = UserRole.gymOwner;
+          break;
+        } else if (roleStr == 'FRONT_DESK') {
+          parsedRole = UserRole.frontDesk;
           break;
         } else if (roleStr == 'TRAINER') {
           parsedRole = UserRole.trainer;
@@ -110,6 +126,7 @@ class User {
       isPhoneVerified: json['isPhoneVerified'] as bool? ?? false,
       isSuperAdmin: json['isSuperAdmin'] as bool? ?? false,
       createdAt: createdAt,
+      gymMemberships: parsedMemberships,
     );
   }
 }

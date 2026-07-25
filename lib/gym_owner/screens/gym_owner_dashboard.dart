@@ -1,83 +1,139 @@
 import 'dart:ui';
 import 'package:flutter/material.dart';
 import 'package:flutter_animate/flutter_animate.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
+import '../../models/gym_dashboard_data.dart';
+import '../../models/gym_trainer.dart';
+import '../../providers/gym_provider.dart';
+import '../../services/gym_owner_service.dart';
 import '../../theme/app_theme.dart';
 import '../../dashboard/widgets/dashboard_glass_card.dart';
 import '../../dashboard/widgets/linear_progress_bar.dart';
 import '../../dashboard/widgets/radial_progress.dart';
+import 'create_gym_screen.dart';
 import 'gym_owner_members_tab.dart';
 import 'gym_owner_referrals_tab.dart';
 import 'gym_owner_analytics_tab.dart';
 import 'gym_owner_profile_tab.dart';
 
-class GymOwnerDashboard extends StatefulWidget {
+class GymOwnerDashboard extends ConsumerStatefulWidget {
   const GymOwnerDashboard({super.key});
 
   @override
-  State<GymOwnerDashboard> createState() => _GymOwnerDashboardState();
+  ConsumerState<GymOwnerDashboard> createState() => _GymOwnerDashboardState();
 }
 
-class _GymOwnerDashboardState extends State<GymOwnerDashboard>
+class _GymOwnerDashboardState extends ConsumerState<GymOwnerDashboard>
     with TickerProviderStateMixin {
   int _currentNavIndex = 0;
 
-  // ── Simulated gym data ──
-  final String _gymName = 'FitForge Elite Gym';
+  // Live API State
+  GymDashboardToday _todayStats = const GymDashboardToday();
+  GymDashboardMonthly _monthlyStats = const GymDashboardMonthly();
+  List<GymTrainer> _trainerRoster = [];
+  bool _dashboardLoading = true;
+
+  String get _gymName => ref.watch(selectedGymProvider)?.gymName ?? 'FitForge Gym';
+
+  @override
+  void initState() {
+    super.initState();
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      _loadDashboardData();
+    });
+  }
+
+  Future<void> _loadDashboardData() async {
+    // Ensure active gym is selected or auto-selected
+    autoSelectGym(ref);
+    final gymId = ref.read(currentGymIdProvider);
+
+    if (gymId == null || gymId.isEmpty) {
+      if (mounted) {
+        setState(() => _dashboardLoading = false);
+      }
+      return;
+    }
+
+    setState(() => _dashboardLoading = true);
+
+    try {
+      final service = ref.read(gymOwnerServiceProvider);
+      final today = await service.getTodayDashboard(gymId);
+      final monthly = await service.getMonthlyDashboard(gymId);
+      final trainers = await service.getTrainersRoster(gymId);
+
+      if (mounted) {
+        setState(() {
+          _todayStats = today;
+          _monthlyStats = monthly;
+          _trainerRoster = trainers;
+          _dashboardLoading = false;
+        });
+      }
+    } catch (_) {
+      if (mounted) {
+        setState(() => _dashboardLoading = false);
+      }
+    }
+  }
+
+  // ── Gym data ──
   final String _ownerInitials = 'AK';
   final String _membershipPlan = 'Pro Plan';
   final int _notificationCount = 3;
 
-  final List<Map<String, dynamic>> _analyticsData = [
-    {
-      'title': 'Total Members',
-      'value': 248,
-      'icon': Icons.people_rounded,
-      'color': AppColors.accentBlue,
-      'prefix': '',
-      'suffix': '',
-    },
-    {
-      'title': 'Active Members',
-      'value': 196,
-      'icon': Icons.directions_run_rounded,
-      'color': AppColors.accentCyan,
-      'prefix': '',
-      'suffix': '',
-    },
-    {
-      'title': 'Trainers',
-      'value': 12,
-      'icon': Icons.fitness_center_rounded,
-      'color': AppColors.accentPurple,
-      'prefix': '',
-      'suffix': '',
-    },
-    {
-      'title': 'Pending Requests',
-      'value': 8,
-      'icon': Icons.person_add_rounded,
-      'color': AppColors.accentOrange,
-      'prefix': '',
-      'suffix': '',
-    },
-    {
-      'title': 'Monthly Revenue',
-      'value': 482500,
-      'icon': Icons.account_balance_wallet_rounded,
-      'color': AppColors.accentBlue,
-      'prefix': '₹',
-      'suffix': '',
-      'isGradient': true,
-    },
-    {
-      'title': 'Today\'s Attendance',
-      'value': 142,
-      'icon': Icons.event_available_rounded,
-      'color': AppColors.accentCoral,
-      'prefix': '',
-      'suffix': '',
-    },
-  ];
+  List<Map<String, dynamic>> get _analyticsData => [
+        {
+          'title': 'Active Members',
+          'value': _monthlyStats.activeMembersCount,
+          'icon': Icons.directions_run_rounded,
+          'color': AppColors.accentCyan,
+          'prefix': '',
+          'suffix': '',
+        },
+        {
+          'title': 'Today\'s Check-Ins',
+          'value': _todayStats.totalCheckIns,
+          'icon': Icons.event_available_rounded,
+          'color': AppColors.accentCoral,
+          'prefix': '',
+          'suffix': '',
+        },
+        {
+          'title': 'Monthly Revenue',
+          'value': _monthlyStats.totalRevenue,
+          'icon': Icons.account_balance_wallet_rounded,
+          'color': AppColors.accentBlue,
+          'prefix': '₹',
+          'suffix': '',
+          'isGradient': true,
+        },
+        {
+          'title': 'New Joins Today',
+          'value': _todayStats.newJoinsCount,
+          'icon': Icons.person_add_rounded,
+          'color': AppColors.accentOrange,
+          'prefix': '',
+          'suffix': '',
+        },
+        {
+          'title': 'Pending Dues',
+          'value': _todayStats.totalDuesAmount,
+          'icon': Icons.warning_amber_rounded,
+          'color': AppColors.accentCoral,
+          'prefix': '₹',
+          'suffix': '',
+        },
+        {
+          'title': 'Trainers',
+          'value': _trainerRoster.length,
+          'icon': Icons.fitness_center_rounded,
+          'color': AppColors.accentPurple,
+          'prefix': '',
+          'suffix': '',
+        },
+      ];
 
   final List<Map<String, dynamic>> _quickActions = [
     {
@@ -303,12 +359,65 @@ class _GymOwnerDashboardState extends State<GymOwnerDashboard>
   // ═══════════════════════════════════════════════
 
   Widget _buildDashboardHome({Key? key}) {
+    final selectedGym = ref.watch(selectedGymProvider);
+
+    if (selectedGym == null && !_dashboardLoading) {
+      return Center(
+        key: key,
+        child: Padding(
+          padding: const EdgeInsets.all(24.0),
+          child: DashboardGlassCard(
+            padding: const EdgeInsets.all(24),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                const Icon(Icons.storefront_rounded, size: 48, color: AppColors.accentBlue),
+                const SizedBox(height: 16),
+                Text(
+                  'No Gym Profile Found',
+                  style: AppTextStyles.titleMedium.copyWith(fontWeight: FontWeight.bold),
+                ),
+                const SizedBox(height: 8),
+                Text(
+                  'Set up your gym profile to start managing members and trainers.',
+                  textAlign: TextAlign.center,
+                  style: AppTextStyles.caption.copyWith(color: AppColors.textSecondary),
+                ),
+                const SizedBox(height: 20),
+                ElevatedButton(
+                  onPressed: () {
+                    Navigator.of(context).push(
+                      MaterialPageRoute(builder: (_) => const CreateGymScreen()),
+                    );
+                  },
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: AppColors.accentBlue,
+                    padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
+                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                  ),
+                  child: const Text('Create Gym Now', style: TextStyle(fontWeight: FontWeight.bold)),
+                ),
+              ],
+            ),
+          ),
+        ),
+      );
+    }
+
     return CustomScrollView(
       key: key,
       physics: const BouncingScrollPhysics(),
       slivers: [
         // Header
         SliverToBoxAdapter(child: _buildTopHeader()),
+
+        if (_dashboardLoading)
+          const SliverToBoxAdapter(
+            child: Padding(
+              padding: EdgeInsets.symmetric(horizontal: 20, vertical: 8),
+              child: LinearProgressIndicator(color: AppColors.accentBlue, minHeight: 2),
+            ),
+          ),
 
         SliverPadding(
           padding: const EdgeInsets.fromLTRB(20, 8, 20, 130),

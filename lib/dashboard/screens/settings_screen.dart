@@ -1,20 +1,121 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_animate/flutter_animate.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
+import '../../models/user_session.dart';
+import '../../services/member_service.dart';
 import '../../theme/app_theme.dart';
 import '../widgets/dashboard_glass_card.dart';
 
-class SettingsScreen extends StatefulWidget {
+class SettingsScreen extends ConsumerStatefulWidget {
   const SettingsScreen({super.key});
 
   @override
-  State<SettingsScreen> createState() => _SettingsScreenState();
+  ConsumerState<SettingsScreen> createState() => _SettingsScreenState();
 }
 
-class _SettingsScreenState extends State<SettingsScreen> {
+class _SettingsScreenState extends ConsumerState<SettingsScreen> {
   // Toggle values for preview preferences
   bool _notificationsEnabled = true;
   bool _remindersEnabled = true;
   String _units = 'Metric (kg, cm)';
+
+  // Session management state
+  List<UserSession> _sessions = [];
+  bool _sessionsLoading = true;
+  String? _sessionsError;
+
+  @override
+  void initState() {
+    super.initState();
+    _loadSessions();
+  }
+
+  Future<void> _loadSessions() async {
+    setState(() {
+      _sessionsLoading = true;
+      _sessionsError = null;
+    });
+    try {
+      final service = ref.read(memberServiceProvider);
+      final sessions = await service.getSessions();
+      if (mounted) {
+        setState(() {
+          _sessions = sessions;
+          _sessionsLoading = false;
+        });
+      }
+    } catch (e) {
+      if (mounted) {
+        setState(() {
+          _sessionsError = e.toString();
+          _sessionsLoading = false;
+        });
+      }
+    }
+  }
+
+  Future<void> _revokeSession(String sessionId) async {
+    try {
+      final service = ref.read(memberServiceProvider);
+      await service.deleteSession(sessionId);
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Session revoked')),
+        );
+        _loadSessions(); // Refresh the list
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Failed to revoke session: $e')),
+        );
+      }
+    }
+  }
+
+  Future<void> _logoutAllDevices() async {
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        backgroundColor: AppColors.bgSecondary,
+        title: const Text('Log out all devices?',
+            style: TextStyle(color: AppColors.textPrimary)),
+        content: const Text(
+          'This will revoke all active sessions across every device. You will need to log in again.',
+          style: TextStyle(color: AppColors.textSecondary),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, false),
+            child: const Text('Cancel'),
+          ),
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, true),
+            child: Text('Log out all',
+                style: TextStyle(color: AppColors.accentCoral)),
+          ),
+        ],
+      ),
+    );
+    if (confirmed != true) return;
+
+    try {
+      final service = ref.read(memberServiceProvider);
+      await service.logoutAllDevices();
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('All devices logged out')),
+        );
+        _loadSessions();
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Failed: $e')),
+        );
+      }
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -40,6 +141,14 @@ class _SettingsScreenState extends State<SettingsScreen> {
                   _buildPreferencesList()
                       .animate()
                       .fadeIn(duration: 500.ms, delay: 100.ms),
+                  const SizedBox(height: 20),
+
+                  // Active Sessions
+                  _buildSectionLabel('ACTIVE SESSIONS'),
+                  const SizedBox(height: 12),
+                  _buildSessionsSection()
+                      .animate()
+                      .fadeIn(duration: 500.ms, delay: 150.ms),
                   const SizedBox(height: 20),
 
                   // Support & Help
@@ -186,6 +295,212 @@ class _SettingsScreenState extends State<SettingsScreen> {
         ),
       ),
     );
+  }
+
+  // ─────────────────────────────────────────────
+  // ACTIVE SESSIONS SECTION
+  // ─────────────────────────────────────────────
+
+  Widget _buildSessionsSection() {
+    if (_sessionsLoading) {
+      return DashboardGlassCard(
+        padding: const EdgeInsets.all(24),
+        child: const Center(
+          child: SizedBox(
+            width: 24,
+            height: 24,
+            child: CircularProgressIndicator(
+              strokeWidth: 2,
+              color: AppColors.accentBlue,
+            ),
+          ),
+        ),
+      );
+    }
+
+    if (_sessionsError != null) {
+      return DashboardGlassCard(
+        padding: const EdgeInsets.all(16),
+        child: Column(
+          children: [
+            const Icon(Icons.error_outline_rounded,
+                color: AppColors.accentCoral, size: 28),
+            const SizedBox(height: 8),
+            Text(
+              'Failed to load sessions',
+              style: AppTextStyles.bodyMedium
+                  .copyWith(color: AppColors.textSecondary),
+            ),
+            const SizedBox(height: 12),
+            GestureDetector(
+              onTap: _loadSessions,
+              child: Text(
+                'Retry',
+                style: AppTextStyles.caption.copyWith(
+                  color: AppColors.accentBlue,
+                  fontWeight: FontWeight.bold,
+                ),
+              ),
+            ),
+          ],
+        ),
+      );
+    }
+
+    if (_sessions.isEmpty) {
+      return DashboardGlassCard(
+        padding: const EdgeInsets.all(16),
+        child: Center(
+          child: Text(
+            'No active sessions',
+            style: AppTextStyles.bodyMedium
+                .copyWith(color: AppColors.textSecondary),
+          ),
+        ),
+      );
+    }
+
+    return Column(
+      children: [
+        ..._sessions.map((session) => Padding(
+              padding: const EdgeInsets.only(bottom: 8),
+              child: DashboardGlassCard(
+                padding:
+                    const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+                child: Row(
+                  children: [
+                    Container(
+                      width: 36,
+                      height: 36,
+                      decoration: BoxDecoration(
+                        color: session.isCurrent
+                            ? AppColors.accentBlue.withValues(alpha: 0.12)
+                            : AppColors.bgTertiary,
+                        borderRadius: BorderRadius.circular(10),
+                      ),
+                      child: Icon(
+                        _deviceIcon(session.deviceName),
+                        color: session.isCurrent
+                            ? AppColors.accentBlue
+                            : AppColors.textTertiary,
+                        size: 18,
+                      ),
+                    ),
+                    const SizedBox(width: 12),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Row(
+                            children: [
+                              Flexible(
+                                child: Text(
+                                  session.deviceName,
+                                  style: AppTextStyles.bodyMedium.copyWith(
+                                    color: AppColors.textPrimary,
+                                    fontWeight: FontWeight.w600,
+                                    fontSize: 13,
+                                  ),
+                                  overflow: TextOverflow.ellipsis,
+                                ),
+                              ),
+                              if (session.isCurrent) ...[
+                                const SizedBox(width: 8),
+                                Container(
+                                  padding: const EdgeInsets.symmetric(
+                                      horizontal: 6, vertical: 2),
+                                  decoration: BoxDecoration(
+                                    color: AppColors.accentCyan
+                                        .withValues(alpha: 0.12),
+                                    borderRadius: BorderRadius.circular(4),
+                                  ),
+                                  child: Text(
+                                    'This device',
+                                    style: AppTextStyles.caption.copyWith(
+                                      color: AppColors.accentCyan,
+                                      fontSize: 8,
+                                      fontWeight: FontWeight.bold,
+                                    ),
+                                  ),
+                                ),
+                              ],
+                            ],
+                          ),
+                          const SizedBox(height: 2),
+                          Text(
+                            'Last active: ${session.lastUsedLabel}',
+                            style: AppTextStyles.caption.copyWith(
+                              color: AppColors.textTertiary,
+                              fontSize: 10,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                    if (!session.isCurrent)
+                      GestureDetector(
+                        onTap: () => _revokeSession(session.id),
+                        child: Container(
+                          padding: const EdgeInsets.symmetric(
+                              horizontal: 10, vertical: 6),
+                          decoration: BoxDecoration(
+                            color:
+                                AppColors.accentCoral.withValues(alpha: 0.1),
+                            borderRadius: BorderRadius.circular(8),
+                            border: Border.all(
+                                color: AppColors.accentCoral
+                                    .withValues(alpha: 0.2)),
+                          ),
+                          child: Text(
+                            'Revoke',
+                            style: AppTextStyles.caption.copyWith(
+                              color: AppColors.accentCoral,
+                              fontWeight: FontWeight.bold,
+                              fontSize: 10,
+                            ),
+                          ),
+                        ),
+                      ),
+                  ],
+                ),
+              ),
+            )),
+        const SizedBox(height: 8),
+        GestureDetector(
+          onTap: _logoutAllDevices,
+          child: Container(
+            width: double.infinity,
+            padding: const EdgeInsets.symmetric(vertical: 12),
+            decoration: BoxDecoration(
+              color: AppColors.bgSecondary,
+              borderRadius: BorderRadius.circular(12),
+              border: Border.all(
+                  color: AppColors.accentCoral.withValues(alpha: 0.15)),
+            ),
+            child: Center(
+              child: Text(
+                'Log out all devices',
+                style: AppTextStyles.caption.copyWith(
+                  color: AppColors.accentCoral,
+                  fontWeight: FontWeight.bold,
+                ),
+              ),
+            ),
+          ),
+        ),
+      ],
+    );
+  }
+
+  IconData _deviceIcon(String deviceName) {
+    if (deviceName.contains('Android')) return Icons.phone_android_rounded;
+    if (deviceName.contains('iPhone') || deviceName.contains('iOS')) {
+      return Icons.phone_iphone_rounded;
+    }
+    if (deviceName.contains('Windows')) return Icons.desktop_windows_rounded;
+    if (deviceName.contains('Mac')) return Icons.laptop_mac_rounded;
+    if (deviceName.contains('Linux')) return Icons.computer_rounded;
+    return Icons.devices_rounded;
   }
 
   // ─────────────────────────────────────────────

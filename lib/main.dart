@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:app_links/app_links.dart';
+import 'providers/gym_provider.dart';
 import 'theme/app_theme.dart';
 import 'onboarding/onboarding_flow.dart';
 import 'dashboard/screens/home_dashboard.dart';
@@ -130,8 +131,11 @@ class _AppEntryState extends ConsumerState<_AppEntry> {
         return const _SplashScreen();
 
       case AuthStatus.authenticated:
+        // Auto-select gym if user has exactly one gym membership
+        _autoSelectGymIfNeeded();
+
         final role = authState.user?.role;
-        if (role == UserRole.gymOwner) {
+        if (role == UserRole.gymOwner || role == UserRole.frontDesk) {
           return const GymOwnerDashboard();
         } else if (role == UserRole.trainer) {
           return const TrainerDashboard();
@@ -142,6 +146,19 @@ class _AppEntryState extends ConsumerState<_AppEntry> {
       case AuthStatus.unauthenticated:
       case AuthStatus.error:
         return const OnboardingFlow();
+    }
+  }
+
+  /// If the authenticated user has exactly one gym membership,
+  /// auto-select it so gym-scoped screens work immediately.
+  void _autoSelectGymIfNeeded() {
+    final user = ref.read(authProvider).user;
+    if (user != null && user.gymMemberships.length == 1) {
+      final current = ref.read(selectedGymProvider);
+      if (current == null) {
+        ref.read(selectedGymProvider.notifier).state =
+            user.gymMemberships.first;
+      }
     }
   }
 }

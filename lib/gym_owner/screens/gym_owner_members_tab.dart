@@ -1,22 +1,117 @@
 import 'dart:ui';
 import 'package:flutter/material.dart';
 import 'package:flutter_animate/flutter_animate.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
+import '../../models/gym_member.dart';
+import '../../models/gym_trainer.dart';
+import '../../providers/gym_provider.dart';
+import '../../services/gym_owner_service.dart';
 import '../../theme/app_theme.dart';
 import '../../dashboard/widgets/dashboard_glass_card.dart';
 import '../../dashboard/widgets/linear_progress_bar.dart';
 
-class GymOwnerMembersTab extends StatefulWidget {
+class GymOwnerMembersTab extends ConsumerStatefulWidget {
   const GymOwnerMembersTab({super.key});
 
   @override
-  State<GymOwnerMembersTab> createState() => _GymOwnerMembersTabState();
+  ConsumerState<GymOwnerMembersTab> createState() => _GymOwnerMembersTabState();
 }
 
-class _GymOwnerMembersTabState extends State<GymOwnerMembersTab> {
+class _GymOwnerMembersTabState extends ConsumerState<GymOwnerMembersTab> {
   String _searchQuery = '';
   String _selectedFilter = 'All';
   String? _selectedTrainerFilter;
   final TextEditingController _searchController = TextEditingController();
+
+  List<GymMember> _liveMembers = [];
+  List<GymTrainer> _liveTrainers = [];
+  bool _membersLoading = true;
+
+  @override
+  void initState() {
+    super.initState();
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      _loadMembers();
+    });
+  }
+
+  Future<void> _loadMembers() async {
+    final gymId = ref.read(currentGymIdProvider);
+    if (gymId == null || gymId.isEmpty) {
+      if (mounted) setState(() => _membersLoading = false);
+      return;
+    }
+
+    setState(() => _membersLoading = true);
+
+    try {
+      final service = ref.read(gymOwnerServiceProvider);
+      final members = await service.getMembers(
+        gymId,
+        status: _selectedFilter != 'All' ? _selectedFilter.toUpperCase() : null,
+        search: _searchQuery.isNotEmpty ? _searchQuery : null,
+      );
+      final trainers = await service.getTrainersRoster(gymId);
+
+      if (mounted) {
+        setState(() {
+          _liveMembers = members;
+          _liveTrainers = trainers;
+          _membersLoading = false;
+        });
+      }
+    } catch (_) {
+      if (mounted) setState(() => _membersLoading = false);
+    }
+  }
+
+  Future<void> _updateMemberStatus(GymMember member, String newStatus) async {
+    final gymId = ref.read(currentGymIdProvider);
+    if (gymId == null) return;
+
+    try {
+      final service = ref.read(gymOwnerServiceProvider);
+      await service.updateMemberStatus(gymId, member.membershipId, status: newStatus);
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Updated ${member.fullName} to $newStatus')),
+        );
+        _loadMembers();
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Failed to update status: $e')),
+        );
+      }
+    }
+  }
+
+  Future<void> _assignTrainer(GymMember member, GymTrainer trainer) async {
+    final gymId = ref.read(currentGymIdProvider);
+    if (gymId == null) return;
+
+    try {
+      final service = ref.read(gymOwnerServiceProvider);
+      await service.assignTrainer(
+        gymId: gymId,
+        membershipId: member.membershipId,
+        trainerId: trainer.trainerId,
+      );
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Assigned ${trainer.name} to ${member.fullName}')),
+        );
+        _loadMembers();
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Failed to assign trainer: $e')),
+        );
+      }
+    }
+  }
 
   final List<String> _statusFilters = [
     'All',
@@ -206,9 +301,32 @@ class _GymOwnerMembersTabState extends State<GymOwnerMembersTab> {
   List<Map<String, dynamic>> get _filteredMembers {
     var members = _allMembers;
 
+    // Use live API members if available
+    if (_liveMembers.isNotEmpty) {
+      members = _liveMembers.map((lm) {
+        return {
+          'membershipId': lm.membershipId,
+          'userId': lm.userId,
+          'name': lm.fullName,
+          'initials': lm.firstName.isNotEmpty ? lm.firstName[0] : 'M',
+          'phone': lm.phone ?? 'No phone',
+          'status': lm.status[0] + lm.status.substring(1).toLowerCase(),
+          'membershipPlan': lm.planName ?? 'Standard',
+          'planExpiry': lm.endDate != null ? '${lm.endDate!.day}/${lm.endDate!.month}/${lm.endDate!.year}' : 'Active',
+          'attendance': 0.85,
+          'goal': 'General Fitness',
+          'trainer': lm.assignedTrainerName ?? 'Unassigned',
+          'progress': 0.70,
+          'joinDate': lm.startDate != null ? '${lm.startDate!.day}/${lm.startDate!.month}/${lm.startDate!.year}' : 'Recent',
+          'gradientColors': [AppColors.accentBlue, AppColors.accentCyan],
+          'liveModel': lm,
+        };
+      }).toList();
+    }
+
     // Filter by status
     if (_selectedFilter != 'All') {
-      members = members.where((m) => m['status'] == _selectedFilter).toList();
+      members = members.where((m) => (m['status'] as String).toLowerCase() == _selectedFilter.toLowerCase()).toList();
     }
 
     // Filter by trainer
@@ -1004,26 +1122,44 @@ class _GymOwnerMembersTabState extends State<GymOwnerMembersTab> {
               const SizedBox(width: 8),
               _buildActionButton(
                 icon: Icons.edit_rounded,
-                label: 'Edit',
+                label: 'Assign Coach',
                 color: AppColors.accentPurple,
-                onTap: () =>
-                    _showSnackBar('Editing ${member['name']}'),
+                onTap: () {
+                  final lm = member['liveModel'] as GymMember?;
+                  if (lm != null && _liveTrainers.isNotEmpty) {
+                    _assignTrainer(lm, _liveTrainers.first);
+                  } else {
+                    _showSnackBar('Editing ${member['name']}');
+                  }
+                },
               ),
               const SizedBox(width: 8),
               _buildActionButton(
                 icon: Icons.autorenew_rounded,
                 label: 'Renew',
                 color: AppColors.accentCyan,
-                onTap: () => _showSnackBar(
-                    'Renewing membership for ${member['name']}'),
+                onTap: () {
+                  final lm = member['liveModel'] as GymMember?;
+                  if (lm != null) {
+                    _updateMemberStatus(lm, 'ACTIVE');
+                  } else {
+                    _showSnackBar('Renewing membership for ${member['name']}');
+                  }
+                },
               ),
               const SizedBox(width: 8),
               _buildActionButton(
                 icon: Icons.block_rounded,
                 label: 'Deactivate',
                 color: AppColors.accentCoral,
-                onTap: () => _showSnackBar(
-                    'Deactivating ${member['name']}'),
+                onTap: () {
+                  final lm = member['liveModel'] as GymMember?;
+                  if (lm != null) {
+                    _updateMemberStatus(lm, 'INACTIVE');
+                  } else {
+                    _showSnackBar('Deactivating ${member['name']}');
+                  }
+                },
               ),
             ],
           ),

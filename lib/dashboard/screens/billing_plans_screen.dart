@@ -1,6 +1,10 @@
 import 'dart:ui';
 import 'package:flutter/material.dart';
 import 'package:flutter_animate/flutter_animate.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
+import '../../models/member_entitlements.dart';
+import '../../models/member_subscription.dart';
+import '../../services/member_service.dart';
 import '../../theme/app_theme.dart';
 import '../widgets/dashboard_glass_card.dart';
 
@@ -26,7 +30,7 @@ class BillingPlansScreen extends StatelessWidget {
 
 /// Billing & Plans content — embedded inside HomeDashboard's DashboardShell.
 /// Does NOT have its own Scaffold or bottom nav.
-class BillingPlansContent extends StatefulWidget {
+class BillingPlansContent extends ConsumerStatefulWidget {
   final bool isStandalone;
   final VoidCallback? onCompleted;
 
@@ -37,10 +41,10 @@ class BillingPlansContent extends StatefulWidget {
   });
 
   @override
-  State<BillingPlansContent> createState() => _BillingPlansContentState();
+  ConsumerState<BillingPlansContent> createState() => _BillingPlansContentState();
 }
 
-class _BillingPlansContentState extends State<BillingPlansContent>
+class _BillingPlansContentState extends ConsumerState<BillingPlansContent>
     with SingleTickerProviderStateMixin {
   // ── State ──
   int _selectedPlanIndex = 1; // 0=Free, 1=Pro, 2=Elite
@@ -150,6 +154,11 @@ class _BillingPlansContentState extends State<BillingPlansContent>
     },
   ];
 
+  // ── Subscription API State ──
+  MemberSubscription _subscription = MemberSubscription.none();
+  MemberEntitlements _entitlements = MemberEntitlements.free();
+  bool _subscriptionLoading = true;
+
   @override
   void initState() {
     super.initState();
@@ -157,6 +166,60 @@ class _BillingPlansContentState extends State<BillingPlansContent>
       vsync: this,
       duration: const Duration(seconds: 3),
     )..repeat();
+    _loadSubscription();
+  }
+
+  Future<void> _loadSubscription() async {
+    try {
+      final service = ref.read(memberServiceProvider);
+      final sub = await service.getMySubscription();
+      final ent = await service.getMyEntitlements();
+      if (mounted) {
+        setState(() {
+          _subscription = sub;
+          _entitlements = ent;
+          _subscriptionLoading = false;
+        });
+      }
+    } catch (_) {
+      if (mounted) {
+        setState(() {
+          _subscriptionLoading = false;
+        });
+      }
+    }
+  }
+
+  Future<void> _handleStartTrial() async {
+    try {
+      final service = ref.read(memberServiceProvider);
+      await service.startTrial(planCode: 'MEMBER_PREMIUM_AI');
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: const Text('7-Day Free Trial activated! Enjoy Pro features.'),
+            backgroundColor: AppColors.accentBlue,
+            behavior: SnackBarBehavior.floating,
+            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+          ),
+        );
+        _loadSubscription();
+        if (widget.isStandalone) {
+          widget.onCompleted?.call();
+        }
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Failed to start trial: $e'),
+            backgroundColor: AppColors.accentCoral,
+            behavior: SnackBarBehavior.floating,
+            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+          ),
+        );
+      }
+    }
   }
 
   @override
@@ -338,15 +401,28 @@ class _BillingPlansContentState extends State<BillingPlansContent>
   // ─────────────────────────────────────────────
 
   Widget _buildCurrentPlanCard() {
+    final tier = _entitlements.tier;
+    final planTitle = tier == 'PREMIUM'
+        ? 'FitForge Pro'
+        : (tier == 'TRIAL' ? 'FitForge 7-Day Trial' : 'FitForge Free');
+    final statusText = _subscriptionLoading
+        ? 'Loading'
+        : (_subscription.status.isNotEmpty ? _subscription.status : tier);
+    final isAc = tier != 'FREE';
+
     return Container(
       decoration: BoxDecoration(
         borderRadius: BorderRadius.circular(22),
-        gradient: const LinearGradient(
+        gradient: LinearGradient(
           begin: Alignment.topLeft,
           end: Alignment.bottomRight,
-          colors: [Color(0xFF1B2A4A), Color(0xFF0F1528)],
+          colors: isAc
+              ? const [Color(0xFF1B2A4A), Color(0xFF0F1528)]
+              : const [Color(0xFF1F2430), Color(0xFF12151F)],
         ),
-        border: Border.all(color: AppColors.accentBlue.withValues(alpha: 0.40)),
+        border: Border.all(
+          color: isAc ? AppColors.accentBlue.withValues(alpha: 0.40) : AppColors.glassBorder,
+        ),
         boxShadow: [
           BoxShadow(
             color: AppColors.accentBlue.withValues(alpha: 0.08),
@@ -373,7 +449,7 @@ class _BillingPlansContentState extends State<BillingPlansContent>
                         Text(
                           'CURRENT PLAN',
                           style: AppTextStyles.caption.copyWith(
-                            color: AppColors.accentBlue,
+                            color: isAc ? AppColors.accentBlue : AppColors.textTertiary,
                             fontWeight: FontWeight.bold,
                             fontSize: 9,
                             letterSpacing: 1.0,
@@ -382,10 +458,12 @@ class _BillingPlansContentState extends State<BillingPlansContent>
                         const SizedBox(height: 6),
                         Row(
                           children: [
-                            const Icon(Icons.bolt_rounded, color: AppColors.accentBlue, size: 20),
+                            Icon(Icons.bolt_rounded,
+                                color: isAc ? AppColors.accentBlue : AppColors.textTertiary,
+                                size: 20),
                             const SizedBox(width: 6),
                             Text(
-                              'FitForge Pro',
+                              planTitle,
                               style: AppTextStyles.titleMedium.copyWith(
                                 fontWeight: FontWeight.w800,
                               ),
@@ -398,25 +476,28 @@ class _BillingPlansContentState extends State<BillingPlansContent>
                     Container(
                       padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
                       decoration: BoxDecoration(
-                        color: const Color(0xFF16A34A).withValues(alpha: 0.15),
+                        color: (isAc ? const Color(0xFF16A34A) : AppColors.textTertiary)
+                            .withValues(alpha: 0.15),
                         borderRadius: BorderRadius.circular(20),
-                        border: Border.all(color: const Color(0xFF16A34A).withValues(alpha: 0.35)),
+                        border: Border.all(
+                            color: (isAc ? const Color(0xFF16A34A) : AppColors.glassBorder)
+                                .withValues(alpha: 0.35)),
                       ),
                       child: Row(
                         children: [
                           Container(
                             width: 6,
                             height: 6,
-                            decoration: const BoxDecoration(
-                              color: Color(0xFF4ADE80),
+                            decoration: BoxDecoration(
+                              color: isAc ? const Color(0xFF4ADE80) : AppColors.textTertiary,
                               shape: BoxShape.circle,
                             ),
                           ),
                           const SizedBox(width: 6),
                           Text(
-                            'Active',
+                            statusText,
                             style: AppTextStyles.caption.copyWith(
-                              color: const Color(0xFF4ADE80),
+                              color: isAc ? const Color(0xFF4ADE80) : AppColors.textTertiary,
                               fontWeight: FontWeight.bold,
                             ),
                           ),
@@ -1308,16 +1389,20 @@ class _BillingPlansContentState extends State<BillingPlansContent>
             GestureDetector(
               onTap: () {
                 Navigator.pop(ctx);
-                ScaffoldMessenger.of(context).showSnackBar(
-                  SnackBar(
-                    content: Text(index == 2 ? 'Upgraded to Elite plan!' : 'Downgraded to Free plan.'),
-                    backgroundColor: AppColors.bgSecondary,
-                    behavior: SnackBarBehavior.floating,
-                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-                  ),
-                );
-                if (widget.isStandalone) {
-                  widget.onCompleted?.call();
+                if (index == 1) {
+                  _handleStartTrial();
+                } else {
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    SnackBar(
+                      content: Text(index == 2 ? 'Upgraded to Elite plan!' : 'Downgraded to Free plan.'),
+                      backgroundColor: AppColors.bgSecondary,
+                      behavior: SnackBarBehavior.floating,
+                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                    ),
+                  );
+                  if (widget.isStandalone) {
+                    widget.onCompleted?.call();
+                  }
                 }
               },
               child: Container(

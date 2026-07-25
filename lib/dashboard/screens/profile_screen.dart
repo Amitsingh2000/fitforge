@@ -3,9 +3,15 @@ import 'dart:ui';
 import 'package:flutter/material.dart';
 import 'package:flutter_animate/flutter_animate.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import '../../models/member_entitlements.dart';
+import '../../models/member_subscription.dart';
 import '../../providers/auth_provider.dart';
+import '../../services/member_service.dart';
 import '../../theme/app_theme.dart';
 import '../widgets/dashboard_glass_card.dart';
+import 'join_gym_screen.dart';
+import 'qr_checkin_screen.dart';
+import 'referral_screen.dart';
 import 'settings_screen.dart';
 
 /// Profile content — designed to be embedded inside the DashboardShell.
@@ -25,6 +31,38 @@ class ProfileContent extends ConsumerStatefulWidget {
 }
 
 class _ProfileContentState extends ConsumerState<ProfileContent> {
+  // Subscription & Entitlements API state
+  MemberSubscription _subscription = MemberSubscription.none();
+  MemberEntitlements _entitlements = MemberEntitlements.free();
+  bool _subscriptionLoading = true;
+
+  @override
+  void initState() {
+    super.initState();
+    _loadSubscriptionData();
+  }
+
+  Future<void> _loadSubscriptionData() async {
+    try {
+      final service = ref.read(memberServiceProvider);
+      final sub = await service.getMySubscription();
+      final ent = await service.getMyEntitlements();
+      if (mounted) {
+        setState(() {
+          _subscription = sub;
+          _entitlements = ent;
+          _subscriptionLoading = false;
+        });
+      }
+    } catch (_) {
+      if (mounted) {
+        setState(() {
+          _subscriptionLoading = false;
+        });
+      }
+    }
+  }
+
   // Fitness / body states (local — not from API yet)
   int _userAge = 25;
   String _userGoal = 'Build Muscle';
@@ -141,6 +179,14 @@ class _ProfileContentState extends ConsumerState<ProfileContent> {
               const SizedBox(height: 20),
 
 
+
+              // Gym & Rewards Section
+              _buildSectionLabel('GYM & REWARDS'),
+              const SizedBox(height: 12),
+              _buildGymActionsSection()
+                  .animate()
+                  .fadeIn(duration: 500.ms, delay: 500.ms),
+              const SizedBox(height: 20),
 
               // Account Action controls
               _buildAccountActions()
@@ -960,18 +1006,31 @@ class _ProfileContentState extends ConsumerState<ProfileContent> {
   // ─────────────────────────────────────────────
 
   Widget _buildSubscriptionCard() {
+    final tier = _entitlements.tier;
+    final planName = tier == 'PREMIUM'
+        ? 'FitForge Pro Plan'
+        : (tier == 'TRIAL' ? 'FitForge 7-Day Trial' : 'FitForge Free Plan');
+    final statusText = _subscriptionLoading
+        ? 'Loading...'
+        : (_subscription.status.isNotEmpty ? _subscription.status : tier);
+    final renewDate = _subscription.renewalLabel;
+
     return Container(
       decoration: BoxDecoration(
         borderRadius: BorderRadius.circular(20),
-        gradient: const LinearGradient(
+        gradient: LinearGradient(
           begin: Alignment.topLeft,
           end: Alignment.bottomRight,
-          colors: [
-            Color(0xFF1B2A4A),
-            Color(0xFF0F1528),
-          ],
+          colors: tier == 'PREMIUM'
+              ? const [Color(0xFF1B2A4A), Color(0xFF0F1528)]
+              : (tier == 'TRIAL'
+                  ? const [Color(0xFF2A1B4A), Color(0xFF180F28)]
+                  : const [Color(0xFF1A1F2C), Color(0xFF11141D)]),
         ),
-        border: Border.all(color: AppColors.accentBlue.withValues(alpha: 0.35)),
+        border: Border.all(
+            color: tier == 'PREMIUM'
+                ? AppColors.accentBlue.withValues(alpha: 0.35)
+                : AppColors.glassBorder),
       ),
       child: Padding(
         padding: const EdgeInsets.all(20),
@@ -984,47 +1043,60 @@ class _ProfileContentState extends ConsumerState<ProfileContent> {
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     Text(
-                      'PREMIUM MEMBERSHIP',
+                      'MEMBERSHIP TIER',
                       style: AppTextStyles.caption.copyWith(
-                        color: AppColors.accentBlue,
+                        color: tier == 'PREMIUM'
+                            ? AppColors.accentBlue
+                            : AppColors.textTertiary,
                         fontWeight: FontWeight.bold,
                         fontSize: 9,
                       ),
                     ),
                     const SizedBox(height: 4),
                     Text(
-                      'FitForge Pro Plan',
-                      style: AppTextStyles.titleMedium.copyWith(fontWeight: FontWeight.bold),
+                      planName,
+                      style: AppTextStyles.titleMedium
+                          .copyWith(fontWeight: FontWeight.bold),
                     ),
                   ],
                 ),
                 Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                  padding:
+                      const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
                   decoration: BoxDecoration(
-                    color: AppColors.accentBlue.withValues(alpha: 0.12),
+                    color: (tier == 'FREE'
+                            ? AppColors.textTertiary
+                            : AppColors.accentBlue)
+                        .withValues(alpha: 0.12),
                     borderRadius: BorderRadius.circular(8),
                   ),
                   child: Text(
-                    'Active',
+                    statusText,
                     style: AppTextStyles.caption.copyWith(
-                      color: AppColors.accentBlue,
+                      color: tier == 'FREE'
+                          ? AppColors.textTertiary
+                          : AppColors.accentBlue,
                       fontWeight: FontWeight.bold,
                     ),
                   ),
                 ),
               ],
             ),
-            const SizedBox(height: 14),
-            Row(
-              children: [
-                const Icon(Icons.credit_card_rounded, color: AppColors.textTertiary, size: 18),
-                const SizedBox(width: 8),
-                Text(
-                  'Renews on July 15, 2026',
-                  style: AppTextStyles.caption.copyWith(color: AppColors.textSecondary),
-                ),
-              ],
-            ),
+            if (renewDate.isNotEmpty) ...[
+              const SizedBox(height: 14),
+              Row(
+                children: [
+                  const Icon(Icons.credit_card_rounded,
+                      color: AppColors.textTertiary, size: 18),
+                  const SizedBox(width: 8),
+                  Text(
+                    'Renews / Expires: $renewDate',
+                    style: AppTextStyles.caption
+                        .copyWith(color: AppColors.textSecondary),
+                  ),
+                ],
+              ),
+            ],
             const SizedBox(height: 20),
             Row(
               children: [
@@ -1036,7 +1108,9 @@ class _ProfileContentState extends ConsumerState<ProfileContent> {
                       decoration: BoxDecoration(
                         color: AppColors.accentBlue.withValues(alpha: 0.15),
                         borderRadius: BorderRadius.circular(12),
-                        border: Border.all(color: AppColors.accentBlue.withValues(alpha: 0.25)),
+                        border: Border.all(
+                            color:
+                                AppColors.accentBlue.withValues(alpha: 0.25)),
                       ),
                       child: Center(
                         child: Text(
@@ -1297,6 +1371,99 @@ class _ProfileContentState extends ConsumerState<ProfileContent> {
 
 
   // ─────────────────────────────────────────────
+  // GYM & REWARDS ACTIONS
+  // ─────────────────────────────────────────────
+
+  Widget _buildGymActionsSection() {
+    return DashboardGlassCard(
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+      child: Column(
+        children: [
+          _buildActionTile(
+            title: 'Join a Gym',
+            subtitle: 'Enter invite code to connect with your gym',
+            icon: Icons.storefront_rounded,
+            onTap: () {
+              Navigator.of(context).push(
+                MaterialPageRoute(builder: (_) => const JoinGymScreen()),
+              );
+            },
+          ),
+          Divider(color: AppColors.glassBorder, height: 1),
+          _buildActionTile(
+            title: 'QR Self Check-in',
+            subtitle: 'Scan QR at front desk for instant attendance',
+            icon: Icons.qr_code_scanner_rounded,
+            onTap: () {
+              Navigator.of(context).push(
+                MaterialPageRoute(builder: (_) => const QrCheckinScreen()),
+              );
+            },
+          ),
+          Divider(color: AppColors.glassBorder, height: 1),
+          _buildActionTile(
+            title: 'Referrals & Rewards',
+            subtitle: 'Invite friends, earn perks and track rewards',
+            icon: Icons.card_giftcard_rounded,
+            onTap: () {
+              Navigator.of(context).push(
+                MaterialPageRoute(builder: (_) => const ReferralScreen()),
+              );
+            },
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildActionTile({
+    required String title,
+    required String subtitle,
+    required IconData icon,
+    required VoidCallback onTap,
+  }) {
+    return GestureDetector(
+      onTap: onTap,
+      child: Padding(
+        padding: const EdgeInsets.symmetric(vertical: 12),
+        child: Row(
+          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+          children: [
+            Row(
+              children: [
+                Container(
+                  padding: const EdgeInsets.all(8),
+                  decoration: BoxDecoration(
+                    color: AppColors.accentBlue.withValues(alpha: 0.12),
+                    borderRadius: BorderRadius.circular(10),
+                  ),
+                  child: Icon(icon, color: AppColors.accentBlue, size: 18),
+                ),
+                const SizedBox(width: 12),
+                Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      title,
+                      style: AppTextStyles.bodyMedium.copyWith(color: AppColors.textPrimary, fontWeight: FontWeight.bold),
+                    ),
+                    const SizedBox(height: 2),
+                    Text(
+                      subtitle,
+                      style: AppTextStyles.caption.copyWith(color: AppColors.textTertiary, fontSize: 10),
+                    ),
+                  ],
+                ),
+              ],
+            ),
+            const Icon(Icons.chevron_right_rounded, color: AppColors.textTertiary, size: 20),
+          ],
+        ),
+      ),
+    );
+  }
+
+  // ─────────────────────────────────────────────
   // ACCOUNT ACTIONS (Export & Logout)
   // ─────────────────────────────────────────────
 
@@ -1331,9 +1498,11 @@ class _ProfileContentState extends ConsumerState<ProfileContent> {
         ),
         const SizedBox(height: 12),
         GestureDetector(
-          onTap: () {
-            // Logout and return to welcome/login screen
-            Navigator.of(context).pushReplacementNamed('/login');
+          onTap: () async {
+            await ref.read(authProvider.notifier).logout();
+            if (context.mounted) {
+              Navigator.of(context).pushReplacementNamed('/login');
+            }
           },
           child: Container(
             width: double.infinity,

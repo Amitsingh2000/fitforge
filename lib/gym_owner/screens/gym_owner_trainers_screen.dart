@@ -1,20 +1,58 @@
 import 'dart:ui';
 import 'package:flutter/material.dart';
 import 'package:flutter_animate/flutter_animate.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
+import '../../models/gym_trainer.dart';
+import '../../providers/gym_provider.dart';
+import '../../services/gym_owner_service.dart';
 import '../../theme/app_theme.dart';
 import '../../dashboard/widgets/dashboard_glass_card.dart';
 import '../../dashboard/widgets/linear_progress_bar.dart';
 
-class GymOwnerTrainersScreen extends StatefulWidget {
+class GymOwnerTrainersScreen extends ConsumerStatefulWidget {
   const GymOwnerTrainersScreen({super.key});
 
   @override
-  State<GymOwnerTrainersScreen> createState() => _GymOwnerTrainersScreenState();
+  ConsumerState<GymOwnerTrainersScreen> createState() => _GymOwnerTrainersScreenState();
 }
 
-class _GymOwnerTrainersScreenState extends State<GymOwnerTrainersScreen> {
+class _GymOwnerTrainersScreenState extends ConsumerState<GymOwnerTrainersScreen> {
   String _searchQuery = '';
   final TextEditingController _searchController = TextEditingController();
+
+  List<GymTrainer> _liveTrainers = [];
+  bool _trainersLoading = true;
+
+  @override
+  void initState() {
+    super.initState();
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      _loadTrainers();
+    });
+  }
+
+  Future<void> _loadTrainers() async {
+    final gymId = ref.read(currentGymIdProvider);
+    if (gymId == null || gymId.isEmpty) {
+      if (mounted) setState(() => _trainersLoading = false);
+      return;
+    }
+
+    setState(() => _trainersLoading = true);
+
+    try {
+      final service = ref.read(gymOwnerServiceProvider);
+      final trainers = await service.getTrainersRoster(gymId);
+      if (mounted) {
+        setState(() {
+          _liveTrainers = trainers;
+          _trainersLoading = false;
+        });
+      }
+    } catch (_) {
+      if (mounted) setState(() => _trainersLoading = false);
+    }
+  }
 
   final List<Map<String, dynamic>> _allTrainers = [
     {
@@ -140,8 +178,31 @@ class _GymOwnerTrainersScreenState extends State<GymOwnerTrainersScreen> {
   ];
 
   List<Map<String, dynamic>> get _filteredTrainers {
-    if (_searchQuery.isEmpty) return _allTrainers;
-    return _allTrainers.where((t) {
+    var trainers = _allTrainers;
+
+    if (_liveTrainers.isNotEmpty) {
+      trainers = _liveTrainers.map((lt) {
+        return {
+          'trainerId': lt.trainerId,
+          'name': lt.name,
+          'initials': lt.name.isNotEmpty ? lt.name[0] : 'T',
+          'specialization': lt.specialization,
+          'experience': '5+ years',
+          'certification': 'Certified Coach',
+          'isCertified': true,
+          'clients': lt.activeClientsCount,
+          'retentionRate': 0.92,
+          'avgRating': 4.8,
+          'isOnline': lt.status == 'ACTIVE',
+          'phone': lt.phone ?? 'No phone',
+          'joinDate': 'Recent',
+          'gradientColors': [AppColors.accentPurple, AppColors.accentCoral],
+        };
+      }).toList();
+    }
+
+    if (_searchQuery.isEmpty) return trainers;
+    return trainers.where((t) {
       final name = (t['name'] as String).toLowerCase();
       final spec = (t['specialization'] as String).toLowerCase();
       final query = _searchQuery.toLowerCase();
