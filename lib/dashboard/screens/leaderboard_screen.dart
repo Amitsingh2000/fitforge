@@ -1,11 +1,9 @@
-import 'dart:ui';
 import 'package:flutter/material.dart';
 import 'package:flutter_animate/flutter_animate.dart';
-import '../../theme/app_theme.dart';
+import '../theme/brilliant_theme.dart';
 import '../widgets/dashboard_glass_card.dart';
 
 /// Leaderboard & Social content — designed to be embedded inside the DashboardShell.
-/// Does NOT have its own Scaffold or bottom nav.
 class LeaderboardContent extends StatefulWidget {
   final VoidCallback onBack;
 
@@ -21,7 +19,6 @@ class LeaderboardContent extends StatefulWidget {
 class _LeaderboardContentState extends State<LeaderboardContent> {
   final int _currentXP = 4250;
 
-  // Leaderboard data with avatar URLs
   late final List<Map<String, dynamic>> _ranking = [
     {
       'rank': 1,
@@ -60,7 +57,6 @@ class _LeaderboardContentState extends State<LeaderboardContent> {
     },
   ];
 
-  // Interactive Activity Feed data
   final List<Map<String, dynamic>> _activities = [
     {
       'name': 'Marcus Vance',
@@ -104,37 +100,30 @@ class _LeaderboardContentState extends State<LeaderboardContent> {
     return CustomScrollView(
       physics: const BouncingScrollPhysics(),
       slivers: [
-        // App Bar Header
         SliverToBoxAdapter(child: _buildHeader()),
 
-        // Content body
         SliverPadding(
-          padding: const EdgeInsets.fromLTRB(20, 8, 20, 130), // bottom padding to avoid floating nav bar
+          padding: const EdgeInsets.fromLTRB(16, 8, 16, 120),
           sliver: SliverList(
             delegate: SliverChildListDelegate([
               const SizedBox(height: 12),
-
-              // Weekly Rankings Podiums & Leaderboard
               _buildLeaderboardSection()
                   .animate()
-                  .fadeIn(duration: 500.ms, delay: 100.ms)
-                  .slideY(begin: 0.05, end: 0, duration: 500.ms, delay: 100.ms),
+                  .fadeIn(duration: 400.ms, delay: 100.ms)
+                  .slideY(begin: 0.05, end: 0, duration: 400.ms, delay: 100.ms),
               const SizedBox(height: 20),
 
-              // Monthly Challenge Card
               _buildMonthlyChallengeCard()
                   .animate()
-                  .fadeIn(duration: 500.ms, delay: 200.ms),
+                  .fadeIn(duration: 400.ms, delay: 200.ms),
               const SizedBox(height: 20),
 
-              // Community Activity Feed label
               _buildSectionLabel('COMMUNITY ACTIVITY'),
-              const SizedBox(height: 12),
+              const SizedBox(height: 10),
 
-              // Activity Feed Cards
               _buildActivityFeed()
                   .animate()
-                  .fadeIn(duration: 500.ms, delay: 300.ms),
+                  .fadeIn(duration: 400.ms, delay: 300.ms),
               const SizedBox(height: 20),
             ]),
           ),
@@ -143,45 +132,41 @@ class _LeaderboardContentState extends State<LeaderboardContent> {
     );
   }
 
-  // ─────────────────────────────────────────────
-  // HEADER
-  // ─────────────────────────────────────────────
-
   Widget _buildHeader() {
     return Padding(
-      padding: const EdgeInsets.fromLTRB(20, 16, 20, 4),
+      padding: const EdgeInsets.fromLTRB(16, 16, 16, 8),
       child: Row(
         children: [
-          // Back Button
           GestureDetector(
             onTap: widget.onBack,
             child: Container(
-              width: 38,
-              height: 38,
-              margin: const EdgeInsets.only(right: 12),
+              width: 40,
+              height: 40,
               decoration: BoxDecoration(
-                borderRadius: BorderRadius.circular(10),
-                color: AppColors.bgTertiary,
-                border: Border.all(color: AppColors.glassBorder),
+                borderRadius: BorderRadius.circular(12),
+                color: BrilliantColors.bgSecondary,
+                border: Border.all(color: BrilliantColors.surfaceBorder, width: 1.5),
               ),
               child: const Icon(
-                Icons.arrow_back_rounded,
-                color: AppColors.textPrimary,
+                Icons.arrow_back_ios_new_rounded,
+                color: BrilliantColors.textPrimary,
                 size: 18,
               ),
             ),
           ),
+          const SizedBox(width: 12),
           Container(
             width: 44,
             height: 44,
             decoration: BoxDecoration(
               borderRadius: BorderRadius.circular(14),
-              color: AppColors.accentCyan.withValues(alpha: 0.12),
+              color: BrilliantColors.mint.withValues(alpha: 0.15),
+              border: Border.all(color: BrilliantColors.mint.withValues(alpha: 0.3), width: 1.5),
             ),
             child: const Center(
               child: Icon(
                 Icons.people_alt_rounded,
-                color: AppColors.accentCyan,
+                color: BrilliantColors.mint,
                 size: 22,
               ),
             ),
@@ -192,17 +177,13 @@ class _LeaderboardContentState extends State<LeaderboardContent> {
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Text(
-                  'Community & Social',
-                  style: AppTextStyles.titleMedium.copyWith(
-                    fontWeight: FontWeight.w700,
-                  ),
+                  'Community & League',
+                  style: BrilliantTheme.headerStyle(fontSize: 20),
                 ),
                 const SizedBox(height: 2),
                 Text(
-                  'Compete and collaborate with friends',
-                  style: AppTextStyles.caption.copyWith(
-                    color: AppColors.textSecondary,
-                  ),
+                  'Compete and cheer with athletes worldwide',
+                  style: BrilliantTheme.bodyStyle(fontSize: 11, color: BrilliantColors.textMuted),
                 ),
               ],
             ),
@@ -212,77 +193,40 @@ class _LeaderboardContentState extends State<LeaderboardContent> {
     );
   }
 
-  // ─────────────────────────────────────────────
-  // LEADERBOARD SECTION WITH PODIUMS
-  // ─────────────────────────────────────────────
+  Widget _buildSectionLabel(String label) {
+    return Text(label, style: BrilliantTheme.badgeStyle(color: BrilliantColors.mint));
+  }
 
   Widget _buildLeaderboardSection() {
     return DashboardGlassCard(
       padding: const EdgeInsets.all(18),
+      backgroundColor: BrilliantColors.bgSecondary,
+      borderColor: BrilliantColors.surfaceBorder,
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Row(
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
-              Expanded(
-                child: Text(
-                  'Weekly Rankings',
-                  style: AppTextStyles.titleMedium.copyWith(fontWeight: FontWeight.bold),
-                  overflow: TextOverflow.ellipsis,
-                ),
-              ),
-              const SizedBox(width: 8),
-              Text(
-                'Global Division III',
-                style: AppTextStyles.caption.copyWith(color: AppColors.textSecondary),
-              ),
+              Text('Weekly Standings', style: BrilliantTheme.titleStyle(fontSize: 15)),
+              const Text('Global Division III', style: TextStyle(color: BrilliantColors.textMuted, fontSize: 12, fontWeight: FontWeight.w700)),
             ],
           ),
-          const SizedBox(height: 24),
+          const SizedBox(height: 20),
 
-          // Top 3 Podium
           Row(
             mainAxisAlignment: MainAxisAlignment.spaceEvenly,
             crossAxisAlignment: CrossAxisAlignment.end,
             children: [
-              // 2nd Place
-              _buildPodiumItem(
-                rank: 2,
-                name: 'Sarah K.',
-                xp: '4,750 XP',
-                avatarUrl: 'https://images.unsplash.com/photo-1494790108377-be9c29b29330?auto=format&fit=crop&q=80&w=200',
-                pedestalHeight: 50,
-                color: Colors.grey.shade400,
-              ),
-
-              // 1st Place
-              _buildPodiumItem(
-                rank: 1,
-                name: 'Marcus V.',
-                xp: '4,980 XP',
-                avatarUrl: 'https://images.unsplash.com/photo-1500648767791-00dcc994a43e?auto=format&fit=crop&q=80&w=200',
-                pedestalHeight: 75,
-                color: const Color(0xFFFFD700), // Gold
-                hasCrown: true,
-              ),
-
-              // 3rd Place
-              _buildPodiumItem(
-                rank: 3,
-                name: 'Alex R.',
-                xp: '4,410 XP',
-                avatarUrl: 'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?auto=format&fit=crop&q=80&w=200',
-                pedestalHeight: 38,
-                color: const Color(0xFFCD7F32), // Bronze
-              ),
+              _buildPodiumItem(2, 'Sarah K.', '4,750 XP', 'https://images.unsplash.com/photo-1494790108377-be9c29b29330?auto=format&fit=crop&q=80&w=200', 50, Colors.grey.shade400, false),
+              _buildPodiumItem(1, 'Marcus V.', '4,980 XP', 'https://images.unsplash.com/photo-1500648767791-00dcc994a43e?auto=format&fit=crop&q=80&w=200', 75, BrilliantColors.amber, true),
+              _buildPodiumItem(3, 'Alex R.', '4,410 XP', 'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?auto=format&fit=crop&q=80&w=200', 38, const Color(0xFFCD7F32), false),
             ],
           ),
-          const SizedBox(height: 24),
-          Divider(color: AppColors.glassBorder),
+          const SizedBox(height: 20),
+          Container(height: 1.5, color: BrilliantColors.surfaceBorder),
           const SizedBox(height: 12),
 
-          // Remaining Leaderboard List
           Column(
             children: _ranking.map((user) {
               final isUser = user['isUser'] as bool;
@@ -290,57 +234,50 @@ class _LeaderboardContentState extends State<LeaderboardContent> {
 
               return Container(
                 margin: const EdgeInsets.only(bottom: 6),
-                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
                 decoration: BoxDecoration(
-                  color: isUser ? AppColors.accentBlue.withValues(alpha: 0.1) : Colors.transparent,
-                  borderRadius: BorderRadius.circular(10),
-                  border: isUser ? Border.all(color: AppColors.accentBlue.withValues(alpha: 0.2)) : null,
+                  color: isUser ? BrilliantColors.mint.withValues(alpha: 0.15) : BrilliantColors.bgPrimary,
+                  borderRadius: BorderRadius.circular(12),
+                  border: Border.all(
+                    color: isUser ? BrilliantColors.mint.withValues(alpha: 0.5) : BrilliantColors.surfaceBorder,
+                    width: 1.5,
+                  ),
                 ),
                 child: Row(
                   children: [
-                    Container(
+                    SizedBox(
                       width: 24,
-                      alignment: Alignment.centerLeft,
                       child: Text(
                         '#$rankNum',
-                        style: AppTextStyles.caption.copyWith(
-                          fontWeight: FontWeight.bold,
-                          color: isUser ? AppColors.accentBlue : AppColors.textSecondary,
+                        style: TextStyle(
+                          fontSize: 12,
+                          fontWeight: FontWeight.w800,
+                          color: isUser ? BrilliantColors.mint : BrilliantColors.textMuted,
                         ),
                       ),
                     ),
                     const SizedBox(width: 8),
-                    Container(
-                      width: 28,
-                      height: 28,
-                      decoration: BoxDecoration(
-                        shape: BoxShape.circle,
-                        image: DecorationImage(
-                          image: NetworkImage(user['avatar'] as String),
-                          fit: BoxFit.cover,
-                        ),
-                        border: Border.all(
-                          color: isUser ? AppColors.accentBlue.withValues(alpha: 0.5) : AppColors.glassBorder,
-                          width: 1,
-                        ),
-                      ),
+                    CircleAvatar(
+                      radius: 16,
+                      backgroundImage: NetworkImage(user['avatar'] as String),
                     ),
                     const SizedBox(width: 12),
                     Expanded(
                       child: Text(
                         user['name'] as String,
-                        style: AppTextStyles.bodyMedium.copyWith(
-                          fontWeight: isUser ? FontWeight.bold : FontWeight.normal,
-                          color: isUser ? AppColors.textPrimary : AppColors.textSecondary,
+                        style: TextStyle(
+                          fontSize: 13,
+                          fontWeight: FontWeight.w700,
+                          color: isUser ? BrilliantColors.mint : BrilliantColors.textPrimary,
                         ),
-                        overflow: TextOverflow.ellipsis,
                       ),
                     ),
                     Text(
                       user['xp'] as String,
-                      style: AppTextStyles.caption.copyWith(
-                        fontWeight: FontWeight.bold,
-                        color: isUser ? AppColors.textPrimary : AppColors.textTertiary,
+                      style: const TextStyle(
+                        fontSize: 12,
+                        fontWeight: FontWeight.w800,
+                        color: BrilliantColors.amber,
                       ),
                     ),
                   ],
@@ -353,338 +290,137 @@ class _LeaderboardContentState extends State<LeaderboardContent> {
     );
   }
 
-  Widget _buildPodiumItem({
-    required int rank,
-    required String name,
-    required String xp,
-    required String avatarUrl,
-    required double pedestalHeight,
-    required Color color,
-    bool hasCrown = false,
-  }) {
+  Widget _buildPodiumItem(int rank, String name, String xp, String avatarUrl, double height, Color color, bool hasCrown) {
     return Column(
-      mainAxisAlignment: MainAxisAlignment.end,
       children: [
-        Stack(
-          clipBehavior: Clip.none,
-          alignment: Alignment.topCenter,
-          children: [
-            // Avatar
-            Container(
-              width: rank == 1 ? 56 : 46,
-              height: rank == 1 ? 56 : 46,
-              decoration: BoxDecoration(
-                shape: BoxShape.circle,
-                border: Border.all(color: color, width: 2),
-                image: DecorationImage(
-                  image: NetworkImage(avatarUrl),
-                  fit: BoxFit.cover,
-                ),
-              ),
-            ),
-            if (hasCrown)
-              const Positioned(
-                top: -16,
-                child: Text('👑', style: TextStyle(fontSize: 16)),
-              ),
-          ],
-        ),
-        const SizedBox(height: 8),
-        Text(
-          name,
-          style: AppTextStyles.caption.copyWith(
-            fontWeight: FontWeight.bold,
-            color: AppColors.textPrimary,
-            fontSize: 10,
-          ),
-          textAlign: TextAlign.center,
-        ),
-        Text(
-          xp,
-          style: AppTextStyles.caption.copyWith(
-            color: color,
-            fontWeight: FontWeight.bold,
-            fontSize: 9,
-          ),
-          textAlign: TextAlign.center,
-        ),
-        const SizedBox(height: 8),
-        
-        // Pedestal
+        if (hasCrown) const Text('👑', style: TextStyle(fontSize: 18)),
+        CircleAvatar(radius: 20, backgroundImage: NetworkImage(avatarUrl)),
+        const SizedBox(height: 4),
+        Text(name, style: const TextStyle(fontSize: 11, fontWeight: FontWeight.w700, color: BrilliantColors.textPrimary)),
+        Text(xp, style: TextStyle(fontSize: 10, color: color, fontWeight: FontWeight.w800)),
+        const SizedBox(height: 6),
         Container(
-          width: rank == 1 ? 64 : 52,
-          height: pedestalHeight,
+          width: 60,
+          height: height,
           decoration: BoxDecoration(
-            gradient: LinearGradient(
-              begin: Alignment.topCenter,
-              end: Alignment.bottomCenter,
-              colors: [
-                color.withValues(alpha: 0.35),
-                color.withValues(alpha: 0.05),
-              ],
-            ),
-            borderRadius: const BorderRadius.vertical(top: Radius.circular(8)),
-            border: Border.all(color: color.withValues(alpha: 0.4), width: 1),
+            color: color.withValues(alpha: 0.2),
+            borderRadius: const BorderRadius.vertical(top: Radius.circular(10)),
+            border: Border.all(color: color.withValues(alpha: 0.5), width: 1.5),
           ),
-          child: Center(
-            child: Text(
-              '$rank',
-              style: AppTextStyles.titleMedium.copyWith(
-                color: AppColors.textPrimary,
-                fontWeight: FontWeight.bold,
-                fontSize: rank == 1 ? 16 : 14,
-              ),
-            ),
-          ),
+          alignment: Alignment.center,
+          child: Text('#$rank', style: TextStyle(color: color, fontWeight: FontWeight.w900, fontSize: 16)),
         ),
       ],
     );
   }
 
-  // ─────────────────────────────────────────────
-  // MONTHLY CHALLENGE CARD (Relocated)
-  // ─────────────────────────────────────────────
-
   Widget _buildMonthlyChallengeCard() {
-    return Container(
-      decoration: BoxDecoration(
-        borderRadius: BorderRadius.circular(20),
-        gradient: const LinearGradient(
-          begin: Alignment.topLeft,
-          end: Alignment.bottomRight,
-          colors: [
-            Color(0xFF2C191B),
-            Color(0xFF1B0E10),
-          ],
-        ),
-        border: Border.all(color: AppColors.accentCoral.withValues(alpha: 0.25)),
-      ),
-      child: ClipRRect(
-        borderRadius: BorderRadius.circular(20),
-        child: BackdropFilter(
-          filter: ImageFilter.blur(sigmaX: 12, sigmaY: 12),
-          child: Padding(
-            padding: const EdgeInsets.all(20),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Row(
-                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                  children: [
-                    Container(
-                      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
-                      decoration: BoxDecoration(
-                        color: AppColors.accentCoral.withValues(alpha: 0.15),
-                        borderRadius: BorderRadius.circular(8),
-                      ),
-                      child: Text(
-                        'JUNE CHALLENGE',
-                        style: AppTextStyles.caption.copyWith(
-                          color: AppColors.accentCoral,
-                          fontWeight: FontWeight.bold,
-                          fontSize: 9,
-                        ),
-                      ),
-                    ),
-                    Text(
-                      '12 Days Remaining',
-                      style: AppTextStyles.caption.copyWith(color: AppColors.textSecondary),
-                    ),
-                  ],
+    return DashboardGlassCard(
+      padding: const EdgeInsets.all(18),
+      backgroundColor: BrilliantColors.bgSecondary,
+      borderColor: BrilliantColors.surfaceBorder,
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              Text('June Endurance Challenge', style: BrilliantTheme.titleStyle(fontSize: 14)),
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                decoration: BoxDecoration(
+                  color: BrilliantColors.amber.withValues(alpha: 0.15),
+                  borderRadius: BorderRadius.circular(8),
                 ),
-                const SizedBox(height: 16),
-                Text(
-                  'June Transformation Challenge',
-                  style: AppTextStyles.titleMedium.copyWith(fontWeight: FontWeight.bold),
-                ),
-                const SizedBox(height: 6),
-                Text(
-                  'Complete 25 active workouts this month to unlock the exclusive "Solstice Warrior" badge + 1,000 XP.',
-                  style: AppTextStyles.caption.copyWith(color: AppColors.textSecondary, height: 1.4),
-                ),
-                const SizedBox(height: 18),
-                Row(
-                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                  children: [
-                    Text(
-                      'Progress: 18 / 25 Days',
-                      style: AppTextStyles.caption.copyWith(
-                        color: AppColors.accentCoral,
-                        fontWeight: FontWeight.bold,
-                      ),
-                    ),
-                    Text(
-                      '72%',
-                      style: AppTextStyles.caption.copyWith(color: AppColors.textSecondary, fontWeight: FontWeight.bold),
-                    ),
-                  ],
-                ),
-                const SizedBox(height: 8),
-                ClipRRect(
-                  borderRadius: BorderRadius.circular(4),
-                  child: Container(
-                    height: 5,
-                    color: AppColors.bgTertiary,
-                    child: Align(
-                      alignment: Alignment.centerLeft,
-                      child: FractionallySizedBox(
-                        widthFactor: 18 / 25,
-                        child: Container(
-                          decoration: BoxDecoration(
-                            gradient: AppColors.coralGradient,
-                            borderRadius: BorderRadius.circular(4),
-                          ),
-                        ),
-                      ),
-                    ),
-                  ),
-                ),
-              ],
+                child: const Text('+500 XP', style: TextStyle(color: BrilliantColors.amber, fontWeight: FontWeight.w800, fontSize: 11)),
+              ),
+            ],
+          ),
+          const SizedBox(height: 8),
+          Text('Complete 25 active workouts this month', style: BrilliantTheme.bodyStyle(fontSize: 12)),
+          const SizedBox(height: 12),
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              const Text('18 / 25 Days', style: TextStyle(color: BrilliantColors.mint, fontWeight: FontWeight.w800, fontSize: 11)),
+              Text('7 days remaining', style: TextStyle(color: BrilliantColors.textMuted, fontSize: 11)),
+            ],
+          ),
+          const SizedBox(height: 6),
+          Container(
+            height: 6,
+            decoration: BoxDecoration(color: BrilliantColors.bgTertiary, borderRadius: BorderRadius.circular(3)),
+            child: FractionallySizedBox(
+              alignment: Alignment.centerLeft,
+              widthFactor: 18 / 25,
+              child: Container(decoration: BoxDecoration(color: BrilliantColors.mint, borderRadius: BorderRadius.circular(3))),
             ),
           ),
-        ),
+        ],
       ),
     );
   }
-
-  // ─────────────────────────────────────────────
-  // COMMUNITY ACTIVITY FEED (Social Page Additions)
-  // ─────────────────────────────────────────────
 
   Widget _buildActivityFeed() {
-    return Column(
-      children: List.generate(_activities.length, (index) {
-        final activity = _activities[index];
-        final cheered = activity['cheered'] as bool;
+    return ListView.builder(
+      shrinkWrap: true,
+      physics: const NeverScrollableScrollPhysics(),
+      itemCount: _activities.length,
+      itemBuilder: (context, index) {
+        final item = _activities[index];
+        final bool isCheered = item['cheered'] as bool;
 
-        return Padding(
-          padding: const EdgeInsets.only(bottom: 12),
-          child: DashboardGlassCard(
-            padding: const EdgeInsets.all(14),
-            child: Row(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                // Friend Avatar
-                Container(
-                  width: 38,
-                  height: 38,
-                  decoration: BoxDecoration(
-                    shape: BoxShape.circle,
-                    image: DecorationImage(
-                      image: NetworkImage(activity['avatar'] as String),
-                      fit: BoxFit.cover,
+        return Container(
+          margin: const EdgeInsets.only(bottom: 10),
+          padding: const EdgeInsets.all(14),
+          decoration: BoxDecoration(
+            color: BrilliantColors.bgSecondary,
+            borderRadius: BorderRadius.circular(16),
+            border: Border.all(color: BrilliantColors.surfaceBorder, width: 1.5),
+          ),
+          child: Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              CircleAvatar(radius: 18, backgroundImage: NetworkImage(item['avatar'] as String)),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    RichText(
+                      text: TextSpan(
+                        style: const TextStyle(fontSize: 13, color: BrilliantColors.textPrimary),
+                        children: [
+                          TextSpan(text: item['name'] as String, style: const TextStyle(fontWeight: FontWeight.w800)),
+                          TextSpan(text: ' ${item['action']}'),
+                        ],
+                      ),
                     ),
-                    border: Border.all(color: AppColors.glassBorder),
-                  ),
+                    const SizedBox(height: 4),
+                    Text('${item['time']} · +${item['xp']} XP', style: TextStyle(color: BrilliantColors.textMuted, fontSize: 11)),
+                  ],
                 ),
-                const SizedBox(width: 12),
-
-                // Post Content
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Row(
-                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                        children: [
-                          Text(
-                            activity['name'] as String,
-                            style: AppTextStyles.bodyMedium.copyWith(
-                              fontWeight: FontWeight.bold,
-                              color: AppColors.textPrimary,
-                            ),
-                          ),
-                          Text(
-                            activity['time'] as String,
-                            style: AppTextStyles.caption.copyWith(
-                              color: AppColors.textTertiary,
-                              fontSize: 9,
-                            ),
-                          ),
-                        ],
-                      ),
-                      const SizedBox(height: 4),
-                      Text(
-                        activity['action'] as String,
-                        style: AppTextStyles.bodyMedium.copyWith(
-                          color: AppColors.textSecondary,
-                          fontSize: 12,
-                          height: 1.4,
-                        ),
-                      ),
-                      const SizedBox(height: 10),
-
-                      // Interactive Cheer Button
-                      Row(
-                        children: [
-                          GestureDetector(
-                            onTap: () => _toggleCheer(index),
-                            child: AnimatedContainer(
-                              duration: const Duration(milliseconds: 200),
-                              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
-                              decoration: BoxDecoration(
-                                color: cheered
-                                    ? AppColors.accentOrange.withValues(alpha: 0.15)
-                                    : AppColors.bgSecondary,
-                                borderRadius: BorderRadius.circular(10),
-                                border: Border.all(
-                                  color: cheered
-                                      ? AppColors.accentOrange.withValues(alpha: 0.4)
-                                      : AppColors.glassBorder,
-                                ),
-                              ),
-                              child: Row(
-                                children: [
-                                  Text(
-                                    cheered ? '🔥' : '💪',
-                                    style: const TextStyle(fontSize: 12),
-                                  ),
-                                  const SizedBox(width: 6),
-                                  Text(
-                                    cheered ? 'Cheered!' : 'Cheer',
-                                    style: AppTextStyles.caption.copyWith(
-                                      color: cheered ? AppColors.accentOrange : AppColors.textSecondary,
-                                      fontWeight: FontWeight.bold,
-                                      fontSize: 10,
-                                    ),
-                                  ),
-                                ],
-                              ),
-                            ),
-                          ),
-                          const SizedBox(width: 12),
-                          Text(
-                            '${activity['cheers']} cheers',
-                            style: AppTextStyles.caption.copyWith(
-                              color: AppColors.textTertiary,
-                              fontSize: 10,
-                            ),
-                          ),
-                        ],
-                      ),
-                    ],
-                  ),
+              ),
+              const SizedBox(width: 8),
+              BrilliantButton(
+                onPressed: () => _toggleCheer(index),
+                color: isCheered ? BrilliantColors.mint.withValues(alpha: 0.2) : BrilliantColors.bgTertiary,
+                shadowColor: isCheered ? BrilliantColors.mint : BrilliantColors.surfaceBorder,
+                textColor: isCheered ? BrilliantColors.mint : BrilliantColors.textMuted,
+                borderRadius: 10,
+                padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                child: Row(
+                  children: [
+                    Text(isCheered ? '👏' : '🙌', style: const TextStyle(fontSize: 12)),
+                    const SizedBox(width: 4),
+                    Text('${item['cheers']}', style: const TextStyle(fontSize: 11, fontWeight: FontWeight.w800)),
+                  ],
                 ),
-              ],
-            ),
+              ),
+            ],
           ),
         );
-      }),
-    );
-  }
-
-  // Section Label
-  Widget _buildSectionLabel(String text) {
-    return Padding(
-      padding: const EdgeInsets.only(left: 4),
-      child: Text(
-        text,
-        style: AppTextStyles.caption.copyWith(
-          color: AppColors.textTertiary,
-          fontWeight: FontWeight.bold,
-          letterSpacing: 1.0,
-        ),
-      ),
+      },
     );
   }
 }

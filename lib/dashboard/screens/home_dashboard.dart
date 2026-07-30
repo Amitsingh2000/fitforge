@@ -1,7 +1,6 @@
-import 'dart:ui';
 import 'package:flutter/material.dart';
 import 'package:flutter_animate/flutter_animate.dart';
-import '../../theme/app_theme.dart';
+import '../theme/brilliant_theme.dart';
 import '../widgets/dashboard_glass_card.dart';
 import '../widgets/radial_progress.dart';
 import '../widgets/linear_progress_bar.dart';
@@ -37,7 +36,7 @@ class _HomeDashboardState extends State<HomeDashboard>
     }
     return 1;
   }
-  
+
   // Simulated user data
   final int _caloriesConsumed = 2200;
   final int _caloriesTarget = 2500;
@@ -46,6 +45,7 @@ class _HomeDashboardState extends State<HomeDashboard>
   final int _stepsCurrent = 6420;
   final int _stepsTarget = 10000;
   final int _currentStreak = 12;
+  final int _currentXP = 1450;
 
   final List<Map<String, dynamic>> _tasks = [
     {'title': 'Drink 4L Water', 'completed': false, 'xp': 50},
@@ -88,10 +88,9 @@ class _HomeDashboardState extends State<HomeDashboard>
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: AppColors.bgPrimary,
+      backgroundColor: BrilliantColors.bgPrimary,
       body: Stack(
         children: [
-          // Ambient background glow (shared across all tabs)
           Positioned(
             top: -100,
             right: -80,
@@ -102,7 +101,7 @@ class _HomeDashboardState extends State<HomeDashboard>
                 shape: BoxShape.circle,
                 gradient: RadialGradient(
                   colors: [
-                    AppColors.accentBlue.withValues(alpha: 0.06),
+                    BrilliantColors.mint.withValues(alpha: 0.08),
                     Colors.transparent,
                   ],
                 ),
@@ -119,7 +118,7 @@ class _HomeDashboardState extends State<HomeDashboard>
                 shape: BoxShape.circle,
                 gradient: RadialGradient(
                   colors: [
-                    AppColors.accentPurple.withValues(alpha: 0.04),
+                    BrilliantColors.amber.withValues(alpha: 0.06),
                     Colors.transparent,
                   ],
                 ),
@@ -127,11 +126,10 @@ class _HomeDashboardState extends State<HomeDashboard>
             ),
           ),
 
-          // Tab content — switches based on bottom nav index
           SafeArea(
             bottom: false,
             child: AnimatedSwitcher(
-              duration: const Duration(milliseconds: 300),
+              duration: const Duration(milliseconds: 250),
               switchInCurve: Curves.easeOutCubic,
               switchOutCurve: Curves.easeInCubic,
               transitionBuilder: (child, animation) {
@@ -144,15 +142,14 @@ class _HomeDashboardState extends State<HomeDashboard>
             ),
           ),
 
-          // Bottom navigation (always visible)
           Positioned(
             bottom: 0,
             left: 0,
             right: 0,
             child: _buildBottomNavigation()
                 .animate()
-                .fadeIn(duration: 600.ms, delay: 300.ms)
-                .slideY(begin: 0.5, end: 0, duration: 600.ms, delay: 300.ms),
+                .fadeIn(duration: 400.ms)
+                .slideY(begin: 0.3, end: 0, duration: 400.ms),
           ),
         ],
       ),
@@ -210,46 +207,34 @@ class _HomeDashboardState extends State<HomeDashboard>
       key: key,
       physics: const BouncingScrollPhysics(),
       slivers: [
-        // Prominent greeting
         SliverToBoxAdapter(child: _buildGreetingHeader()),
 
-        // Content
         SliverPadding(
-          padding: const EdgeInsets.fromLTRB(16, 0, 16, 80),
+          padding: const EdgeInsets.fromLTRB(16, 0, 16, 100),
           sliver: SliverList(
             delegate: SliverChildListDelegate([
-              // ── Swipeable Hero Section ──
               _buildSwipeableHeroSection()
                   .animate()
-                  .fadeIn(duration: 600.ms, delay: 100.ms)
-                  .slideY(
-                      begin: 0.08, end: 0, duration: 600.ms, delay: 100.ms),
-              const SizedBox(height: 14),
+                  .fadeIn(duration: 400.ms)
+                  .slideY(begin: 0.05, end: 0, duration: 400.ms),
+              const SizedBox(height: 16),
 
-              // Daily Tasks
               _buildTasksSection()
                   .animate()
-                  .fadeIn(duration: 500.ms, delay: 350.ms)
-                  .slideY(
-                      begin: 0.08, end: 0, duration: 500.ms, delay: 350.ms),
-              const SizedBox(height: 14),
+                  .fadeIn(duration: 400.ms, delay: 100.ms)
+                  .slideY(begin: 0.05, end: 0, duration: 400.ms, delay: 100.ms),
+              const SizedBox(height: 16),
 
-              // AI Recommendations
               _buildAIRecommendations()
                   .animate()
-                  .fadeIn(duration: 500.ms, delay: 480.ms)
-                  .slideY(
-                      begin: 0.08, end: 0, duration: 500.ms, delay: 480.ms),
+                  .fadeIn(duration: 400.ms, delay: 200.ms)
+                  .slideY(begin: 0.05, end: 0, duration: 400.ms, delay: 200.ms),
             ]),
           ),
         ),
       ],
     );
   }
-
-  // ─────────────────────────────────────────────
-  // GREETING HEADER
-  // ─────────────────────────────────────────────
 
   String get _formattedDate {
     final now = DateTime.now();
@@ -263,12 +248,11 @@ class _HomeDashboardState extends State<HomeDashboard>
 
   Widget _buildGreetingHeader() {
     return Padding(
-      padding: const EdgeInsets.fromLTRB(16, 20, 16, 12),
+      padding: const EdgeInsets.fromLTRB(16, 16, 16, 14),
       child: Row(
         mainAxisAlignment: MainAxisAlignment.spaceBetween,
         crossAxisAlignment: CrossAxisAlignment.center,
         children: [
-          // Left side: Greeting and Date/Streak summary
           Expanded(
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
@@ -276,75 +260,84 @@ class _HomeDashboardState extends State<HomeDashboard>
               children: [
                 Text(
                   '$_greeting, Amit 👋',
-                  style: AppTextStyles.titleMedium.copyWith(
-                    fontWeight: FontWeight.w800,
-                    fontSize: 16.5,
-                  ),
+                  style: BrilliantTheme.headerStyle(fontSize: 22),
                   overflow: TextOverflow.ellipsis,
                   maxLines: 1,
                 ),
-                const SizedBox(height: 2),
+                const SizedBox(height: 3),
                 Text(
                   _formattedDate,
-                  style: AppTextStyles.caption.copyWith(
-                    color: AppColors.textTertiary,
-                    fontWeight: FontWeight.w500,
-                    fontSize: 11,
+                  style: BrilliantTheme.bodyStyle(
+                    fontSize: 12,
+                    color: BrilliantColors.textSecondary,
                   ),
                 ),
               ],
             ),
           ),
           const SizedBox(width: 12),
-          // Right side: Streak badge (redirects to Streak & Rewards tab)
-          Material(
-            color: Colors.transparent,
-            child: InkWell(
-              onTap: () {
-                setState(() {
-                  _currentNavIndex = 3;
-                });
-              },
-              borderRadius: BorderRadius.circular(12),
-              child: Container(
-                padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
-                decoration: BoxDecoration(
-                  color: AppColors.accentOrange.withValues(alpha: 0.1),
-                  borderRadius: BorderRadius.circular(12),
-                  border: Border.all(
-                    color: AppColors.accentOrange.withValues(alpha: 0.2),
+          Row(
+            children: [
+              GestureDetector(
+                onTap: () => setState(() => _currentNavIndex = 3),
+                child: Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                  decoration: BoxDecoration(
+                    color: BrilliantColors.bgSecondary,
+                    borderRadius: BorderRadius.circular(14),
+                    border: Border.all(color: BrilliantColors.surfaceBorder, width: 1.5),
+                  ),
+                  child: Row(
+                    children: [
+                      const Text('⭐', style: TextStyle(fontSize: 13)),
+                      const SizedBox(width: 4),
+                      Text(
+                        '$_currentXP',
+                        style: const TextStyle(
+                          fontSize: 12,
+                          fontWeight: FontWeight.w800,
+                          color: BrilliantColors.amber,
+                        ),
+                      ),
+                    ],
                   ),
                 ),
-                child: Row(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    const StreakFlame(size: 13),
-                    const SizedBox(width: 4),
-                    Text(
-                      '$_currentStreak days',
-                      style: AppTextStyles.caption.copyWith(
-                        color: AppColors.accentOrange,
-                        fontWeight: FontWeight.w700,
-                        fontSize: 11,
-                      ),
+              ),
+              const SizedBox(width: 8),
+              GestureDetector(
+                onTap: () => setState(() => _currentNavIndex = 3),
+                child: Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                  decoration: BoxDecoration(
+                    color: BrilliantColors.amber.withValues(alpha: 0.15),
+                    borderRadius: BorderRadius.circular(14),
+                    border: Border.all(
+                      color: BrilliantColors.amber.withValues(alpha: 0.4),
+                      width: 1.5,
                     ),
-                  ],
+                  ),
+                  child: Row(
+                    children: [
+                      const StreakFlame(size: 14),
+                      const SizedBox(width: 4),
+                      Text(
+                        '$_currentStreak',
+                        style: const TextStyle(
+                          fontSize: 12,
+                          fontWeight: FontWeight.w800,
+                          color: BrilliantColors.amber,
+                        ),
+                      ),
+                    ],
+                  ),
                 ),
               ),
-            ),
+            ],
           ),
         ],
       ),
-    )
-        .animate()
-        .fadeIn(duration: 500.ms)
-        .slideY(begin: -0.1, end: 0, duration: 500.ms);
+    );
   }
-
-
-  // ─────────────────────────────────────────────
-  // SWIPEABLE HERO SECTION  (Calories / Water / Steps)
-  // ─────────────────────────────────────────────
 
   Widget _buildSwipeableHeroSection() {
     const pageCount = 3;
@@ -355,35 +348,25 @@ class _HomeDashboardState extends State<HomeDashboard>
       Icons.directions_walk_rounded,
     ];
     final colors = [
-      AppColors.accentBlue,
-      AppColors.accentCyan,
-      AppColors.accentPurple,
+      BrilliantColors.coral,
+      BrilliantColors.mint,
+      BrilliantColors.purple,
     ];
-
-    // Animated gradient color that transitions with the page
-    final activeColor = colors[_safeHeroCurrentPage];
 
     return DashboardGlassCard(
       padding: EdgeInsets.zero,
-      gradient: LinearGradient(
-        begin: Alignment.topLeft,
-        end: Alignment.bottomRight,
-        colors: [
-          activeColor.withValues(alpha: 0.07),
-          AppColors.accentPurple.withValues(alpha: 0.03),
-        ],
-      ),
+      backgroundColor: BrilliantColors.bgSecondary,
+      borderColor: BrilliantColors.surfaceBorder,
       child: Column(
         children: [
-          // ── Segmented tab bar inside the card ──
           Padding(
-            padding: const EdgeInsets.fromLTRB(16, 16, 16, 0),
+            padding: const EdgeInsets.fromLTRB(14, 14, 14, 0),
             child: Container(
               padding: const EdgeInsets.all(4),
               decoration: BoxDecoration(
-                color: AppColors.bgSecondary.withValues(alpha: 0.7),
+                color: BrilliantColors.bgPrimary,
                 borderRadius: BorderRadius.circular(14),
-                border: Border.all(color: AppColors.glassBorder),
+                border: Border.all(color: BrilliantColors.surfaceBorder),
               ),
               child: Row(
                 children: List.generate(pageCount, (i) {
@@ -393,55 +376,37 @@ class _HomeDashboardState extends State<HomeDashboard>
                       onTap: () {
                         _heroPageController.animateToPage(
                           i,
-                          duration: const Duration(milliseconds: 400),
+                          duration: const Duration(milliseconds: 300),
                           curve: Curves.easeOutCubic,
                         );
                       },
                       child: AnimatedContainer(
-                        duration: const Duration(milliseconds: 300),
-                        curve: Curves.easeOutCubic,
+                        duration: const Duration(milliseconds: 200),
                         padding: const EdgeInsets.symmetric(vertical: 8),
                         decoration: BoxDecoration(
                           color: isActive
-                              ? colors[i].withValues(alpha: 0.15)
+                              ? colors[i].withValues(alpha: 0.18)
                               : Colors.transparent,
-                          borderRadius: BorderRadius.circular(11),
+                          borderRadius: BorderRadius.circular(10),
                           border: isActive
-                              ? Border.all(
-                                  color: colors[i].withValues(alpha: 0.3),
-                                )
+                              ? Border.all(color: colors[i].withValues(alpha: 0.5), width: 1.5)
                               : null,
-                          boxShadow: isActive
-                              ? [
-                                  BoxShadow(
-                                    color: colors[i].withValues(alpha: 0.12),
-                                    blurRadius: 8,
-                                    offset: const Offset(0, 2),
-                                  ),
-                                ]
-                              : [],
                         ),
                         child: Row(
                           mainAxisAlignment: MainAxisAlignment.center,
                           children: [
                             Icon(
                               icons[i],
-                              size: 14,
-                              color: isActive
-                                  ? colors[i]
-                                  : AppColors.textTertiary,
+                              size: 15,
+                              color: isActive ? colors[i] : BrilliantColors.textMuted,
                             ),
-                            const SizedBox(width: 5),
+                            const SizedBox(width: 6),
                             Text(
                               labels[i],
-                              style: AppTextStyles.caption.copyWith(
-                                color: isActive
-                                    ? colors[i]
-                                    : AppColors.textTertiary,
-                                fontWeight: isActive
-                                    ? FontWeight.w700
-                                    : FontWeight.w500,
-                                fontSize: 11,
+                              style: TextStyle(
+                                color: isActive ? colors[i] : BrilliantColors.textMuted,
+                                fontWeight: isActive ? FontWeight.w800 : FontWeight.w600,
+                                fontSize: 12,
                               ),
                             ),
                           ],
@@ -454,9 +419,8 @@ class _HomeDashboardState extends State<HomeDashboard>
             ),
           ),
 
-          // ── Swipeable inner content ──
           SizedBox(
-            height: 295,
+            height: 300,
             child: PageView(
               controller: _heroPageController,
               physics: const BouncingScrollPhysics(),
@@ -470,14 +434,12 @@ class _HomeDashboardState extends State<HomeDashboard>
               ],
             ),
           ),
-
-          const SizedBox(height: 12),
+          const SizedBox(height: 10),
         ],
       ),
     );
   }
 
-  // ── PAGE 1 CONTENT : Daily Calories ──
   Widget _buildCaloriesContent() {
     final progress = _caloriesConsumed / _caloriesTarget;
     final remaining = _caloriesTarget - _caloriesConsumed;
@@ -487,52 +449,31 @@ class _HomeDashboardState extends State<HomeDashboard>
       child: Column(
         mainAxisAlignment: MainAxisAlignment.spaceEvenly,
         children: [
-          // Radial ring
-          TweenAnimationBuilder<double>(
-            tween: Tween(begin: 0, end: progress),
-            duration: const Duration(milliseconds: 1400),
-            curve: Curves.easeOutCubic,
-            builder: (context, animatedProgress, _) {
-              return RadialProgress(
-                progress: animatedProgress,
-                size: 120,
-                strokeWidth: 10,
-                progressColor: AppColors.accentBlue,
-                child: Column(
-                  mainAxisAlignment: MainAxisAlignment.center,
-                  children: [
-                    const Text('🔥', style: TextStyle(fontSize: 18)),
-                    const SizedBox(height: 4),
-                    TweenAnimationBuilder<double>(
-                      tween: Tween(
-                          begin: 0, end: _caloriesConsumed.toDouble()),
-                      duration: const Duration(milliseconds: 1200),
-                      curve: Curves.easeOutCubic,
-                      builder: (context, value, _) {
-                        return Text(
-                          '${value.toInt()}',
-                          style: AppTextStyles.headlineMedium.copyWith(
-                            fontWeight: FontWeight.w800,
-                            fontSize: 22,
-                            height: 1,
-                          ),
-                        );
-                      },
-                    ),
-                    Text(
-                      '/ $_caloriesTarget cal',
-                      style: AppTextStyles.caption.copyWith(
-                        color: AppColors.textTertiary,
-                        fontSize: 11,
-                      ),
-                    ),
-                  ],
+          RadialProgress(
+            progress: progress,
+            size: 130,
+            strokeWidth: 12,
+            progressColor: BrilliantColors.coral,
+            child: Column(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                const Text('🔥', style: TextStyle(fontSize: 20)),
+                const SizedBox(height: 2),
+                Text(
+                  '$_caloriesConsumed',
+                  style: BrilliantTheme.headerStyle(fontSize: 24),
                 ),
-              );
-            },
+                Text(
+                  '/ $_caloriesTarget cal',
+                  style: BrilliantTheme.bodyStyle(
+                    fontSize: 11,
+                    color: BrilliantColors.textMuted,
+                  ),
+                ),
+              ],
+            ),
           ),
 
-          // Stat chips row
           Row(
             children: [
               _buildMiniStat(
@@ -540,7 +481,7 @@ class _HomeDashboardState extends State<HomeDashboard>
                 label: 'Consumed',
                 value: '$_caloriesConsumed',
                 unit: 'cal',
-                color: AppColors.accentBlue,
+                color: BrilliantColors.coral,
               ),
               _buildStatDivider(),
               _buildMiniStat(
@@ -548,7 +489,7 @@ class _HomeDashboardState extends State<HomeDashboard>
                 label: 'Target',
                 value: '$_caloriesTarget',
                 unit: 'cal',
-                color: AppColors.accentPurple,
+                color: BrilliantColors.amber,
               ),
               _buildStatDivider(),
               _buildMiniStat(
@@ -556,20 +497,18 @@ class _HomeDashboardState extends State<HomeDashboard>
                 label: 'Left',
                 value: '$remaining',
                 unit: 'cal',
-                color: AppColors.accentCyan,
+                color: BrilliantColors.mint,
               ),
             ],
           ),
 
-          // Progress bar
           _buildProgressRow(
-              'Progress', _caloriesConsumed, _caloriesTarget, AppColors.accentBlue),
+              'Progress', _caloriesConsumed, _caloriesTarget, BrilliantColors.coral),
         ],
       ),
     );
   }
 
-  // ── PAGE 2 CONTENT : Water Intake ──
   Widget _buildWaterContent() {
     final progress = _waterCurrent / _waterTarget;
 
@@ -578,182 +517,142 @@ class _HomeDashboardState extends State<HomeDashboard>
       child: Column(
         mainAxisAlignment: MainAxisAlignment.spaceEvenly,
         children: [
-          // Radial ring
-          TweenAnimationBuilder<double>(
-            tween: Tween(begin: 0, end: progress),
-            duration: const Duration(milliseconds: 1400),
-            curve: Curves.easeOutCubic,
-            builder: (context, animatedProgress, _) {
-              return RadialProgress(
-                progress: animatedProgress,
-                size: 120,
-                strokeWidth: 10,
-                progressColor: AppColors.accentCyan,
-                child: Column(
-                  mainAxisAlignment: MainAxisAlignment.center,
-                  children: [
-                    const Text('💧', style: TextStyle(fontSize: 18)),
-                    const SizedBox(height: 4),
-                    Text(
-                      '${_waterCurrent.toStringAsFixed(1)}L',
-                      style: AppTextStyles.headlineMedium.copyWith(
-                        fontWeight: FontWeight.w800,
-                        fontSize: 22,
-                        height: 1,
-                      ),
-                    ),
-                    Text(
-                      '/ ${_waterTarget.toStringAsFixed(0)}L goal',
-                      style: AppTextStyles.caption.copyWith(
-                        color: AppColors.textTertiary,
-                        fontSize: 11,
-                      ),
-                    ),
-                  ],
+          RadialProgress(
+            progress: progress,
+            size: 130,
+            strokeWidth: 12,
+            progressColor: BrilliantColors.mint,
+            child: Column(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                const Text('💧', style: TextStyle(fontSize: 20)),
+                const SizedBox(height: 2),
+                Text(
+                  '${_waterCurrent.toStringAsFixed(1)}L',
+                  style: BrilliantTheme.headerStyle(fontSize: 24),
                 ),
-              );
-            },
+                Text(
+                  '/ ${_waterTarget.toStringAsFixed(1)}L target',
+                  style: BrilliantTheme.bodyStyle(
+                    fontSize: 11,
+                    color: BrilliantColors.textMuted,
+                  ),
+                ),
+              ],
+            ),
           ),
 
-          // Quick-add buttons
           Row(
+            mainAxisAlignment: MainAxisAlignment.center,
             children: [
-              _buildWaterButton('+250ml', 0.25),
+              BrilliantButton(
+                onPressed: () => _addWater(0.25),
+                color: BrilliantColors.bgTertiary,
+                shadowColor: BrilliantColors.surfaceBorder,
+                textColor: BrilliantColors.mint,
+                borderRadius: 12,
+                padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+                child: const Text('+250ml', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w800)),
+              ),
               const SizedBox(width: 8),
-              _buildWaterButton('+500ml', 0.5),
+              BrilliantButton(
+                onPressed: () => _addWater(0.50),
+                color: BrilliantColors.bgTertiary,
+                shadowColor: BrilliantColors.surfaceBorder,
+                textColor: BrilliantColors.mint,
+                borderRadius: 12,
+                padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+                child: const Text('+500ml', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w800)),
+              ),
               const SizedBox(width: 8),
-              _buildWaterButton('+1L', 1.0),
+              BrilliantButton(
+                onPressed: () => _addWater(1.0),
+                color: BrilliantColors.mint,
+                shadowColor: BrilliantColors.mintDark,
+                textColor: BrilliantColors.textInverse,
+                borderRadius: 12,
+                padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+                child: const Text('+1.0L', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w800)),
+              ),
             ],
           ),
 
-          // Stat chips row
-          Row(
-            children: [
-              _buildMiniStat(
-                emoji: '💧',
-                label: 'Consumed',
-                value: _waterCurrent.toStringAsFixed(1),
-                unit: 'L',
-                color: AppColors.accentCyan,
-              ),
-              _buildStatDivider(),
-              _buildMiniStat(
-                emoji: '🎯',
-                label: 'Target',
-                value: _waterTarget.toStringAsFixed(0),
-                unit: 'L',
-                color: AppColors.accentBlue,
-              ),
-              _buildStatDivider(),
-              _buildMiniStat(
-                emoji: '✨',
-                label: 'Left',
-                value: (_waterTarget - _waterCurrent).toStringAsFixed(1),
-                unit: 'L',
-                color: AppColors.accentPurple,
-              ),
-            ],
-          ),
+          _buildProgressRow(
+              'Hydration Goal', (_waterCurrent * 100).toInt(), (_waterTarget * 100).toInt(), BrilliantColors.mint),
         ],
       ),
     );
   }
 
-  // ── PAGE 3 CONTENT : Step Count ──
   Widget _buildStepsContent() {
     final progress = _stepsCurrent / _stepsTarget;
     final remaining = _stepsTarget - _stepsCurrent;
-    final distanceKm = (_stepsCurrent * 0.000762).toStringAsFixed(1);
-    final caloriesBurned = (_stepsCurrent * 0.04).round();
 
     return Padding(
       padding: const EdgeInsets.fromLTRB(16, 18, 16, 8),
       child: Column(
         mainAxisAlignment: MainAxisAlignment.spaceEvenly,
         children: [
-          // Radial ring
-          TweenAnimationBuilder<double>(
-            tween: Tween(begin: 0, end: progress),
-            duration: const Duration(milliseconds: 1400),
-            curve: Curves.easeOutCubic,
-            builder: (context, animatedProgress, _) {
-              return RadialProgress(
-                progress: animatedProgress,
-                size: 120,
-                strokeWidth: 10,
-                progressColor: AppColors.accentPurple,
-                child: Column(
-                  mainAxisAlignment: MainAxisAlignment.center,
-                  children: [
-                    const Text('👟', style: TextStyle(fontSize: 18)),
-                    const SizedBox(height: 4),
-                    TweenAnimationBuilder<double>(
-                      tween: Tween(
-                          begin: 0, end: _stepsCurrent.toDouble()),
-                      duration: const Duration(milliseconds: 1200),
-                      curve: Curves.easeOutCubic,
-                      builder: (context, value, _) {
-                        return Text(
-                          '${value.toInt()}',
-                          style: AppTextStyles.headlineMedium.copyWith(
-                            fontWeight: FontWeight.w800,
-                            fontSize: 22,
-                            height: 1,
-                          ),
-                        );
-                      },
-                    ),
-                    Text(
-                      '/ $_stepsTarget steps',
-                      style: AppTextStyles.caption.copyWith(
-                        color: AppColors.textTertiary,
-                        fontSize: 11,
-                      ),
-                    ),
-                  ],
+          RadialProgress(
+            progress: progress,
+            size: 130,
+            strokeWidth: 12,
+            progressColor: BrilliantColors.purple,
+            child: Column(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                const Text('🚶', style: TextStyle(fontSize: 20)),
+                const SizedBox(height: 2),
+                Text(
+                  '$_stepsCurrent',
+                  style: BrilliantTheme.headerStyle(fontSize: 24),
                 ),
-              );
-            },
+                Text(
+                  '/ $_stepsTarget steps',
+                  style: BrilliantTheme.bodyStyle(
+                    fontSize: 11,
+                    color: BrilliantColors.textMuted,
+                  ),
+                ),
+              ],
+            ),
           ),
 
-          // Stat chips row
           Row(
             children: [
               _buildMiniStat(
+                emoji: '👟',
+                label: 'Walked',
+                value: '$_stepsCurrent',
+                unit: 'steps',
+                color: BrilliantColors.purple,
+              ),
+              _buildStatDivider(),
+              _buildMiniStat(
                 emoji: '📍',
                 label: 'Distance',
-                value: distanceKm,
+                value: '4.8',
                 unit: 'km',
-                color: AppColors.accentPurple,
+                color: BrilliantColors.blue,
               ),
               _buildStatDivider(),
               _buildMiniStat(
-                emoji: '🔥',
-                label: 'Burned',
-                value: '$caloriesBurned',
-                unit: 'cal',
-                color: AppColors.accentCoral,
-              ),
-              _buildStatDivider(),
-              _buildMiniStat(
-                emoji: '🏁',
+                emoji: '⏳',
                 label: 'Left',
                 value: '$remaining',
-                unit: '',
-                color: AppColors.accentOrange,
+                unit: 'steps',
+                color: BrilliantColors.amber,
               ),
             ],
           ),
 
-          // Progress bar
           _buildProgressRow(
-              'Progress', _stepsCurrent, _stepsTarget, AppColors.accentPurple),
+              'Step Goal', _stepsCurrent, _stepsTarget, BrilliantColors.purple),
         ],
       ),
     );
   }
 
-  // ── Shared mini stat (diet-tab style) ──
   Widget _buildMiniStat({
     required String emoji,
     required String label,
@@ -764,21 +663,21 @@ class _HomeDashboardState extends State<HomeDashboard>
     return Expanded(
       child: Column(
         children: [
-          Text(emoji, style: const TextStyle(fontSize: 16)),
-          const SizedBox(height: 5),
+          Text(emoji, style: const TextStyle(fontSize: 14)),
+          const SizedBox(height: 2),
           Text(
-            '$value$unit',
-            style: AppTextStyles.labelLarge.copyWith(
-              fontWeight: FontWeight.w700,
-              fontSize: 14,
+            value,
+            style: TextStyle(
+              fontSize: 15,
+              fontWeight: FontWeight.w800,
               color: color,
             ),
           ),
           Text(
-            label,
-            style: AppTextStyles.caption.copyWith(
-              color: AppColors.textTertiary,
+            '$label ($unit)',
+            style: BrilliantTheme.bodyStyle(
               fontSize: 10,
+              color: BrilliantColors.textMuted,
             ),
           ),
         ],
@@ -789,566 +688,200 @@ class _HomeDashboardState extends State<HomeDashboard>
   Widget _buildStatDivider() {
     return Container(
       width: 1,
-      height: 38,
-      color: AppColors.glassBorder,
+      height: 24,
+      color: BrilliantColors.surfaceBorder,
     );
   }
 
-  // ── Progress bar row ──
-  Widget _buildProgressRow(String label, int current, int target, Color color) {
-    return Row(
+  Widget _buildProgressRow(
+      String title, int current, int target, Color color) {
+    final double pct = (current / target).clamp(0.0, 1.0);
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        SizedBox(
-          width: 56,
-          child: Text(
-            label,
-            style: AppTextStyles.caption.copyWith(
-              color: AppColors.textTertiary,
-              fontSize: 11,
+        Row(
+          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+          children: [
+            Text(title, style: BrilliantTheme.bodyStyle(fontSize: 12, color: BrilliantColors.textSecondary)),
+            Text(
+              '${(pct * 100).toInt()}%',
+              style: TextStyle(fontSize: 12, fontWeight: FontWeight.w800, color: color),
             ),
-          ),
+          ],
         ),
-        Expanded(
-          child: LinearProgressBar(
-            progress: current / target,
-            color: color,
-            height: 5,
-          ),
-        ),
-        const SizedBox(width: 10),
-        Text(
-          '${(current / target * 100).round()}%',
-          style: AppTextStyles.caption.copyWith(
-            color: color,
-            fontWeight: FontWeight.w600,
-            fontSize: 11,
-          ),
-        ),
+        const SizedBox(height: 6),
+        LinearProgressBar(progress: pct, color: color, height: 8),
       ],
     );
   }
 
-
-  // ── Water quick-add button ──
-  Widget _buildWaterButton(String label, double amount) {
-    return Expanded(
-      child: GestureDetector(
-        onTap: () => _addWater(amount),
-        child: AnimatedContainer(
-          duration: const Duration(milliseconds: 200),
-          padding: const EdgeInsets.symmetric(vertical: 8),
-          decoration: BoxDecoration(
-            color: AppColors.accentCyan.withValues(alpha: 0.08),
-            borderRadius: BorderRadius.circular(12),
-            border: Border.all(
-              color: AppColors.accentCyan.withValues(alpha: 0.2),
-            ),
-          ),
-          child: Center(
-            child: Text(
-              label,
-              style: AppTextStyles.labelLarge.copyWith(
-                color: AppColors.accentCyan,
-                fontSize: 13,
-                fontWeight: FontWeight.w600,
-              ),
-            ),
-          ),
-        ),
-      ),
-    );
-  }
-
-  // ─────────────────────────────────────────────
-  // TODAY'S TASKS
-  // ─────────────────────────────────────────────
-
   Widget _buildTasksSection() {
-    final completedCount = _tasks.where((t) => t['completed']).length;
+    final completedCount = _tasks.where((t) => t['completed'] == true).length;
 
     return DashboardGlassCard(
-      padding: const EdgeInsets.all(18),
+      backgroundColor: BrilliantColors.bgSecondary,
+      borderColor: BrilliantColors.surfaceBorder,
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
+              Text(
+                'DAILY CHALLENGES',
+                style: BrilliantTheme.badgeStyle(color: BrilliantColors.mint),
+              ),
               Container(
-                width: 32,
-                height: 32,
+                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
                 decoration: BoxDecoration(
+                  color: BrilliantColors.bgTertiary,
                   borderRadius: BorderRadius.circular(10),
-                  gradient: LinearGradient(
-                    begin: Alignment.topLeft,
-                    end: Alignment.bottomRight,
-                    colors: [
-                      AppColors.accentBlue.withValues(alpha: 0.2),
-                      AppColors.accentPurple.withValues(alpha: 0.2),
-                    ],
-                  ),
-                ),
-                child: const Center(
-                  child: Text('✦', style: TextStyle(fontSize: 14)),
-                ),
-              ),
-              const SizedBox(width: 12),
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      'Daily Challenges',
-                      style: AppTextStyles.titleMedium.copyWith(
-                        fontWeight: FontWeight.w700,
-                        fontSize: 14,
-                      ),
-                    ),
-                    Text(
-                      '$completedCount / ${_tasks.length} completed',
-                      style: AppTextStyles.caption.copyWith(
-                        color: AppColors.textTertiary,
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-              Container(
-                padding:
-                    const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
-                decoration: BoxDecoration(
-                  color: AppColors.accentPurple.withValues(alpha: 0.12),
-                  borderRadius: BorderRadius.circular(8),
+                  border: Border.all(color: BrilliantColors.surfaceBorder),
                 ),
                 child: Text(
-                  '+50 XP each',
-                  style: AppTextStyles.caption.copyWith(
-                    color: AppColors.accentPurple,
-                    fontWeight: FontWeight.w600,
+                  '$completedCount / ${_tasks.length} Done',
+                  style: const TextStyle(
+                    fontSize: 11,
+                    fontWeight: FontWeight.w700,
+                    color: BrilliantColors.mint,
                   ),
                 ),
               ),
             ],
           ),
-          const SizedBox(height: 16),
-          ...List.generate(_tasks.length, (index) {
-            final task = _tasks[index];
-            final isCompleted = task['completed'] as bool;
+          const SizedBox(height: 12),
+          ListView.separated(
+            shrinkWrap: true,
+            physics: const NeverScrollableScrollPhysics(),
+            itemCount: _tasks.length,
+            separatorBuilder: (context, index) => const SizedBox(height: 8),
+            itemBuilder: (context, index) {
+              final task = _tasks[index];
+              final bool isDone = task['completed'];
 
-            return Padding(
-              padding: EdgeInsets.only(
-                bottom: index < _tasks.length - 1 ? 10 : 0,
-              ),
-              child: GestureDetector(
+              return GestureDetector(
                 onTap: () => _toggleTask(index),
                 child: AnimatedContainer(
-                  duration: const Duration(milliseconds: 250),
-                  curve: Curves.easeOutCubic,
-                  padding: const EdgeInsets.symmetric(
-                    horizontal: 14,
-                    vertical: 12,
-                  ),
+                  duration: const Duration(milliseconds: 200),
+                  padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
                   decoration: BoxDecoration(
-                    color: isCompleted
-                        ? AppColors.accentBlue.withValues(alpha: 0.06)
-                        : AppColors.bgSecondary,
+                    color: isDone
+                        ? BrilliantColors.mint.withValues(alpha: 0.1)
+                        : BrilliantColors.bgPrimary,
                     borderRadius: BorderRadius.circular(14),
                     border: Border.all(
-                      color: isCompleted
-                          ? AppColors.accentBlue.withValues(alpha: 0.2)
-                          : AppColors.glassBorder,
+                      color: isDone
+                          ? BrilliantColors.mint.withValues(alpha: 0.5)
+                          : BrilliantColors.surfaceBorder,
+                      width: 1.5,
                     ),
                   ),
                   child: Row(
                     children: [
-                      AnimatedContainer(
-                        duration: const Duration(milliseconds: 250),
-                        width: 20,
-                        height: 20,
+                      Container(
+                        width: 22,
+                        height: 22,
                         decoration: BoxDecoration(
-                          borderRadius: BorderRadius.circular(6),
-                          color: isCompleted
-                              ? AppColors.accentBlue
+                          color: isDone
+                              ? BrilliantColors.mint
                               : Colors.transparent,
+                          borderRadius: BorderRadius.circular(6),
                           border: Border.all(
-                            color: isCompleted
-                                ? AppColors.accentBlue
-                                : AppColors.textDisabled,
+                            color: isDone
+                                ? BrilliantColors.mint
+                                : BrilliantColors.textMuted,
                             width: 2,
                           ),
                         ),
-                        child: isCompleted
-                            ? const Icon(
-                                Icons.check_rounded,
-                                size: 12,
-                                color: Colors.white,
-                              )
+                        child: isDone
+                            ? const Icon(Icons.check, size: 14, color: BrilliantColors.textInverse)
                             : null,
                       ),
                       const SizedBox(width: 12),
                       Expanded(
                         child: Text(
                           task['title'],
-                          style: AppTextStyles.labelLarge.copyWith(
-                            color: isCompleted
-                                ? AppColors.textTertiary
-                                : AppColors.textPrimary,
-                            decoration: isCompleted
-                                ? TextDecoration.lineThrough
-                                : null,
-                            decorationColor: AppColors.textTertiary,
-                            fontWeight: FontWeight.w500,
+                          style: TextStyle(
+                            fontSize: 14,
+                            fontWeight: FontWeight.w700,
+                            color: isDone
+                                ? BrilliantColors.textMuted
+                                : BrilliantColors.textPrimary,
+                            decoration: isDone ? TextDecoration.lineThrough : null,
                           ),
                         ),
                       ),
-                      if (isCompleted)
-                        Container(
-                          padding: const EdgeInsets.symmetric(
-                            horizontal: 8,
-                            vertical: 3,
-                          ),
-                          decoration: BoxDecoration(
-                            color:
-                                AppColors.accentBlue.withValues(alpha: 0.1),
-                            borderRadius: BorderRadius.circular(6),
-                          ),
-                          child: Text(
-                            '+${task['xp']} XP',
-                            style: AppTextStyles.caption.copyWith(
-                              color: AppColors.accentBlue,
-                              fontWeight: FontWeight.w600,
-                              fontSize: 10,
-                            ),
+                      Container(
+                        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                        decoration: BoxDecoration(
+                          color: BrilliantColors.amber.withValues(alpha: 0.15),
+                          borderRadius: BorderRadius.circular(8),
+                        ),
+                        child: Text(
+                          '+${task['xp']} XP',
+                          style: const TextStyle(
+                            fontSize: 11,
+                            fontWeight: FontWeight.w800,
+                            color: BrilliantColors.amber,
                           ),
                         ),
+                      ),
                     ],
                   ),
                 ),
-              ),
-            );
-          }),
+              );
+            },
+          ),
         ],
       ),
     );
   }
 
-
-  // ─────────────────────────────────────────────
-  // AI RECOMMENDATIONS
-  // ─────────────────────────────────────────────
-
   Widget _buildAIRecommendations() {
-    final insights = [
-      {
-        'title': 'Healthy Pace',
-        'subtitle': 'Weight Management',
-        'desc': 'Losing 0.5 kg/week — perfect pace that preserves lean muscle mass. Your body composition is improving.',
-        'emoji': '💚',
-        'color': AppColors.accentCyan,
-        'tag': 'TRENDING',
-        'confidence': 96,
-      },
-      {
-        'title': 'Protein Peak',
-        'subtitle': 'Nutrition Insight',
-        'desc': '18% consistency improvement this month. Sustaining this level will accelerate body recomposition.',
-        'emoji': '💪',
-        'color': AppColors.accentBlue,
-        'tag': 'NEW HIGH',
-        'confidence': 91,
-      },
-      {
-        'title': 'Hydration Goal',
-        'subtitle': 'Habit Analysis',
-        'desc': 'Daily water intake is up 25% vs last month. Optimal hydration is accelerating your metabolism.',
-        'emoji': '💧',
-        'color': AppColors.accentPurple,
-        'tag': 'STREAK',
-        'confidence': 88,
-      },
-    ];
-
     return DashboardGlassCard(
-      padding: const EdgeInsets.all(18),
+      backgroundColor: BrilliantColors.bgSecondary,
+      borderColor: BrilliantColors.surfaceBorder,
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          // ── Header — same style as Tasks section ──
           Row(
             children: [
-              Container(
-                width: 32,
-                height: 32,
-                decoration: BoxDecoration(
-                  borderRadius: BorderRadius.circular(10),
-                  gradient: LinearGradient(
-                    begin: Alignment.topLeft,
-                    end: Alignment.bottomRight,
-                    colors: [
-                      AppColors.accentBlue.withValues(alpha: 0.22),
-                      AppColors.accentPurple.withValues(alpha: 0.22),
-                    ],
-                  ),
-                ),
-                child: const Center(
-                  child: Text('🧠', style: TextStyle(fontSize: 15)),
-                ),
-              ),
-              const SizedBox(width: 12),
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      'AI Coach',
-                      style: AppTextStyles.titleMedium.copyWith(
-                        fontWeight: FontWeight.w700,
-                        fontSize: 14,
-                      ),
-                    ),
-                    Text(
-                      'Personalized insights from your data',
-                      style: AppTextStyles.caption.copyWith(
-                        color: AppColors.textTertiary,
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-              // Pulsing LIVE badge
-              Container(
-                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-                decoration: BoxDecoration(
-                  color: const Color(0xFF22C55E).withValues(alpha: 0.10),
-                  borderRadius: BorderRadius.circular(8),
-                  border: Border.all(color: const Color(0xFF22C55E).withValues(alpha: 0.25)),
-                ),
-                child: Row(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    Container(
-                      width: 5,
-                      height: 5,
-                      decoration: const BoxDecoration(
-                        shape: BoxShape.circle,
-                        color: Color(0xFF22C55E),
-                      ),
-                    )
-                        .animate(onPlay: (c) => c.repeat())
-                        .scaleXY(begin: 0.5, end: 1.4, duration: 850.ms, curve: Curves.easeInOut)
-                        .then()
-                        .scaleXY(begin: 1.4, end: 0.5, duration: 850.ms),
-                    const SizedBox(width: 5),
-                    Text(
-                      'LIVE',
-                      style: AppTextStyles.caption.copyWith(
-                        color: const Color(0xFF22C55E),
-                        fontWeight: FontWeight.w800,
-                        fontSize: 9,
-                        letterSpacing: 0.8,
-                      ),
-                    ),
-                  ],
-                ),
+              const Text('💡', style: TextStyle(fontSize: 16)),
+              const SizedBox(width: 8),
+              Text(
+                'AI COACH INSIGHTS',
+                style: BrilliantTheme.badgeStyle(color: BrilliantColors.amber),
               ),
             ],
           ),
-
-          const SizedBox(height: 16),
-
-          // ── Insight rows ──
-          ...List.generate(insights.length, (index) {
-            final insight = insights[index];
-            final color = insight['color'] as Color;
-            final confidence = insight['confidence'] as int;
-            final tag = insight['tag'] as String;
-
-            return Padding(
-              padding: EdgeInsets.only(bottom: index < insights.length - 1 ? 12 : 0),
-              child: Container(
-                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 11),
-                decoration: BoxDecoration(
-                  color: color.withValues(alpha: 0.05),
-                  borderRadius: BorderRadius.circular(14),
-                  border: Border.all(color: color.withValues(alpha: 0.14)),
-                ),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Row(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        // Emoji icon chip
-                        Container(
-                          width: 34,
-                          height: 34,
-                          decoration: BoxDecoration(
-                            color: color.withValues(alpha: 0.12),
-                            borderRadius: BorderRadius.circular(10),
-                            border: Border.all(color: color.withValues(alpha: 0.22)),
-                          ),
-                          child: Center(
-                            child: Text(
-                              insight['emoji'] as String,
-                              style: const TextStyle(fontSize: 16),
-                            ),
-                          ),
-                        ),
-                        const SizedBox(width: 11),
-                        // Title + desc column
-                        Expanded(
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              Row(
-                                children: [
-                                  Expanded(
-                                    child: Text(
-                                      insight['title'] as String,
-                                      style: AppTextStyles.labelLarge.copyWith(
-                                        fontWeight: FontWeight.w700,
-                                        fontSize: 13,
-                                      ),
-                                    ),
-                                  ),
-                                  const SizedBox(width: 6),
-                                  // Tag badge
-                                  Container(
-                                    padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
-                                    decoration: BoxDecoration(
-                                      color: color.withValues(alpha: 0.12),
-                                      borderRadius: BorderRadius.circular(5),
-                                      border: Border.all(color: color.withValues(alpha: 0.25)),
-                                    ),
-                                    child: Text(
-                                      tag,
-                                      style: AppTextStyles.caption.copyWith(
-                                        color: color,
-                                        fontWeight: FontWeight.w800,
-                                        fontSize: 8,
-                                        letterSpacing: 0.6,
-                                      ),
-                                    ),
-                                  ),
-                                ],
-                              ),
-                              const SizedBox(height: 3),
-                              Text(
-                                insight['desc'] as String,
-                                style: AppTextStyles.caption.copyWith(
-                                  color: AppColors.textSecondary,
-                                  fontSize: 11,
-                                  height: 1.4,
-                                ),
-                              ),
-                            ],
-                          ),
-                        ),
-                      ],
-                    ),
-                    const SizedBox(height: 9),
-                    // Category label + confidence %
-                    Row(
-                      children: [
-                        Text(
-                          insight['subtitle'] as String,
-                          style: AppTextStyles.caption.copyWith(
-                            color: color,
-                            fontSize: 9,
-                            fontWeight: FontWeight.w600,
-                          ),
-                        ),
-                        const Spacer(),
-                        Text(
-                          '$confidence% confidence',
-                          style: AppTextStyles.caption.copyWith(
-                            color: AppColors.textTertiary,
-                            fontSize: 9,
-                          ),
-                        ),
-                      ],
-                    ),
-                    const SizedBox(height: 5),
-                    // Confidence progress bar
-                    Stack(
-                      children: [
-                        Container(
-                          height: 4,
-                          width: double.infinity,
-                          decoration: BoxDecoration(
-                            color: AppColors.bgTertiary,
-                            borderRadius: BorderRadius.circular(4),
-                          ),
-                        ),
-                        FractionallySizedBox(
-                          widthFactor: confidence / 100,
-                          child: Container(
-                            height: 4,
-                            decoration: BoxDecoration(
-                              gradient: LinearGradient(
-                                colors: [color.withValues(alpha: 0.6), color],
-                              ),
-                              borderRadius: BorderRadius.circular(4),
-                              boxShadow: [
-                                BoxShadow(
-                                  color: color.withValues(alpha: 0.3),
-                                  blurRadius: 4,
-                                ),
-                              ],
-                            ),
-                          ),
-                        ),
-                      ],
-                    ),
-                  ],
-                ),
-              )
-                  .animate(delay: (index * 70).ms)
-                  .fadeIn(duration: 380.ms)
-                  .slideY(begin: 0.06, end: 0, duration: 380.ms, curve: Curves.easeOutCubic),
-            );
-          }),
-
-          const SizedBox(height: 14),
-
-          // ── Today's Focus banner ──
+          const SizedBox(height: 12),
           Container(
-            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+            padding: const EdgeInsets.all(14),
             decoration: BoxDecoration(
-              color: AppColors.accentOrange.withValues(alpha: 0.06),
-              borderRadius: BorderRadius.circular(12),
-              border: Border.all(color: AppColors.accentOrange.withValues(alpha: 0.18)),
+              color: BrilliantColors.mint.withValues(alpha: 0.08),
+              borderRadius: BorderRadius.circular(14),
+              border: Border.all(color: BrilliantColors.mint.withValues(alpha: 0.3), width: 1.5),
             ),
             child: Row(
               children: [
-                const Text('🎯', style: TextStyle(fontSize: 15)),
-                const SizedBox(width: 10),
+                const Text('🔥', style: TextStyle(fontSize: 22)),
+                const SizedBox(width: 12),
                 Expanded(
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
                       Text(
-                        "TODAY'S FOCUS",
-                        style: AppTextStyles.caption.copyWith(
-                          color: AppColors.accentOrange,
-                          fontWeight: FontWeight.w800,
-                          fontSize: 9,
-                          letterSpacing: 0.8,
-                        ),
+                        'Hydration Spike',
+                        style: BrilliantTheme.titleStyle(fontSize: 14),
                       ),
                       const SizedBox(height: 2),
                       Text(
-                        'Hit protein target + drink 1.5L more water to unlock your best recovery score.',
-                        style: AppTextStyles.caption.copyWith(
-                          color: AppColors.textSecondary,
-                          fontSize: 11,
-                          height: 1.4,
-                        ),
+                        'Drink 1.5L more water today to optimize muscle recovery and maintain your streak!',
+                        style: BrilliantTheme.bodyStyle(fontSize: 12),
                       ),
                     ],
                   ),
                 ),
-                const SizedBox(width: 6),
-                const Icon(Icons.arrow_forward_ios_rounded, color: AppColors.textTertiary, size: 11),
               ],
             ),
           ),
@@ -1356,11 +889,10 @@ class _HomeDashboardState extends State<HomeDashboard>
       ),
     );
   }
-  // ─────────────────────────────────────────────
 
   Widget _buildBottomNavigation() {
     final navItems = [
-      {'icon': Icons.home_rounded, 'label': 'Home'},
+      {'icon': Icons.space_dashboard_rounded, 'label': 'Today'},
       {'icon': Icons.restaurant_menu_rounded, 'label': 'Diet'},
       {'icon': Icons.insights_rounded, 'label': 'Progress'},
       {'icon': Icons.emoji_events_rounded, 'label': 'Rewards'},
@@ -1369,84 +901,68 @@ class _HomeDashboardState extends State<HomeDashboard>
 
     return Container(
       margin: const EdgeInsets.fromLTRB(16, 0, 16, 16),
-      child: ClipRRect(
-        borderRadius: BorderRadius.circular(22),
-        child: BackdropFilter(
-          filter: ImageFilter.blur(sigmaX: 24, sigmaY: 24),
-          child: Container(
-            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 10),
-            decoration: BoxDecoration(
-              color: AppColors.bgSecondary.withValues(alpha: 0.85),
-              borderRadius: BorderRadius.circular(22),
-              border: Border.all(
-                color: AppColors.glassBorder,
-                width: 1,
-              ),
-              boxShadow: [
-                BoxShadow(
-                  color: Colors.black.withValues(alpha: 0.3),
-                  blurRadius: 30,
-                  offset: const Offset(0, 10),
-                ),
-              ],
-            ),
-            child: Row(
-              mainAxisAlignment: MainAxisAlignment.spaceAround,
-              children: List.generate(navItems.length, (index) {
-                final item = navItems[index];
-                 final isActive = index == _currentNavIndex ||
-                    (_currentNavIndex == 5 && index == 3) ||
-                    (_currentNavIndex == 6 && index == 4);
+      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 8),
+      decoration: BoxDecoration(
+        color: BrilliantColors.bgSecondary,
+        borderRadius: BorderRadius.circular(24),
+        border: Border.all(color: BrilliantColors.surfaceBorder, width: 1.5),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withValues(alpha: 0.4),
+            blurRadius: 16,
+            offset: const Offset(0, 6),
+          ),
+        ],
+      ),
+      child: Row(
+        mainAxisAlignment: MainAxisAlignment.spaceAround,
+        children: List.generate(navItems.length, (index) {
+          final isSelected = _currentNavIndex == index;
+          final item = navItems[index];
 
-                return Expanded(
-                  child: GestureDetector(
-                    onTap: () => setState(() => _currentNavIndex = index),
-                    child: AnimatedContainer(
-                      duration: const Duration(milliseconds: 250),
-                      curve: Curves.easeOutCubic,
-                      padding: const EdgeInsets.symmetric(
-                        horizontal: 4,
-                        vertical: 8,
-                      ),
-                      decoration: BoxDecoration(
-                        color: isActive
-                            ? AppColors.accentBlue.withValues(alpha: 0.12)
-                            : Colors.transparent,
-                        borderRadius: BorderRadius.circular(14),
-                      ),
-                      child: Column(
-                        mainAxisSize: MainAxisSize.min,
-                        children: [
-                          Icon(
-                            item['icon'] as IconData,
-                            color: isActive
-                                ? AppColors.accentBlue
-                                : AppColors.textTertiary,
-                            size: 22,
-                          ),
-                          const SizedBox(height: 4),
-                          AnimatedDefaultTextStyle(
-                            duration: const Duration(milliseconds: 250),
-                            style: AppTextStyles.caption.copyWith(
-                              color: isActive
-                                  ? AppColors.accentBlue
-                                  : AppColors.textTertiary,
-                              fontSize: 10,
-                              fontWeight: isActive
-                                  ? FontWeight.w600
-                                  : FontWeight.w500,
-                            ),
-                            child: Text(item['label'] as String),
-                          ),
-                        ],
+          return GestureDetector(
+            onTap: () {
+              setState(() {
+                _currentNavIndex = index;
+              });
+            },
+            child: AnimatedContainer(
+              duration: const Duration(milliseconds: 200),
+              padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+              decoration: BoxDecoration(
+                color: isSelected
+                    ? BrilliantColors.mint.withValues(alpha: 0.15)
+                    : Colors.transparent,
+                borderRadius: BorderRadius.circular(16),
+                border: isSelected
+                    ? Border.all(color: BrilliantColors.mint.withValues(alpha: 0.4), width: 1.5)
+                    : null,
+              ),
+              child: Row(
+                children: [
+                  Icon(
+                    item['icon'] as IconData,
+                    size: 20,
+                    color: isSelected
+                        ? BrilliantColors.mint
+                        : BrilliantColors.textMuted,
+                  ),
+                  if (isSelected) ...[
+                    const SizedBox(width: 6),
+                    Text(
+                      item['label'] as String,
+                      style: const TextStyle(
+                        fontSize: 12,
+                        fontWeight: FontWeight.w800,
+                        color: BrilliantColors.mint,
                       ),
                     ),
-                  ),
-                );
-              }),
+                  ],
+                ],
+              ),
             ),
-          ),
-        ),
+          );
+        }),
       ),
     );
   }

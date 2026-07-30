@@ -1,8 +1,8 @@
 import 'dart:math';
 import 'package:flutter/material.dart';
-import '../../theme/app_theme.dart';
+import '../theme/brilliant_theme.dart';
 
-/// Animated flame icon for streak display
+/// Animated flame icon for streak display inspired by Brilliant Amber Streak counter
 class StreakFlame extends StatefulWidget {
   final double size;
 
@@ -41,12 +41,12 @@ class _StreakFlameState extends State<StreakFlame>
           scale: scale,
           child: ShaderMask(
             shaderCallback: (bounds) {
-              return LinearGradient(
+              return const LinearGradient(
                 begin: Alignment.topCenter,
                 end: Alignment.bottomCenter,
                 colors: [
-                  AppColors.accentOrange,
-                  AppColors.accentCoral,
+                  BrilliantColors.amber,
+                  Color(0xFFFF7A00),
                 ],
               ).createShader(bounds);
             },

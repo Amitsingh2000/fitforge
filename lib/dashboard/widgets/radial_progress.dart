@@ -1,6 +1,6 @@
 import 'dart:math';
 import 'package:flutter/material.dart';
-import '../../theme/app_theme.dart';
+import '../theme/brilliant_theme.dart';
 
 class RadialProgress extends StatelessWidget {
   final double progress; // 0.0 to 1.0
@@ -15,7 +15,7 @@ class RadialProgress extends StatelessWidget {
     required this.progress,
     this.size = 200,
     this.strokeWidth = 12,
-    this.progressColor = AppColors.accentBlue,
+    this.progressColor = BrilliantColors.mint,
     this.trackColor,
     this.child,
   });
@@ -34,10 +34,10 @@ class RadialProgress extends StatelessWidget {
               progress: progress,
               strokeWidth: strokeWidth,
               progressColor: progressColor,
-              trackColor: trackColor ?? AppColors.bgTertiary,
+              trackColor: trackColor ?? BrilliantColors.bgTertiary,
             ),
           ),
-          if (child != null) child!,
+          if (child case final c?) c,
         ],
       ),
     );
@@ -81,7 +81,7 @@ class _RadialPainter extends CustomPainter {
         endAngle: 3 * pi / 2,
         colors: [
           progressColor,
-          progressColor.withValues(alpha: 0.7),
+          progressColor.withValues(alpha: 0.8),
           progressColor,
         ],
         stops: const [0.0, 0.5, 1.0],
@@ -109,7 +109,7 @@ class _RadialPainter extends CustomPainter {
       );
 
       final glowPaint = Paint()
-        ..color = progressColor.withValues(alpha: 0.4)
+        ..color = progressColor.withValues(alpha: 0.5)
         ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 8);
       canvas.drawCircle(dotCenter, strokeWidth / 2 + 4, glowPaint);
 

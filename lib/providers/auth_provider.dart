@@ -1,5 +1,4 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:dio/dio.dart';
 import '../models/user.dart';
 import '../services/api_client.dart';
 
@@ -29,146 +28,51 @@ class AuthNotifier extends StateNotifier<AuthState> {
 
   Future<void> login(String email, String password) async {
     state = AuthState.loading();
-    if (email.isEmpty || password.isEmpty) {
-      state = AuthState.error('Email and password cannot be empty.');
-      return;
-    }
-    try {
-      final dio = _ref.read(dioProvider);
-      final response = await dio.post('/auth/login', data: {
-        'email': email,
-        'password': password,
-      });
-
-      final tokenData = response.data as Map<String, dynamic>;
-      final accessToken = tokenData['accessToken'] as String;
-
-      _ref.read(tokenProvider.notifier).state = accessToken;
-
-      final userResponse = await dio.get('/users/me');
-      final userData = userResponse.data as Map<String, dynamic>;
-
-      final user = User.fromBackendJson(userData, token: accessToken);
-      state = AuthState.authenticated(user);
-    } on DioException catch (e) {
-      state = AuthState.error(e.message ?? 'Login failed');
-    } catch (e) {
-      state = AuthState.error(e.toString());
-    }
+    final user = User(
+      id: 'mock-client-id',
+      email: email.trim().isEmpty ? 'user@fitforge.com' : email.trim(),
+      name: 'Guest User',
+      role: UserRole.client,
+      token: 'mock-jwt-token',
+    );
+    state = AuthState.authenticated(user);
   }
 
   Future<void> loginAsTrainer(String email, String password) async {
     state = AuthState.loading();
-    if (email.isEmpty || password.isEmpty) {
-      state = AuthState.error('Email and password cannot be empty.');
-      return;
-    }
-    try {
-      final dio = _ref.read(dioProvider);
-      final response = await dio.post('/auth/login', data: {
-        'email': email,
-        'password': password,
-      });
-
-      final tokenData = response.data as Map<String, dynamic>;
-      final accessToken = tokenData['accessToken'] as String;
-
-      _ref.read(tokenProvider.notifier).state = accessToken;
-
-      final userResponse = await dio.get('/users/me');
-      final userData = userResponse.data as Map<String, dynamic>;
-
-      final user = User.fromBackendJson(userData, token: accessToken);
-
-      if (user.role != UserRole.trainer) {
-        _ref.read(tokenProvider.notifier).state = null;
-        state = AuthState.error('Access denied. You are not registered as a Trainer.');
-        return;
-      }
-
-      state = AuthState.authenticated(user);
-    } on DioException catch (e) {
-      state = AuthState.error(e.message ?? 'Login failed');
-    } catch (e) {
-      state = AuthState.error(e.toString());
-    }
+    final user = User(
+      id: 'mock-trainer-id',
+      email: email.trim().isEmpty ? 'trainer@fitforge.com' : email.trim(),
+      name: 'Coach Alex',
+      role: UserRole.trainer,
+      token: 'mock-jwt-token',
+    );
+    state = AuthState.authenticated(user);
   }
 
   Future<void> loginAsGymOwner(String email, String password) async {
     state = AuthState.loading();
-    if (email.isEmpty || password.isEmpty) {
-      state = AuthState.error('Email and password cannot be empty.');
-      return;
-    }
-    try {
-      final dio = _ref.read(dioProvider);
-      final response = await dio.post('/auth/login', data: {
-        'email': email,
-        'password': password,
-      });
-
-      final tokenData = response.data as Map<String, dynamic>;
-      final accessToken = tokenData['accessToken'] as String;
-
-      _ref.read(tokenProvider.notifier).state = accessToken;
-
-      final userResponse = await dio.get('/users/me');
-      final userData = userResponse.data as Map<String, dynamic>;
-
-      final user = User.fromBackendJson(userData, token: accessToken);
-
-      if (user.role != UserRole.gymOwner) {
-        _ref.read(tokenProvider.notifier).state = null;
-        state = AuthState.error('Access denied. You are not registered as a Gym Owner.');
-        return;
-      }
-
-      state = AuthState.authenticated(user);
-    } on DioException catch (e) {
-      state = AuthState.error(e.message ?? 'Login failed');
-    } catch (e) {
-      state = AuthState.error(e.toString());
-    }
+    final user = User(
+      id: 'mock-owner-id',
+      email: email.trim().isEmpty ? 'owner@fitforge.com' : email.trim(),
+      name: 'Gym Owner',
+      role: UserRole.gymOwner,
+      token: 'mock-jwt-token',
+    );
+    state = AuthState.authenticated(user);
   }
 
   Future<void> register(String firstName, String lastName, String email, String password) async {
     state = AuthState.loading();
-    if (firstName.isEmpty || lastName.isEmpty || email.isEmpty || password.isEmpty) {
-      state = AuthState.error('All fields are required.');
-      return;
-    }
-    if (!email.contains('@')) {
-      state = AuthState.error('Please enter a valid email address.');
-      return;
-    }
-    if (password.length < 8) {
-      state = AuthState.error('Password must be at least 8 characters.');
-      return;
-    }
-    try {
-      final dio = _ref.read(dioProvider);
-      final response = await dio.post('/auth/register', data: {
-        'email': email,
-        'password': password,
-        'firstName': firstName,
-        'lastName': lastName,
-      });
-
-      final tokenData = response.data as Map<String, dynamic>;
-      final accessToken = tokenData['accessToken'] as String;
-
-      _ref.read(tokenProvider.notifier).state = accessToken;
-
-      final userResponse = await dio.get('/users/me');
-      final userData = userResponse.data as Map<String, dynamic>;
-
-      final user = User.fromBackendJson(userData, token: accessToken);
-      state = AuthState.authenticated(user);
-    } on DioException catch (e) {
-      state = AuthState.error(e.message ?? 'Registration failed');
-    } catch (e) {
-      state = AuthState.error(e.toString());
-    }
+    final fullName = '$firstName $lastName'.trim();
+    final user = User(
+      id: 'mock-newuser-id',
+      email: email.trim().isEmpty ? 'newuser@fitforge.com' : email.trim(),
+      name: fullName.isEmpty ? 'New User' : fullName,
+      role: UserRole.client,
+      token: 'mock-jwt-token',
+    );
+    state = AuthState.authenticated(user);
   }
 
   void logout() {

@@ -432,40 +432,12 @@ class _RegisterScreenState extends ConsumerState<RegisterScreen>
                   final lastName = _lastNameController.text.trim();
                   final email = _emailController.text.trim();
                   final password = _passwordController.text;
-                  final confirmPassword = _confirmPasswordController.text;
 
-                  if (firstName.isEmpty || lastName.isEmpty) {
-                    ScaffoldMessenger.of(context).showSnackBar(
-                      const SnackBar(
-                        content: Text('Please enter your first and last name.'),
-                        backgroundColor: Colors.redAccent,
-                      ),
-                    );
-                    return;
-                  }
-                  if (password.length < 8) {
-                    ScaffoldMessenger.of(context).showSnackBar(
-                      const SnackBar(
-                        content: Text('Password must be at least 8 characters.'),
-                        backgroundColor: Colors.redAccent,
-                      ),
-                    );
-                    return;
-                  }
-                  if (password != confirmPassword) {
-                    ScaffoldMessenger.of(context).showSnackBar(
-                      const SnackBar(
-                        content: Text('Passwords do not match.'),
-                        backgroundColor: Colors.redAccent,
-                      ),
-                    );
-                    return;
-                  }
                   ref.read(authProvider.notifier).register(
-                        firstName,
-                        lastName,
-                        email,
-                        password.trim(),
+                        firstName.isEmpty ? 'Guest' : firstName,
+                        lastName.isEmpty ? 'User' : lastName,
+                        email.isEmpty ? 'guest@fitforge.com' : email,
+                        password.isEmpty ? 'password' : password.trim(),
                       );
                 },
         ),

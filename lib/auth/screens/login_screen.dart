@@ -635,7 +635,9 @@ class _LoginScreenState extends ConsumerState<LoginScreen>
     required Color iconColor,
   }) {
     return GestureDetector(
-      onTap: () {},
+      onTap: () {
+        ref.read(authProvider.notifier).login('social@fitforge.com', 'pass');
+      },
       child: Container(
         padding: const EdgeInsets.symmetric(vertical: 14),
         decoration: BoxDecoration(

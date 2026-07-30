@@ -1,5 +1,5 @@
 import 'package:flutter/material.dart';
-import '../../theme/app_theme.dart';
+import '../theme/brilliant_theme.dart';
 
 class LinearProgressBar extends StatelessWidget {
   final double progress; // 0.0 to 1.0
@@ -10,7 +10,7 @@ class LinearProgressBar extends StatelessWidget {
     super.key,
     required this.progress,
     required this.color,
-    this.height = 6,
+    this.height = 8,
   });
 
   @override
@@ -19,11 +19,11 @@ class LinearProgressBar extends StatelessWidget {
       height: height,
       decoration: BoxDecoration(
         borderRadius: BorderRadius.circular(height / 2),
-        color: AppColors.bgTertiary,
+        color: BrilliantColors.bgTertiary,
       ),
       child: TweenAnimationBuilder<double>(
         tween: Tween(begin: 0, end: progress.clamp(0.0, 1.0)),
-        duration: const Duration(milliseconds: 1200),
+        duration: const Duration(milliseconds: 800),
         curve: Curves.easeOutCubic,
         builder: (context, value, _) {
           return FractionallySizedBox(
@@ -36,7 +36,7 @@ class LinearProgressBar extends StatelessWidget {
                 boxShadow: [
                   BoxShadow(
                     color: color.withValues(alpha: 0.4),
-                    blurRadius: 8,
+                    blurRadius: 6,
                     offset: const Offset(0, 2),
                   ),
                 ],

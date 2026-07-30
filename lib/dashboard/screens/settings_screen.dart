@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_animate/flutter_animate.dart';
-import '../../theme/app_theme.dart';
+import '../theme/brilliant_theme.dart';
 import '../widgets/dashboard_glass_card.dart';
 
 class SettingsScreen extends StatefulWidget {
@@ -11,7 +11,6 @@ class SettingsScreen extends StatefulWidget {
 }
 
 class _SettingsScreenState extends State<SettingsScreen> {
-  // Toggle values for preview preferences
   bool _notificationsEnabled = true;
   bool _remindersEnabled = true;
   String _units = 'Metric (kg, cm)';
@@ -19,35 +18,31 @@ class _SettingsScreenState extends State<SettingsScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: AppColors.bgPrimary,
+      backgroundColor: BrilliantColors.bgPrimary,
       body: SafeArea(
         child: CustomScrollView(
           physics: const BouncingScrollPhysics(),
           slivers: [
-            // App Bar Header
             SliverToBoxAdapter(child: _buildHeader()),
 
-            // Content body
             SliverPadding(
-              padding: const EdgeInsets.fromLTRB(20, 8, 20, 40),
+              padding: const EdgeInsets.fromLTRB(16, 8, 16, 40),
               sliver: SliverList(
                 delegate: SliverChildListDelegate([
                   const SizedBox(height: 12),
 
-                  // App Settings Preference list
                   _buildSectionLabel('PREFERENCES'),
-                  const SizedBox(height: 12),
+                  const SizedBox(height: 10),
                   _buildPreferencesList()
                       .animate()
-                      .fadeIn(duration: 500.ms, delay: 100.ms),
+                      .fadeIn(duration: 400.ms, delay: 100.ms),
                   const SizedBox(height: 20),
 
-                  // Support & Help
-                  _buildSectionLabel('SUPPORT'),
-                  const SizedBox(height: 12),
+                  _buildSectionLabel('SUPPORT & LEGAL'),
+                  const SizedBox(height: 10),
                   _buildSupportSection()
                       .animate()
-                      .fadeIn(duration: 500.ms, delay: 200.ms),
+                      .fadeIn(duration: 400.ms, delay: 200.ms),
                   const SizedBox(height: 24),
                 ]),
               ),
@@ -58,53 +53,47 @@ class _SettingsScreenState extends State<SettingsScreen> {
     );
   }
 
-  // ─────────────────────────────────────────────
-  // HEADER
-  // ─────────────────────────────────────────────
-
   Widget _buildHeader() {
     return Padding(
-      padding: const EdgeInsets.fromLTRB(20, 16, 20, 4),
+      padding: const EdgeInsets.fromLTRB(16, 16, 16, 8),
       child: Row(
         children: [
-          // Back Button
           GestureDetector(
             onTap: () => Navigator.of(context).pop(),
             child: Container(
-              width: 38,
-              height: 38,
-              margin: const EdgeInsets.only(right: 12),
+              width: 40,
+              height: 40,
               decoration: BoxDecoration(
-                borderRadius: BorderRadius.circular(10),
-                color: AppColors.bgTertiary,
-                border: Border.all(color: AppColors.glassBorder),
+                borderRadius: BorderRadius.circular(12),
+                color: BrilliantColors.bgSecondary,
+                border: Border.all(color: BrilliantColors.surfaceBorder, width: 1.5),
               ),
               child: const Icon(
-                Icons.arrow_back_rounded,
-                color: AppColors.textPrimary,
+                Icons.arrow_back_ios_new_rounded,
+                color: BrilliantColors.textPrimary,
                 size: 18,
               ),
             ),
           ),
+          const SizedBox(width: 14),
           Text(
             'Settings',
-            style: AppTextStyles.titleLarge.copyWith(
-              fontWeight: FontWeight.w800,
-              fontSize: 24,
-            ),
+            style: BrilliantTheme.headerStyle(fontSize: 22),
           ),
         ],
       ),
     );
   }
 
-  // ─────────────────────────────────────────────
-  // APP PREFERENCES LIST
-  // ─────────────────────────────────────────────
+  Widget _buildSectionLabel(String text) {
+    return Text(text, style: BrilliantTheme.badgeStyle(color: BrilliantColors.mint));
+  }
 
   Widget _buildPreferencesList() {
     return DashboardGlassCard(
       padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+      backgroundColor: BrilliantColors.bgSecondary,
+      borderColor: BrilliantColors.surfaceBorder,
       child: Column(
         children: [
           _buildSwitchListTile(
@@ -112,13 +101,13 @@ class _SettingsScreenState extends State<SettingsScreen> {
             value: _notificationsEnabled,
             onChanged: (val) => setState(() => _notificationsEnabled = val),
           ),
-          Divider(color: AppColors.glassBorder, height: 1),
+          Divider(color: BrilliantColors.surfaceBorder, height: 1),
           _buildSwitchListTile(
             title: 'Daily Reminders',
             value: _remindersEnabled,
             onChanged: (val) => setState(() => _remindersEnabled = val),
           ),
-          Divider(color: AppColors.glassBorder, height: 1),
+          Divider(color: BrilliantColors.surfaceBorder, height: 1),
           _buildSimpleActionTile(
             title: 'Units & Measurements',
             subtitle: _units,
@@ -128,7 +117,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
               });
             },
           ),
-          Divider(color: AppColors.glassBorder, height: 1),
+          Divider(color: BrilliantColors.surfaceBorder, height: 1),
           _buildSimpleActionTile(
             title: 'App Language',
             subtitle: 'English (US)',
@@ -149,12 +138,12 @@ class _SettingsScreenState extends State<SettingsScreen> {
       child: Row(
         mainAxisAlignment: MainAxisAlignment.spaceBetween,
         children: [
-          Text(title, style: AppTextStyles.bodyMedium.copyWith(color: AppColors.textPrimary)),
+          Text(title, style: const TextStyle(color: BrilliantColors.textPrimary, fontSize: 13, fontWeight: FontWeight.w700)),
           Switch(
             value: value,
             onChanged: onChanged,
-            activeThumbColor: AppColors.accentBlue,
-            activeTrackColor: AppColors.accentBlue.withValues(alpha: 0.25),
+            activeThumbColor: BrilliantColors.mint,
+            activeTrackColor: BrilliantColors.mint.withValues(alpha: 0.3),
           ),
         ],
       ),
@@ -176,21 +165,17 @@ class _SettingsScreenState extends State<SettingsScreen> {
             Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Text(title, style: AppTextStyles.bodyMedium.copyWith(color: AppColors.textPrimary)),
+                Text(title, style: const TextStyle(color: BrilliantColors.textPrimary, fontSize: 13, fontWeight: FontWeight.w700)),
                 const SizedBox(height: 2),
-                Text(subtitle, style: AppTextStyles.caption.copyWith(color: AppColors.textSecondary, fontSize: 10)),
+                Text(subtitle, style: TextStyle(color: BrilliantColors.textMuted, fontSize: 11)),
               ],
             ),
-            const Icon(Icons.chevron_right_rounded, color: AppColors.textTertiary, size: 20),
+            const Icon(Icons.chevron_right_rounded, color: BrilliantColors.textMuted, size: 20),
           ],
         ),
       ),
     );
   }
-
-  // ─────────────────────────────────────────────
-  // SUPPORT SECTION
-  // ─────────────────────────────────────────────
 
   Widget _buildSupportSection() {
     final supportItems = [
@@ -202,6 +187,8 @@ class _SettingsScreenState extends State<SettingsScreen> {
 
     return DashboardGlassCard(
       padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+      backgroundColor: BrilliantColors.bgSecondary,
+      borderColor: BrilliantColors.surfaceBorder,
       child: Column(
         children: supportItems.map((item) {
           return GestureDetector(
@@ -213,35 +200,20 @@ class _SettingsScreenState extends State<SettingsScreen> {
                 children: [
                   Row(
                     children: [
-                      Icon(item['icon'] as IconData, color: AppColors.textTertiary, size: 18),
+                      Icon(item['icon'] as IconData, color: BrilliantColors.mint, size: 18),
                       const SizedBox(width: 12),
                       Text(
                         item['title'] as String,
-                        style: AppTextStyles.bodyMedium.copyWith(color: AppColors.textPrimary),
+                        style: const TextStyle(color: BrilliantColors.textPrimary, fontSize: 13, fontWeight: FontWeight.w700),
                       ),
                     ],
                   ),
-                  const Icon(Icons.chevron_right_rounded, color: AppColors.textTertiary, size: 20),
+                  const Icon(Icons.chevron_right_rounded, color: BrilliantColors.textMuted, size: 20),
                 ],
               ),
             ),
           );
         }).toList(),
-      ),
-    );
-  }
-
-  // Helper title label
-  Widget _buildSectionLabel(String text) {
-    return Padding(
-      padding: const EdgeInsets.only(left: 4),
-      child: Text(
-        text,
-        style: AppTextStyles.caption.copyWith(
-          color: AppColors.textTertiary,
-          fontWeight: FontWeight.bold,
-          letterSpacing: 1.0,
-        ),
       ),
     );
   }
