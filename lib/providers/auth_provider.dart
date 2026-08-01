@@ -1,5 +1,6 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:dio/dio.dart';
+import '../models/gym_membership.dart';
 import '../models/user.dart';
 import '../services/api_client.dart';
 import '../services/token_storage_service.dart';
@@ -10,21 +11,23 @@ class AuthState {
   final AuthStatus status;
   final User? user;
   final String? errorMessage;
+  final UserRole? targetRole;
 
   const AuthState({
     required this.status,
     this.user,
     this.errorMessage,
+    this.targetRole,
   });
 
   factory AuthState.initial() => const AuthState(status: AuthStatus.initial);
-  factory AuthState.loading() => const AuthState(status: AuthStatus.loading);
-  factory AuthState.authenticated(User user) =>
-      AuthState(status: AuthStatus.authenticated, user: user);
+  factory AuthState.loading({UserRole? targetRole}) => AuthState(status: AuthStatus.loading, targetRole: targetRole);
+  factory AuthState.authenticated(User user, {UserRole? targetRole}) =>
+      AuthState(status: AuthStatus.authenticated, user: user, targetRole: targetRole);
   factory AuthState.unauthenticated() =>
       const AuthState(status: AuthStatus.unauthenticated);
-  factory AuthState.error(String message) =>
-      AuthState(status: AuthStatus.error, errorMessage: message);
+  factory AuthState.error(String message, {UserRole? targetRole}) =>
+      AuthState(status: AuthStatus.error, errorMessage: message, targetRole: targetRole);
 }
 
 class AuthNotifier extends StateNotifier<AuthState> {
@@ -107,9 +110,9 @@ class AuthNotifier extends StateNotifier<AuthState> {
     UserRole? requiredRole,
     String? wrongRoleMessage,
   }) async {
-    state = AuthState.loading();
+    state = AuthState.loading(targetRole: requiredRole);
     if (email.isEmpty || password.isEmpty) {
-      state = AuthState.error('Email and password cannot be empty.');
+      state = AuthState.error('Email and password cannot be empty.', targetRole: requiredRole);
       return;
     }
     try {
@@ -130,17 +133,28 @@ class AuthNotifier extends StateNotifier<AuthState> {
 
       final user = User.fromBackendJson(userData, token: accessToken);
 
-      if (requiredRole != null && user.role != requiredRole) {
+      if (requiredRole == UserRole.gymOwner) {
+        // If user has gym memberships, verify they aren't exclusively a trainer or regular member
+        if (user.gymMemberships.isNotEmpty &&
+            !user.gymMemberships.any((m) =>
+                m.role == GymRole.gymOwner ||
+                m.role == GymRole.gymManager ||
+                m.role == GymRole.frontDesk)) {
+          await _clearSession();
+          state = AuthState.error(wrongRoleMessage ?? 'Access denied. You are not registered as a Gym Owner.', targetRole: requiredRole);
+          return;
+        }
+      } else if (requiredRole != null && user.role != requiredRole) {
         await _clearSession();
-        state = AuthState.error(wrongRoleMessage ?? 'Access denied.');
+        state = AuthState.error(wrongRoleMessage ?? 'Access denied.', targetRole: requiredRole);
         return;
       }
 
-      state = AuthState.authenticated(user);
+      state = AuthState.authenticated(user, targetRole: requiredRole);
     } on DioException catch (e) {
-      state = AuthState.error(e.message ?? 'Login failed');
+      state = AuthState.error(e.message ?? 'Login failed', targetRole: requiredRole);
     } catch (e) {
-      state = AuthState.error(e.toString());
+      state = AuthState.error(e.toString(), targetRole: requiredRole);
     }
   }
 
@@ -155,7 +169,7 @@ class AuthNotifier extends StateNotifier<AuthState> {
       final userResponse = await dio.get('/users/me');
       final userData = userResponse.data as Map<String, dynamic>;
       final user = User.fromBackendJson(userData, token: token);
-      state = AuthState.authenticated(user);
+      state = AuthState.authenticated(user, targetRole: state.targetRole);
     } catch (_) {
       // Keep the existing state — a transient failure here shouldn't log
       // the user out or blank the screen.
@@ -184,21 +198,22 @@ class AuthNotifier extends StateNotifier<AuthState> {
   // ──────────────────────────────────────────────────────────────────────────
 
   Future<void> register(
-      String firstName, String lastName, String email, String password) async {
-    state = AuthState.loading();
+      String firstName, String lastName, String email, String password,
+      {UserRole? targetRole}) async {
+    state = AuthState.loading(targetRole: targetRole);
     if (firstName.isEmpty ||
         lastName.isEmpty ||
         email.isEmpty ||
         password.isEmpty) {
-      state = AuthState.error('All fields are required.');
+      state = AuthState.error('All fields are required.', targetRole: targetRole);
       return;
     }
     if (!email.contains('@')) {
-      state = AuthState.error('Please enter a valid email address.');
+      state = AuthState.error('Please enter a valid email address.', targetRole: targetRole);
       return;
     }
     if (password.length < 8) {
-      state = AuthState.error('Password must be at least 8 characters.');
+      state = AuthState.error('Password must be at least 8 characters.', targetRole: targetRole);
       return;
     }
     try {
@@ -220,12 +235,12 @@ class AuthNotifier extends StateNotifier<AuthState> {
       final userData = userResponse.data as Map<String, dynamic>;
 
       final user = User.fromBackendJson(userData, token: accessToken);
-      // Navigate to email verification — UI layer handles this via status
-      state = AuthState.authenticated(user);
+      // Navigate to email verification / create gym — UI layer handles this via status + targetRole
+      state = AuthState.authenticated(user, targetRole: targetRole);
     } on DioException catch (e) {
-      state = AuthState.error(e.message ?? 'Registration failed');
+      state = AuthState.error(e.message ?? 'Registration failed', targetRole: targetRole);
     } catch (e) {
-      state = AuthState.error(e.toString());
+      state = AuthState.error(e.toString(), targetRole: targetRole);
     }
   }
 

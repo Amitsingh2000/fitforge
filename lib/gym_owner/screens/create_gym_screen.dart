@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../models/gym_membership.dart';
+import '../../providers/auth_provider.dart';
 import '../../providers/gym_provider.dart';
 import '../../services/gym_owner_service.dart';
 import '../../theme/app_theme.dart';
@@ -65,6 +66,8 @@ class _CreateGymScreenState extends ConsumerState<CreateGymScreen> {
           membershipId: membershipId,
         );
       }
+
+      await ref.read(authProvider.notifier).refreshUser();
 
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(

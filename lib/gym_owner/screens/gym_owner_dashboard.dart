@@ -11,11 +11,16 @@ import '../../services/gym_owner_service.dart';
 import '../../theme/app_theme.dart';
 import '../../dashboard/widgets/dashboard_glass_card.dart';
 import 'add_member_screen.dart';
+import 'attendance_screen.dart';
+import 'communications_screen.dart';
+import 'coupons_screen.dart';
 import 'create_gym_screen.dart';
 import 'gym_owner_members_tab.dart';
 import 'gym_owner_referrals_tab.dart';
 import 'gym_owner_analytics_tab.dart';
 import 'gym_owner_profile_tab.dart';
+import 'leads_screen.dart';
+import 'payments_screen.dart';
 
 class GymOwnerDashboard extends ConsumerStatefulWidget {
   const GymOwnerDashboard({super.key});
@@ -150,14 +155,34 @@ class _GymOwnerDashboardState extends ConsumerState<GymOwnerDashboard>
       'gradient': [AppColors.accentBlue, const Color(0xFF6366F1)],
     },
     {
-      'label': 'Add Trainer',
-      'icon': Icons.fitness_center_rounded,
+      'label': 'Payments',
+      'icon': Icons.receipt_long_rounded,
+      'gradient': [AppColors.accentCyan, const Color(0xFF06B6D4)],
+    },
+    {
+      'label': 'Attendance',
+      'icon': Icons.how_to_reg_rounded,
+      'gradient': [const Color(0xFF10B981), const Color(0xFF059669)],
+    },
+    {
+      'label': 'Leads',
+      'icon': Icons.person_search_rounded,
+      'gradient': [AppColors.accentOrange, const Color(0xFFF59E0B)],
+    },
+    {
+      'label': 'Coupons',
+      'icon': Icons.local_offer_rounded,
       'gradient': [AppColors.accentPurple, const Color(0xFFA855F7)],
     },
     {
-      'label': 'Generate Referral',
-      'icon': Icons.share_rounded,
-      'gradient': [AppColors.accentCyan, const Color(0xFF06B6D4)],
+      'label': 'Messages',
+      'icon': Icons.campaign_rounded,
+      'gradient': [const Color(0xFFEC4899), const Color(0xFFBE185D)],
+    },
+    {
+      'label': 'Add Trainer',
+      'icon': Icons.fitness_center_rounded,
+      'gradient': [AppColors.accentPurple, const Color(0xFFA855F7)],
     },
     {
       'label': 'View Analytics',
@@ -738,10 +763,32 @@ class _GymOwnerDashboardState extends ConsumerState<GymOwnerDashboard>
           final colors = action['gradient'] as List<Color>;
           return GestureDetector(
             onTap: () {
+              final gymId = ref.read(currentGymIdProvider);
+              if (gymId == null) return;
               if (action['label'] == 'View Analytics') {
                 setState(() => _currentNavIndex = 3);
               } else if (action['label'] == 'Add Trainer') {
                 Navigator.pushNamed(context, '/gym-owner-trainers');
+              } else if (action['label'] == 'Payments') {
+                Navigator.push(context, MaterialPageRoute(
+                  builder: (_) => PaymentsScreen(gymId: gymId),
+                ));
+              } else if (action['label'] == 'Attendance') {
+                Navigator.push(context, MaterialPageRoute(
+                  builder: (_) => AttendanceScreen(gymId: gymId),
+                ));
+              } else if (action['label'] == 'Leads') {
+                Navigator.push(context, MaterialPageRoute(
+                  builder: (_) => LeadsScreen(gymId: gymId),
+                ));
+              } else if (action['label'] == 'Coupons') {
+                Navigator.push(context, MaterialPageRoute(
+                  builder: (_) => CouponsScreen(gymId: gymId),
+                ));
+              } else if (action['label'] == 'Messages') {
+                Navigator.push(context, MaterialPageRoute(
+                  builder: (_) => CommunicationsScreen(gymId: gymId),
+                ));
               }
             },
             child: Container(

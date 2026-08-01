@@ -6,6 +6,7 @@ import '../../theme/app_theme.dart';
 import '../../onboarding/widgets/primary_button.dart';
 import '../../providers/auth_provider.dart';
 import '../../models/user.dart';
+import 'register_screen.dart';
 
 class GymOwnerLoginScreen extends ConsumerStatefulWidget {
   const GymOwnerLoginScreen({super.key});
@@ -47,8 +48,13 @@ class _GymOwnerLoginScreenState extends ConsumerState<GymOwnerLoginScreen>
   @override
   Widget build(BuildContext context) {
     ref.listen<AuthState>(authProvider, (previous, next) {
-      if (next.status == AuthStatus.authenticated && next.user?.role == UserRole.gymOwner) {
-        Navigator.of(context).pushReplacementNamed('/gym-owner-dashboard');
+      if (next.status == AuthStatus.authenticated &&
+          (next.user?.role == UserRole.gymOwner || next.targetRole == UserRole.gymOwner)) {
+        if (next.user?.gymMemberships.isEmpty ?? true) {
+          Navigator.of(context).pushReplacementNamed('/create-gym');
+        } else {
+          Navigator.of(context).pushReplacementNamed('/gym-owner-dashboard');
+        }
       } else if (next.status == AuthStatus.error) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
@@ -678,7 +684,14 @@ class _GymOwnerLoginScreenState extends ConsumerState<GymOwnerLoginScreen>
   Widget _buildRegisterGymButton() {
     return GestureDetector(
       onTap: () {
-        // Navigate to gym registration
+        Navigator.of(context).push(
+          MaterialPageRoute(
+            builder: (_) => const RegisterScreen(
+              isEmbeddedInOnboarding: false,
+              targetRole: UserRole.gymOwner,
+            ),
+          ),
+        );
       },
       child: Container(
         width: double.infinity,

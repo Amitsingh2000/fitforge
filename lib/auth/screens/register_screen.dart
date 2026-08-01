@@ -5,14 +5,18 @@ import '../../theme/app_theme.dart';
 import '../../onboarding/widgets/primary_button.dart';
 import '../../providers/auth_provider.dart';
 
+import '../../models/user.dart';
+
 class RegisterScreen extends ConsumerStatefulWidget {
   final bool isEmbeddedInOnboarding;
   final VoidCallback? onRegisterSuccess;
+  final UserRole? targetRole;
 
   const RegisterScreen({
     super.key,
     this.isEmbeddedInOnboarding = false,
     this.onRegisterSuccess,
+    this.targetRole,
   });
 
   @override
@@ -33,6 +37,7 @@ class _RegisterScreenState extends ConsumerState<RegisterScreen>
   final _passwordFocus = FocusNode();
   final _confirmPasswordFocus = FocusNode();
 
+  late UserRole _selectedRole;
   bool _obscurePassword = true;
   bool _obscureConfirmPassword = true;
   bool _firstNameFocused = false;
@@ -44,6 +49,7 @@ class _RegisterScreenState extends ConsumerState<RegisterScreen>
   @override
   void initState() {
     super.initState();
+    _selectedRole = widget.targetRole ?? UserRole.client;
     _firstNameFocus.addListener(() {
       setState(() => _firstNameFocused = _firstNameFocus.hasFocus);
     });
@@ -80,7 +86,10 @@ class _RegisterScreenState extends ConsumerState<RegisterScreen>
   Widget build(BuildContext context) {
     ref.listen<AuthState>(authProvider, (previous, next) {
       if (next.status == AuthStatus.authenticated) {
-        if (widget.isEmbeddedInOnboarding) {
+        final isGymOwner = _selectedRole == UserRole.gymOwner || next.targetRole == UserRole.gymOwner;
+        if (isGymOwner) {
+          Navigator.of(context).pushNamedAndRemoveUntil('/create-gym', (_) => false);
+        } else if (widget.isEmbeddedInOnboarding) {
           // Navigate to email verification before continuing onboarding
           Navigator.of(context).pushNamed('/verify-email');
         } else {
@@ -338,6 +347,73 @@ class _RegisterScreenState extends ConsumerState<RegisterScreen>
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
+        // Role Selector Segmented Switch
+        Container(
+          padding: const EdgeInsets.all(4),
+          decoration: BoxDecoration(
+            color: AppColors.bgSecondary,
+            borderRadius: BorderRadius.circular(16),
+            border: Border.all(color: AppColors.glassBorder),
+          ),
+          child: Row(
+            children: [
+              Expanded(
+                child: GestureDetector(
+                  onTap: () => setState(() => _selectedRole = UserRole.client),
+                  child: Container(
+                    padding: const EdgeInsets.symmetric(vertical: 10),
+                    decoration: BoxDecoration(
+                      color: _selectedRole == UserRole.client
+                          ? AppColors.accentBlue
+                          : Colors.transparent,
+                      borderRadius: BorderRadius.circular(12),
+                    ),
+                    child: Center(
+                      child: Text(
+                        '🏃‍♂️ Member',
+                        style: TextStyle(
+                          color: _selectedRole == UserRole.client
+                              ? Colors.white
+                              : AppColors.textSecondary,
+                          fontWeight: FontWeight.w600,
+                          fontSize: 13,
+                        ),
+                      ),
+                    ),
+                  ),
+                ),
+              ),
+              Expanded(
+                child: GestureDetector(
+                  onTap: () => setState(() => _selectedRole = UserRole.gymOwner),
+                  child: Container(
+                    padding: const EdgeInsets.symmetric(vertical: 10),
+                    decoration: BoxDecoration(
+                      color: _selectedRole == UserRole.gymOwner
+                          ? AppColors.accentBlue
+                          : Colors.transparent,
+                      borderRadius: BorderRadius.circular(12),
+                    ),
+                    child: Center(
+                      child: Text(
+                        '🏋️‍♂️ Gym Owner',
+                        style: TextStyle(
+                          color: _selectedRole == UserRole.gymOwner
+                              ? Colors.white
+                              : AppColors.textSecondary,
+                          fontWeight: FontWeight.w600,
+                          fontSize: 13,
+                        ),
+                      ),
+                    ),
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ),
+        const SizedBox(height: 16),
+
         // First Name & Last Name fields
         Row(
           children: [
@@ -424,7 +500,7 @@ class _RegisterScreenState extends ConsumerState<RegisterScreen>
 
         // Register button
         PrimaryButton(
-          label: isLoading ? 'Registering...' : 'Register',
+          label: isLoading ? 'Registering...' : (_selectedRole == UserRole.gymOwner ? 'Register as Gym Owner' : 'Register'),
           showShimmer: !isLoading,
           onTap: isLoading
               ? null
@@ -467,6 +543,7 @@ class _RegisterScreenState extends ConsumerState<RegisterScreen>
                         lastName,
                         email,
                         password.trim(),
+                        targetRole: _selectedRole,
                       );
                 },
         ),

@@ -4,6 +4,11 @@
 ///   GYM_OWNER, GYM_MANAGER, FRONT_DESK, TRAINER, MEMBER
 enum GymRole { gymOwner, gymManager, frontDesk, trainer, member }
 
+extension GymRoleX on GymRole {
+  bool get isOwnerOrManager => this == GymRole.gymOwner || this == GymRole.gymManager;
+  bool get isStaff => this == GymRole.gymOwner || this == GymRole.gymManager || this == GymRole.frontDesk;
+}
+
 /// One entry from `GET /users/me → gymMemberships[]`.
 ///
 /// Represents a user's association with a single gym, including their role

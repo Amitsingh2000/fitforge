@@ -4,6 +4,7 @@ import '../../models/gym_member.dart';
 import '../../services/gym_owner_service.dart';
 import '../../theme/app_theme.dart';
 import '../../dashboard/widgets/dashboard_glass_card.dart';
+import 'enrollment_screen.dart';
 
 /// 360° member view — `GET /gyms/:gymId/members/:membershipId` — plus a staff
 /// notes editor (`PATCH .../notes`) and record edit (`PATCH .../profile`).
@@ -279,6 +280,40 @@ class _MemberDetailScreenState extends ConsumerState<MemberDetailScreen> {
               _row(Icons.fitness_center_rounded, m.assignedTrainerName!),
             ]),
           ],
+          const SizedBox(height: 16),
+          // ── Enrollments action ─────────────────────────────────────────
+          GestureDetector(
+            onTap: () => Navigator.of(context).push(
+              MaterialPageRoute(
+                builder: (_) => EnrollmentScreen(
+                  gymId: widget.gymId,
+                  member: m,
+                ),
+              ),
+            ),
+            child: DashboardGlassCard(
+              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+              child: Row(
+                children: [
+                  Container(
+                    width: 36,
+                    height: 36,
+                    decoration: BoxDecoration(
+                      color: AppColors.accentBlue.withValues(alpha: 0.12),
+                      borderRadius: BorderRadius.circular(10),
+                    ),
+                    child: const Icon(Icons.card_membership_rounded, color: AppColors.accentBlue, size: 18),
+                  ),
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: Text('Enrollments & Lifecycle',
+                        style: AppTextStyles.bodyMedium.copyWith(fontWeight: FontWeight.w600)),
+                  ),
+                  const Icon(Icons.chevron_right_rounded, color: AppColors.textTertiary),
+                ],
+              ),
+            ),
+          ),
           const SizedBox(height: 24),
           OutlinedButton.icon(
             onPressed: _confirmRemove,
