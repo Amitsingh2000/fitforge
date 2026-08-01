@@ -92,23 +92,27 @@ class _EmailVerificationScreenState
 
   void _continueAnyway() {
     // User confirms they've verified — navigate to dashboard
-    final role = ref.read(authProvider).user?.role;
-    if (role == null) {
+    final authState = ref.read(authProvider);
+    final user = authState.user;
+    final role = user?.role;
+    final targetRole = authState.targetRole;
+
+    if (role == null && targetRole == null) {
       Navigator.of(context).pushNamedAndRemoveUntil('/login', (_) => false);
-    } else {
-      switch (role) {
-        case UserRole.gymOwner:
-          Navigator.of(context)
-              .pushNamedAndRemoveUntil('/gym-owner-dashboard', (_) => false);
-          break;
-        case UserRole.trainer:
-          Navigator.of(context)
-              .pushNamedAndRemoveUntil('/trainer-dashboard', (_) => false);
-          break;
-        default:
-          Navigator.of(context)
-              .pushNamedAndRemoveUntil('/dashboard', (_) => false);
+    } else if (role == UserRole.gymOwner || targetRole == UserRole.gymOwner) {
+      if (user?.gymMemberships.isEmpty ?? true) {
+        Navigator.of(context)
+            .pushNamedAndRemoveUntil('/create-gym', (_) => false);
+      } else {
+        Navigator.of(context)
+            .pushNamedAndRemoveUntil('/gym-owner-dashboard', (_) => false);
       }
+    } else if (role == UserRole.trainer || targetRole == UserRole.trainer) {
+      Navigator.of(context)
+          .pushNamedAndRemoveUntil('/trainer-dashboard', (_) => false);
+    } else {
+      Navigator.of(context)
+          .pushNamedAndRemoveUntil('/dashboard', (_) => false);
     }
   }
 

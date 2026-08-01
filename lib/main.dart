@@ -17,6 +17,7 @@ import 'gym_owner/screens/gym_owner_join_requests_screen.dart';
 import 'dashboard/screens/billing_plans_screen.dart';
 import 'dashboard/screens/settings_screen.dart';
 import 'auth/screens/register_screen.dart';
+import 'gym_owner/screens/create_gym_screen.dart';
 import 'auth/screens/forgot_password_screen.dart';
 import 'auth/screens/reset_password_screen.dart';
 import 'auth/screens/email_verification_screen.dart';
@@ -65,6 +66,7 @@ class FitForgeApp extends StatelessWidget {
         '/settings': (context) => const SettingsScreen(),
         '/register': (context) =>
             const RegisterScreen(isEmbeddedInOnboarding: false),
+        '/create-gym': (context) => const CreateGymScreen(),
         '/forgot-password': (context) => const ForgotPasswordScreen(),
         '/reset-password': (context) => const ResetPasswordScreen(),
         '/verify-email': (context) => const EmailVerificationScreen(),
@@ -154,9 +156,14 @@ class _AppEntryState extends ConsumerState<_AppEntry> {
 
         final user = authState.user;
         final role = user?.role;
-        if (role == UserRole.gymOwner || role == UserRole.frontDesk) {
+        final targetRole = authState.targetRole;
+
+        if (role == UserRole.gymOwner || role == UserRole.frontDesk || targetRole == UserRole.gymOwner) {
+          if (user != null && user.gymMemberships.isEmpty) {
+            return const CreateGymScreen();
+          }
           return const GymOwnerDashboard();
-        } else if (role == UserRole.trainer) {
+        } else if (role == UserRole.trainer || targetRole == UserRole.trainer) {
           return const TrainerDashboard();
         } else if (user != null && !user.isOnboardingComplete) {
           // Standalone/gym member who registered but never finished the
