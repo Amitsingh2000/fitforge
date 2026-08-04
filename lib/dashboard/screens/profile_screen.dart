@@ -11,8 +11,10 @@ import '../../theme/app_theme.dart';
 import '../widgets/dashboard_glass_card.dart';
 import 'edit_profile_screen.dart';
 import 'join_gym_screen.dart';
+import 'leaderboard_screen.dart';
 import 'qr_checkin_screen.dart';
 import 'referral_screen.dart';
+import 'rewards_screen.dart';
 import 'settings_screen.dart';
 
 /// Profile content — designed to be embedded inside the DashboardShell.
@@ -1432,6 +1434,39 @@ class _ProfileContentState extends ConsumerState<ProfileContent> {
       padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
       child: Column(
         children: [
+          _buildActionTile(
+            title: 'Streak & Rewards',
+            subtitle: 'View streaks, XP, achievements and leaderboard',
+            icon: Icons.emoji_events_rounded,
+            onTap: () {
+              Navigator.of(context).push(
+                MaterialPageRoute(
+                  builder: (ctx1) => Scaffold(
+                    backgroundColor: AppColors.bgPrimary,
+                    body: SafeArea(
+                      child: StreakRewardsContent(
+                        onNavigateToLeaderboard: () {
+                          Navigator.of(ctx1).push(
+                            MaterialPageRoute(
+                              builder: (ctx2) => Scaffold(
+                                backgroundColor: AppColors.bgPrimary,
+                                body: SafeArea(
+                                  child: LeaderboardContent(
+                                    onBack: () => Navigator.of(ctx2).pop(),
+                                  ),
+                                ),
+                              ),
+                            ),
+                          );
+                        },
+                      ),
+                    ),
+                  ),
+                ),
+              );
+            },
+          ),
+          Divider(color: AppColors.glassBorder, height: 1),
           _buildActionTile(
             title: 'Join a Gym',
             subtitle: 'Enter invite code to connect with your gym',

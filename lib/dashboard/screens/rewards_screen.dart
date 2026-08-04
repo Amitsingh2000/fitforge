@@ -105,6 +105,24 @@ class _StreakRewardsContentState extends State<StreakRewardsContent> {
       padding: const EdgeInsets.fromLTRB(20, 16, 20, 4),
       child: Row(
         children: [
+          GestureDetector(
+            onTap: () => Navigator.of(context).pop(),
+            child: Container(
+              width: 38,
+              height: 38,
+              margin: const EdgeInsets.only(right: 10),
+              decoration: BoxDecoration(
+                borderRadius: BorderRadius.circular(10),
+                color: AppColors.bgTertiary,
+                border: Border.all(color: AppColors.glassBorder),
+              ),
+              child: const Icon(
+                Icons.arrow_back_rounded,
+                color: AppColors.textPrimary,
+                size: 18,
+              ),
+            ),
+          ),
           Container(
             width: 44,
             height: 44,
