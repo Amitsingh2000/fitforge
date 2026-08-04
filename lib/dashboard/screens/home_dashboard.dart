@@ -7,6 +7,7 @@ import '../widgets/radial_progress.dart';
 import '../widgets/linear_progress_bar.dart';
 import '../widgets/streak_flame.dart';
 import 'diet_plan_screen.dart';
+import 'exercise_plan_screen.dart';
 import 'progress_analytics_screen.dart';
 import 'rewards_screen.dart';
 import 'leaderboard_screen.dart';
@@ -164,40 +165,42 @@ class _HomeDashboardState extends State<HomeDashboard>
       case 1:
         return const DietPlanContent(key: ValueKey('diet'));
       case 2:
-        return const ProgressAnalyticsContent(key: ValueKey('progress'));
+        return const ExercisePlanContent(key: ValueKey('exercise'));
       case 3:
+        return const ProgressAnalyticsContent(key: ValueKey('progress'));
+      case 4:
         return StreakRewardsContent(
           key: const ValueKey('rewards'),
           onNavigateToLeaderboard: () {
-            setState(() {
-              _currentNavIndex = 5;
-            });
-          },
-        );
-      case 4:
-        return ProfileContent(
-          key: const ValueKey('profile'),
-          onViewAchievements: () {
-            setState(() {
-              _currentNavIndex = 3;
-            });
-          },
-          onManageBilling: () {
             setState(() {
               _currentNavIndex = 6;
             });
           },
         );
       case 5:
-        return LeaderboardContent(
-          key: const ValueKey('leaderboard'),
-          onBack: () {
+        return ProfileContent(
+          key: const ValueKey('profile'),
+          onViewAchievements: () {
             setState(() {
-              _currentNavIndex = 3;
+              _currentNavIndex = 4;
+            });
+          },
+          onManageBilling: () {
+            setState(() {
+              _currentNavIndex = 7;
             });
           },
         );
       case 6:
+        return LeaderboardContent(
+          key: const ValueKey('leaderboard'),
+          onBack: () {
+            setState(() {
+              _currentNavIndex = 4;
+            });
+          },
+        );
+      case 7:
         return const BillingPlansContent(key: ValueKey('billing'));
       case 0:
       default:
@@ -302,7 +305,7 @@ class _HomeDashboardState extends State<HomeDashboard>
             child: InkWell(
               onTap: () {
                 setState(() {
-                  _currentNavIndex = 3;
+                  _currentNavIndex = 4;
                 });
               },
               borderRadius: BorderRadius.circular(12),
@@ -1362,6 +1365,7 @@ class _HomeDashboardState extends State<HomeDashboard>
     final navItems = [
       {'icon': Icons.home_rounded, 'label': 'Home'},
       {'icon': Icons.restaurant_menu_rounded, 'label': 'Diet'},
+      {'icon': Icons.fitness_center_rounded, 'label': 'Workout'},
       {'icon': Icons.insights_rounded, 'label': 'Progress'},
       {'icon': Icons.emoji_events_rounded, 'label': 'Rewards'},
       {'icon': Icons.person_rounded, 'label': 'Profile'},
@@ -1395,8 +1399,8 @@ class _HomeDashboardState extends State<HomeDashboard>
               children: List.generate(navItems.length, (index) {
                 final item = navItems[index];
                  final isActive = index == _currentNavIndex ||
-                    (_currentNavIndex == 5 && index == 3) ||
-                    (_currentNavIndex == 6 && index == 4);
+                    (_currentNavIndex == 6 && index == 4) ||
+                    (_currentNavIndex == 7 && index == 5);
 
                 return Expanded(
                   child: GestureDetector(
