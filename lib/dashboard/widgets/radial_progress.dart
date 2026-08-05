@@ -20,8 +20,14 @@ class RadialProgress extends StatelessWidget {
     this.child,
   });
 
+  double get _safeProgress {
+    if (progress.isNaN || progress.isInfinite) return 0.0;
+    return progress.clamp(0.0, 1.0);
+  }
+
   @override
   Widget build(BuildContext context) {
+    final validProgress = _safeProgress;
     return SizedBox(
       width: size,
       height: size,
@@ -31,7 +37,7 @@ class RadialProgress extends StatelessWidget {
           CustomPaint(
             size: Size(size, size),
             painter: _RadialPainter(
-              progress: progress,
+              progress: validProgress,
               strokeWidth: strokeWidth,
               progressColor: progressColor,
               trackColor: trackColor ?? AppColors.bgTertiary,
@@ -62,6 +68,8 @@ class _RadialPainter extends CustomPainter {
     final center = Offset(size.width / 2, size.height / 2);
     final radius = (size.width - strokeWidth) / 2;
 
+    if (radius <= 0) return;
+
     // Track
     final trackPaint = Paint()
       ..color = trackColor
@@ -71,34 +79,36 @@ class _RadialPainter extends CustomPainter {
 
     canvas.drawCircle(center, radius, trackPaint);
 
-    // Progress arc
-    final progressPaint = Paint()
-      ..strokeWidth = strokeWidth
-      ..style = PaintingStyle.stroke
-      ..strokeCap = StrokeCap.round
-      ..shader = SweepGradient(
-        startAngle: -pi / 2,
-        endAngle: 3 * pi / 2,
-        colors: [
-          progressColor,
-          progressColor.withValues(alpha: 0.7),
-          progressColor,
-        ],
-        stops: const [0.0, 0.5, 1.0],
-        transform: const GradientRotation(-pi / 2),
-      ).createShader(
-        Rect.fromCircle(center: center, radius: radius),
-      );
-
     final sweepAngle = 2 * pi * progress.clamp(0.0, 1.0);
 
-    canvas.drawArc(
-      Rect.fromCircle(center: center, radius: radius),
-      -pi / 2,
-      sweepAngle,
-      false,
-      progressPaint,
-    );
+    // Progress arc
+    if (sweepAngle > 0) {
+      final progressPaint = Paint()
+        ..strokeWidth = strokeWidth
+        ..style = PaintingStyle.stroke
+        ..strokeCap = StrokeCap.round
+        ..shader = SweepGradient(
+          startAngle: -pi / 2,
+          endAngle: 3 * pi / 2,
+          colors: [
+            progressColor,
+            progressColor.withValues(alpha: 0.7),
+            progressColor,
+          ],
+          stops: const [0.0, 0.5, 1.0],
+          transform: const GradientRotation(-pi / 2),
+        ).createShader(
+          Rect.fromCircle(center: center, radius: radius),
+        );
+
+      canvas.drawArc(
+        Rect.fromCircle(center: center, radius: radius),
+        -pi / 2,
+        sweepAngle,
+        false,
+        progressPaint,
+      );
+    }
 
     // Glow dot at end of progress arc
     if (progress > 0.02) {
@@ -114,7 +124,7 @@ class _RadialPainter extends CustomPainter {
       canvas.drawCircle(dotCenter, strokeWidth / 2 + 4, glowPaint);
 
       final dotPaint = Paint()..color = progressColor;
-      canvas.drawCircle(dotCenter, strokeWidth / 2 - 1, dotPaint);
+      canvas.drawCircle(dotCenter, (strokeWidth / 2 - 1).clamp(1.0, 100.0), dotPaint);
     }
   }
 
