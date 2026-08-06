@@ -12,6 +12,7 @@ import 'progress_analytics_screen.dart';
 import 'leaderboard_screen.dart';
 import 'profile_screen.dart';
 import 'billing_plans_screen.dart';
+import 'rewards_screen.dart';
 
 class HomeDashboard extends StatefulWidget {
   const HomeDashboard({super.key});
@@ -170,7 +171,11 @@ class _HomeDashboardState extends State<HomeDashboard>
       case 4:
         return ProfileContent(
           key: const ValueKey('profile'),
-          onViewAchievements: () {},
+          onViewAchievements: () {
+            setState(() {
+              _currentNavIndex = 7;
+            });
+          },
           onManageBilling: () {
             setState(() {
               _currentNavIndex = 6;
@@ -188,6 +193,15 @@ class _HomeDashboardState extends State<HomeDashboard>
         );
       case 6:
         return const BillingPlansContent(key: ValueKey('billing'));
+      case 7:
+        return StreakRewardsContent(
+          key: const ValueKey('rewards'),
+          onNavigateToLeaderboard: () {
+            setState(() {
+              _currentNavIndex = 5;
+            });
+          },
+        );
       case 0:
       default:
         return _buildHomeContent(key: const ValueKey('home'));
@@ -285,13 +299,13 @@ class _HomeDashboardState extends State<HomeDashboard>
             ),
           ),
           const SizedBox(width: 12),
-          // Right side: Streak badge (redirects to Streak & Rewards tab)
+          // Right side: Streak badge (redirects to Streak & Rewards screen)
           Material(
             color: Colors.transparent,
             child: InkWell(
               onTap: () {
                 setState(() {
-                  _currentNavIndex = 4; // Navigate to Profile (which contains Rewards)
+                  _currentNavIndex = 7; // Navigate to Rewards screen
                 });
               },
               borderRadius: BorderRadius.circular(12),
@@ -1385,7 +1399,8 @@ class _HomeDashboardState extends State<HomeDashboard>
                 final item = navItems[index];
                  final isActive = index == _currentNavIndex ||
                     (_currentNavIndex == 5 && index == 4) ||
-                    (_currentNavIndex == 6 && index == 4);
+                    (_currentNavIndex == 6 && index == 4) ||
+                    (_currentNavIndex == 7 && index == 4);
 
                 return Expanded(
                   child: GestureDetector(
