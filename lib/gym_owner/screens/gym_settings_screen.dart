@@ -27,6 +27,7 @@ class _GymSettingsScreenState extends ConsumerState<GymSettingsScreen> {
   final _stateController = TextEditingController();
   final _pincodeController = TextEditingController();
   final _upiController = TextEditingController();
+  final _facilitiesController = TextEditingController();
 
   bool _loading = true;
   bool _saving = false;
@@ -36,6 +37,11 @@ class _GymSettingsScreenState extends ConsumerState<GymSettingsScreen> {
   String? _logoUrl;
   String? _upiQrUrl;
   bool _storageConfigured = false;
+
+  // Notification preferences
+  bool _muteJoinRequests = false;
+  bool _muteRenewals = false;
+  bool _muteCoupons = false;
 
   @override
   void initState() {
@@ -57,6 +63,10 @@ class _GymSettingsScreenState extends ConsumerState<GymSettingsScreen> {
       ]);
       final gym = results[0] as Map<String, dynamic>;
       final configured = results[1] as bool;
+
+      final facilitiesList = (gym['facilities'] as List?)?.map((e) => e.toString()).toList() ?? [];
+      final muted = (gym['mutedOwnerAlertTypes'] as List?)?.map((e) => e.toString()).toList() ?? [];
+
       if (mounted) {
         setState(() {
           _nameController.text = gym['name'] as String? ?? '';
@@ -67,8 +77,12 @@ class _GymSettingsScreenState extends ConsumerState<GymSettingsScreen> {
           _stateController.text = gym['state'] as String? ?? '';
           _pincodeController.text = gym['pincode'] as String? ?? '';
           _upiController.text = gym['upiId'] as String? ?? '';
+          _facilitiesController.text = facilitiesList.join(', ');
           _logoUrl = gym['logoUrl'] as String?;
           _upiQrUrl = gym['upiQrCodeUrl'] as String?;
+          _muteJoinRequests = muted.contains('OWNER_JOIN_REQUEST');
+          _muteRenewals = muted.contains('OWNER_RENEWAL_DUE');
+          _muteCoupons = muted.contains('OWNER_COUPON_REDEEMED');
           _storageConfigured = configured;
           _loading = false;
         });
@@ -122,6 +136,18 @@ class _GymSettingsScreenState extends ConsumerState<GymSettingsScreen> {
       return;
     }
     setState(() => _saving = true);
+
+    final facilities = _facilitiesController.text
+        .split(',')
+        .map((s) => s.trim())
+        .where((s) => s.isNotEmpty)
+        .toList();
+
+    final mutedTypes = <String>[];
+    if (_muteJoinRequests) mutedTypes.add('OWNER_JOIN_REQUEST');
+    if (_muteRenewals) mutedTypes.add('OWNER_RENEWAL_DUE');
+    if (_muteCoupons) mutedTypes.add('OWNER_COUPON_REDEEMED');
+
     try {
       await ref.read(gymOwnerServiceProvider).updateGym(
             gymId,
@@ -135,6 +161,8 @@ class _GymSettingsScreenState extends ConsumerState<GymSettingsScreen> {
             upiId: _upiController.text.trim(),
             logoUrl: _logoUrl,
             upiQrCodeUrl: _upiQrUrl,
+            facilities: facilities,
+            mutedOwnerAlertTypes: mutedTypes,
           );
       ref.read(selectedGymProvider.notifier).update((g) => g?.copyWith(gymName: _nameController.text.trim()));
       if (mounted) {
@@ -210,6 +238,37 @@ class _GymSettingsScreenState extends ConsumerState<GymSettingsScreen> {
         ]),
         const SizedBox(height: 12),
         _field(_pincodeController, 'Pincode', keyboardType: TextInputType.number),
+        const SizedBox(height: 24),
+        _sectionLabel('FACILITIES & AMENITIES'),
+        const SizedBox(height: 4),
+        Text('Separate facilities with commas (e.g. AC, Sauna, Cardio, Parking, Personal Training)',
+            style: AppTextStyles.caption.copyWith(color: AppColors.textTertiary, fontSize: 11)),
+        const SizedBox(height: 10),
+        _field(_facilitiesController, 'Facilities', hint: 'AC, Sauna, Parking'),
+        const SizedBox(height: 24),
+        _sectionLabel('NOTIFICATION PREFERENCES'),
+        const SizedBox(height: 4),
+        Text('Mute specific owner notifications from your feed',
+            style: AppTextStyles.caption.copyWith(color: AppColors.textTertiary, fontSize: 11)),
+        const SizedBox(height: 10),
+        SwitchListTile(
+          title: const Text('Mute Join Request Alerts', style: TextStyle(color: AppColors.textPrimary, fontSize: 14)),
+          value: _muteJoinRequests,
+          onChanged: (v) => setState(() => _muteJoinRequests = v),
+          activeColor: AppColors.accentBlue,
+        ),
+        SwitchListTile(
+          title: const Text('Mute Membership Renewal Alerts', style: TextStyle(color: AppColors.textPrimary, fontSize: 14)),
+          value: _muteRenewals,
+          onChanged: (v) => setState(() => _muteRenewals = v),
+          activeColor: AppColors.accentBlue,
+        ),
+        SwitchListTile(
+          title: const Text('Mute Coupon Redemption Alerts', style: TextStyle(color: AppColors.textPrimary, fontSize: 14)),
+          value: _muteCoupons,
+          onChanged: (v) => setState(() => _muteCoupons = v),
+          activeColor: AppColors.accentBlue,
+        ),
         const SizedBox(height: 24),
         _sectionLabel('PAYMENTS (UPI)'),
         const SizedBox(height: 4),

@@ -33,8 +33,8 @@ class GymCoupon {
     return GymCoupon(
       id: json['id'] as String? ?? '',
       code: json['code'] as String? ?? '',
-      type: json['type'] as String? ?? 'FLAT',
-      value: _toDouble(json['value']),
+      type: json['discountType'] as String? ?? json['type'] as String? ?? 'FLAT',
+      value: _toDouble(json['discountValue'] ?? json['value']),
       validFrom: _tryParseDate(json['validFrom']),
       validUntil: _tryParseDate(json['validUntil']),
       usageLimit: json['usageLimit'] as int?,

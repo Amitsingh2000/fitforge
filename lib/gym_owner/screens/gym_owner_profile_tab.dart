@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_animate/flutter_animate.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import '../../models/gym_dashboard_data.dart';
 import '../../providers/auth_provider.dart';
 import '../../providers/gym_provider.dart';
 import '../../services/gym_owner_service.dart';
@@ -49,15 +50,15 @@ class _GymOwnerProfileTabState extends ConsumerState<GymOwnerProfileTab> {
       final results = await Future.wait([
         service.getGym(gymId),
         service.getGymSubscription(gymId),
-        service.getMembers(gymId, role: 'MEMBER'),
-        service.getMembers(gymId, role: 'TRAINER'),
+        service.getDashboardOverview(gymId),
       ]);
       if (mounted) {
+        final overview = results[2] as GymDashboardOverview;
         setState(() {
           _gym = results[0] as Map<String, dynamic>;
           _subscription = results[1] as Map<String, dynamic>?;
-          _memberCount = (results[2] as List).length;
-          _trainerCount = (results[3] as List).length;
+          _memberCount = overview.totalMembers;
+          _trainerCount = overview.totalTrainers;
           _loading = false;
         });
       }
@@ -383,6 +384,13 @@ class _GymOwnerProfileTabState extends ConsumerState<GymOwnerProfileTab> {
         'subtitle': 'Front-desk self check-in QR',
         'color': AppColors.accentOrange,
         'onTap': () => Navigator.of(context).push(MaterialPageRoute(builder: (_) => const CheckinPosterScreen())),
+      },
+      {
+        'icon': Icons.headset_mic_outlined,
+        'title': 'Help & Support',
+        'subtitle': 'Raise platform support tickets',
+        'color': AppColors.accentCoral,
+        'onTap': () => Navigator.pushNamed(context, '/gym-owner-support'),
       },
     ];
 

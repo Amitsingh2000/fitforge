@@ -54,152 +54,27 @@ class _GymOwnerTrainersScreenState extends ConsumerState<GymOwnerTrainersScreen>
     }
   }
 
-  final List<Map<String, dynamic>> _allTrainers = [
-    {
-      'name': 'Coach Anil Kumar',
-      'initials': 'AK',
-      'specialization': 'Strength & Conditioning',
-      'experience': '8 years',
-      'certification': 'NSCA-CSCS',
-      'isCertified': true,
-      'clients': 18,
-      'retentionRate': 0.94,
-      'avgRating': 4.8,
-      'isOnline': true,
-      'phone': '+91 99887 76655',
-      'joinDate': 'Jan 2024',
-      'gradientColors': [AppColors.accentBlue, const Color(0xFF6366F1)],
-    },
-    {
-      'name': 'Coach Meera Rao',
-      'initials': 'MR',
-      'specialization': 'Yoga & Flexibility',
-      'experience': '6 years',
-      'certification': 'RYT-500',
-      'isCertified': true,
-      'clients': 22,
-      'retentionRate': 0.97,
-      'avgRating': 4.9,
-      'isOnline': true,
-      'phone': '+91 88776 65544',
-      'joinDate': 'Mar 2024',
-      'gradientColors': [AppColors.accentPurple, AppColors.accentCoral],
-    },
-    {
-      'name': 'Coach Raj Verma',
-      'initials': 'RV',
-      'specialization': 'Cardio & HIIT',
-      'experience': '5 years',
-      'certification': 'ACE-CPT',
-      'isCertified': true,
-      'clients': 15,
-      'retentionRate': 0.88,
-      'avgRating': 4.6,
-      'isOnline': false,
-      'phone': '+91 77665 54433',
-      'joinDate': 'Jun 2024',
-      'gradientColors': [AppColors.accentCyan, AppColors.accentBlue],
-    },
-    {
-      'name': 'Coach Dia Sharma',
-      'initials': 'DS',
-      'specialization': 'CrossFit & Functional',
-      'experience': '4 years',
-      'certification': 'CF-L2',
-      'isCertified': true,
-      'clients': 12,
-      'retentionRate': 0.91,
-      'avgRating': 4.7,
-      'isOnline': false,
-      'phone': '+91 66554 43322',
-      'joinDate': 'Sep 2024',
-      'gradientColors': [AppColors.accentOrange, const Color(0xFFF59E0B)],
-    },
-    {
-      'name': 'Coach Siddharth Nair',
-      'initials': 'SN',
-      'specialization': 'Bodybuilding',
-      'experience': '10 years',
-      'certification': 'ISSA-CFT',
-      'isCertified': true,
-      'clients': 20,
-      'retentionRate': 0.93,
-      'avgRating': 4.8,
-      'isOnline': true,
-      'phone': '+91 55443 32211',
-      'joinDate': 'Nov 2023',
-      'gradientColors': [AppColors.accentCoral, AppColors.accentOrange],
-    },
-    {
-      'name': 'Coach Kavya Iyer',
-      'initials': 'KI',
-      'specialization': 'Pilates & Rehab',
-      'experience': '3 years',
-      'certification': 'PMA-CPT',
-      'isCertified': false,
-      'clients': 9,
-      'retentionRate': 0.85,
-      'avgRating': 4.5,
-      'isOnline': true,
-      'phone': '+91 44332 21100',
-      'joinDate': 'Feb 2025',
-      'gradientColors': [const Color(0xFF6366F1), AppColors.accentPurple],
-    },
-    {
-      'name': 'Coach Arjun Bhat',
-      'initials': 'AB',
-      'specialization': 'Sports Performance',
-      'experience': '7 years',
-      'certification': 'NSCA-CSCS',
-      'isCertified': true,
-      'clients': 16,
-      'retentionRate': 0.90,
-      'avgRating': 4.7,
-      'isOnline': false,
-      'phone': '+91 33221 10099',
-      'joinDate': 'Apr 2024',
-      'gradientColors': [AppColors.accentBlue, AppColors.accentCyan],
-    },
-    {
-      'name': 'Coach Tanya Desai',
-      'initials': 'TD',
-      'specialization': 'Nutrition & Weight Mgmt',
-      'experience': '5 years',
-      'certification': 'NASM-CNC',
-      'isCertified': true,
-      'clients': 14,
-      'retentionRate': 0.92,
-      'avgRating': 4.6,
-      'isOnline': true,
-      'phone': '+91 22110 09988',
-      'joinDate': 'Jul 2024',
-      'gradientColors': [AppColors.accentCyan, const Color(0xFF06B6D4)],
-    },
-  ];
-
   List<Map<String, dynamic>> get _filteredTrainers {
-    var trainers = _allTrainers;
-
-    if (_liveTrainers.isNotEmpty) {
-      trainers = _liveTrainers.map((lt) {
-        return {
-          'trainerId': lt.trainerId,
-          'name': lt.name,
-          'initials': lt.name.isNotEmpty ? lt.name[0] : 'T',
-          'specialization': lt.specialization,
-          'experience': '5+ years',
-          'certification': 'Certified Coach',
-          'isCertified': true,
-          'clients': lt.activeClientsCount,
-          'retentionRate': 0.92,
-          'avgRating': 4.8,
-          'isOnline': lt.status == 'ACTIVE',
-          'phone': lt.phone ?? 'No phone',
-          'joinDate': 'Recent',
-          'gradientColors': [AppColors.accentPurple, AppColors.accentCoral],
-        };
-      }).toList();
-    }
+    var trainers = _liveTrainers.map((lt) {
+      final name = lt.name.isNotEmpty ? lt.name : 'Trainer';
+      final initials = name.split(' ').map((e) => e.isNotEmpty ? e[0] : '').take(2).join('').toUpperCase();
+      return {
+        'trainerId': lt.trainerId,
+        'name': name,
+        'initials': initials.isNotEmpty ? initials : 'T',
+        'specialization': lt.specialization.isNotEmpty ? lt.specialization : 'General Fitness',
+        'experience': '5+ years',
+        'certification': 'Certified Coach',
+        'isCertified': true,
+        'clients': lt.activeClientsCount,
+        'retentionRate': 0.92,
+        'avgRating': 4.8,
+        'isOnline': lt.status == 'ACTIVE',
+        'phone': lt.phone ?? 'No phone',
+        'joinDate': 'Recent',
+        'gradientColors': [AppColors.accentPurple, AppColors.accentCoral],
+      };
+    }).toList();
 
     if (_searchQuery.isEmpty) return trainers;
     return trainers.where((t) {
@@ -330,7 +205,7 @@ class _GymOwnerTrainersScreenState extends ConsumerState<GymOwnerTrainersScreen>
                               ),
                               const SizedBox(height: 2),
                               Text(
-                                '${_allTrainers.length} trainers',
+                                '${_liveTrainers.length} trainers',
                                 style: AppTextStyles.caption.copyWith(
                                   color: AppColors.textSecondary,
                                 ),
@@ -389,7 +264,7 @@ class _GymOwnerTrainersScreenState extends ConsumerState<GymOwnerTrainersScreen>
                             ),
                           ),
                           child: Text(
-                            'Showing ${filtered.length} of ${_allTrainers.length} trainers',
+                            'Showing ${filtered.length} of ${_liveTrainers.length} trainers',
                             style: AppTextStyles.caption.copyWith(
                               color: AppColors.accentPurple,
                               fontWeight: FontWeight.w600,
@@ -554,13 +429,16 @@ class _GymOwnerTrainersScreenState extends ConsumerState<GymOwnerTrainersScreen>
   // ═══════════════════════════════════════════════
 
   Widget _buildSummaryStats() {
-    final totalClients = _allTrainers.fold<int>(
+    final trainers = _filteredTrainers;
+    final totalClients = trainers.fold<int>(
         0, (sum, t) => sum + (t['clients'] as int));
     final onlineCount =
-        _allTrainers.where((t) => t['isOnline'] == true).length;
-    final avgRating = _allTrainers.fold<double>(
-            0, (sum, t) => sum + (t['avgRating'] as double)) /
-        _allTrainers.length;
+        trainers.where((t) => t['isOnline'] == true).length;
+    final avgRating = trainers.isEmpty
+        ? 0.0
+        : trainers.fold<double>(
+                0, (sum, t) => sum + (t['avgRating'] as double)) /
+            trainers.length;
 
     return Row(
       children: [
