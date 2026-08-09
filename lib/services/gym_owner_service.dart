@@ -7,8 +7,11 @@ import '../models/enrollment.dart';
 import '../models/gym_dashboard_data.dart';
 import '../models/gym_member.dart';
 import '../models/gym_trainer.dart';
+import '../models/join_request.dart';
 import '../models/lead.dart';
+import '../models/notification_log.dart';
 import '../models/payment.dart';
+import '../models/support_ticket.dart';
 import 'api_client.dart';
 
 /// Service layer for Gym Owner / Manager / Front Desk API calls.
@@ -51,7 +54,8 @@ class GymOwnerService {
     return Map<String, dynamic>.from(res.data as Map);
   }
 
-  /// Update gym profile — name/contact/address/logo/UPI payout details.
+  /// Update gym profile — name/contact/address/logo/UPI payout details,
+  /// facilities, working hours, photos, muted notification types.
   Future<Map<String, dynamic>> updateGym(
     String gymId, {
     String? name,
@@ -64,6 +68,10 @@ class GymOwnerService {
     String? logoUrl,
     String? upiId,
     String? upiQrCodeUrl,
+    List<String>? facilities,
+    List<Map<String, dynamic>>? workingHours,
+    List<String>? photoUrls,
+    List<String>? mutedOwnerAlertTypes,
   }) async {
     final res = await dio.patch('/gyms/$gymId', data: {
       if (name != null) 'name': name,
@@ -76,6 +84,10 @@ class GymOwnerService {
       if (logoUrl != null) 'logoUrl': logoUrl,
       if (upiId != null) 'upiId': upiId,
       if (upiQrCodeUrl != null) 'upiQrCodeUrl': upiQrCodeUrl,
+      if (facilities != null) 'facilities': facilities,
+      if (workingHours != null) 'workingHours': workingHours,
+      if (photoUrls != null) 'photoUrls': photoUrls,
+      if (mutedOwnerAlertTypes != null) 'mutedOwnerAlertTypes': mutedOwnerAlertTypes,
     });
     return Map<String, dynamic>.from(res.data as Map);
   }
@@ -89,6 +101,18 @@ class GymOwnerService {
   // ────────────────────────────────────────────────────────────────────────────
   // DASHBOARD
   // ────────────────────────────────────────────────────────────────────────────
+
+  /// Get dashboard overview: totalMembers, totalTrainers, activeMemberships, pendingJoinRequests,
+  /// membershipRenewalsDue, revenueOverview, unreadNotifications.
+  Future<GymDashboardOverview> getDashboardOverview(String gymId) async {
+    try {
+      final res = await dio.get('/gyms/$gymId/dashboard/overview');
+      if (res.data == null) return const GymDashboardOverview();
+      return GymDashboardOverview.fromJson(Map<String, dynamic>.from(res.data as Map));
+    } catch (_) {
+      return const GymDashboardOverview();
+    }
+  }
 
   /// Get today's stats: check-ins, collections, new joins, expiring soon, dues.
   Future<GymDashboardToday> getTodayDashboard(String gymId) async {
@@ -110,6 +134,134 @@ class GymOwnerService {
     } catch (_) {
       return const GymDashboardMonthly();
     }
+  }
+
+  /// Get membership growth trend (last 6 months).
+  Future<List<GrowthPoint>> getDashboardGrowth(String gymId) async {
+    try {
+      final res = await dio.get('/gyms/$gymId/dashboard/growth');
+      final list = _extractList(res.data);
+      return list
+          .map((e) => GrowthPoint.fromJson(Map<String, dynamic>.from(e as Map)))
+          .toList();
+    } catch (_) {
+      return [];
+    }
+  }
+
+  /// Get overall and trainer-wise member attendance progress.
+  Future<GymDashboardProgress> getDashboardProgress(String gymId) async {
+    try {
+      final res = await dio.get('/gyms/$gymId/dashboard/progress');
+      if (res.data == null) return const GymDashboardProgress();
+      return GymDashboardProgress.fromJson(Map<String, dynamic>.from(res.data as Map));
+    } catch (_) {
+      return const GymDashboardProgress();
+    }
+  }
+
+  /// Get subscription tier usage breakdown across active members.
+  Future<GymSubscriptionUsage> getSubscriptionUsage(String gymId) async {
+    try {
+      final res = await dio.get('/gyms/$gymId/dashboard/subscription-usage');
+      if (res.data == null) return const GymSubscriptionUsage();
+      return GymSubscriptionUsage.fromJson(Map<String, dynamic>.from(res.data as Map));
+    } catch (_) {
+      return const GymSubscriptionUsage();
+    }
+  }
+
+  /// Get notification feed for gym owner/manager.
+  Future<List<NotificationLog>> getNotifications(
+    String gymId, {
+    bool unreadOnly = false,
+  }) async {
+    try {
+      final query = unreadOnly ? {'unreadOnly': 'true'} : null;
+      final res = await dio.get('/gyms/$gymId/dashboard/notifications', queryParameters: query);
+      final list = _extractList(res.data);
+      return list
+          .map((e) => NotificationLog.fromJson(Map<String, dynamic>.from(e as Map)))
+          .toList();
+    } catch (_) {
+      return [];
+    }
+  }
+
+  /// Mark a specific notification log entry as read.
+  Future<void> markNotificationRead(String gymId, String logId) async {
+    await dio.post('/gyms/$gymId/dashboard/notifications/$logId/read');
+  }
+
+  // ────────────────────────────────────────────────────────────────────────────
+  // JOIN REQUESTS
+  // ────────────────────────────────────────────────────────────────────────────
+
+  /// Get list of pending member join requests for approval.
+  Future<List<JoinRequest>> getJoinRequests(String gymId) async {
+    try {
+      final res = await dio.get('/gyms/$gymId/join-requests');
+      final list = _extractList(res.data);
+      return list
+          .map((e) => JoinRequest.fromJson(Map<String, dynamic>.from(e as Map)))
+          .toList();
+    } catch (_) {
+      return [];
+    }
+  }
+
+  /// Approve a member's pending join request.
+  Future<void> approveJoinRequest(String gymId, String membershipId) async {
+    await dio.post('/gyms/$gymId/join-requests/$membershipId/approve');
+  }
+
+  /// Reject a member's pending join request with optional reason.
+  Future<void> rejectJoinRequest(
+    String gymId,
+    String membershipId, {
+    String? reason,
+  }) async {
+    await dio.post('/gyms/$gymId/join-requests/$membershipId/reject', data: {
+      if (reason != null && reason.isNotEmpty) 'reason': reason,
+    });
+  }
+
+  // ────────────────────────────────────────────────────────────────────────────
+  // SUPPORT TICKETS
+  // ────────────────────────────────────────────────────────────────────────────
+
+  /// Create a new support ticket.
+  Future<SupportTicket> createSupportTicket(
+    String gymId, {
+    required String subject,
+    required String description,
+    String priority = 'MEDIUM',
+  }) async {
+    final res = await dio.post('/gyms/$gymId/support', data: {
+      'subject': subject,
+      'description': description,
+      'priority': priority,
+    });
+    return SupportTicket.fromJson(Map<String, dynamic>.from(res.data as Map));
+  }
+
+  /// Get list of support tickets submitted by this gym.
+  Future<List<SupportTicket>> getSupportTickets(String gymId) async {
+    try {
+      final res = await dio.get('/gyms/$gymId/support');
+      final list = _extractList(res.data);
+      return list
+          .map((e) => SupportTicket.fromJson(Map<String, dynamic>.from(e as Map)))
+          .toList();
+    } catch (_) {
+      return [];
+    }
+  }
+
+  /// Get single support ticket details.
+  Future<SupportTicket> getSupportTicket(String gymId, String ticketId) async {
+    final res = await dio.get('/gyms/$gymId/support/$ticketId');
+    return SupportTicket.fromJson(Map<String, dynamic>.from(res.data as Map));
   }
 
   /// Get trainer roster with active client counts.

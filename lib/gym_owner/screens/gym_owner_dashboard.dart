@@ -34,6 +34,7 @@ class _GymOwnerDashboardState extends ConsumerState<GymOwnerDashboard>
   int _currentNavIndex = 0;
 
   // Live API State
+  GymDashboardOverview _overviewStats = const GymDashboardOverview();
   GymDashboardToday _todayStats = const GymDashboardToday();
   GymDashboardMonthly _monthlyStats = const GymDashboardMonthly();
   List<GymTrainer> _trainerRoster = [];
@@ -71,17 +72,17 @@ class _GymOwnerDashboardState extends ConsumerState<GymOwnerDashboard>
 
     try {
       final service = ref.read(gymOwnerServiceProvider);
-      final today = await service.getTodayDashboard(gymId);
-      final monthly = await service.getMonthlyDashboard(gymId);
-      final trainers = await service.getTrainersRoster(gymId);
-      final members = await service.getMembers(gymId, role: 'MEMBER', limit: 10);
+      final results = await Future.wait([
+        service.getDashboardOverview(gymId),
+        service.getTodayDashboard(gymId),
+        service.getMembers(gymId, role: 'MEMBER', limit: 5),
+      ]);
 
       if (mounted) {
         setState(() {
-          _todayStats = today;
-          _monthlyStats = monthly;
-          _trainerRoster = trainers;
-          _memberPreview = members;
+          _overviewStats = results[0] as GymDashboardOverview;
+          _todayStats = results[1] as GymDashboardToday;
+          _memberPreview = results[2] as List<GymMember>;
           _dashboardLoading = false;
         });
       }
@@ -94,12 +95,13 @@ class _GymOwnerDashboardState extends ConsumerState<GymOwnerDashboard>
 
   // ── Gym data ──
   final String _membershipPlan = 'Pro Plan';
-  final int _notificationCount = 3;
+
+  int get _notificationCount => _overviewStats.unreadNotifications;
 
   List<Map<String, dynamic>> get _analyticsData => [
         {
-          'title': 'Active Members',
-          'value': _monthlyStats.activeMembersCount,
+          'title': 'Total Members',
+          'value': _overviewStats.totalMembers,
           'icon': Icons.directions_run_rounded,
           'color': AppColors.accentCyan,
           'prefix': '',
@@ -115,7 +117,7 @@ class _GymOwnerDashboardState extends ConsumerState<GymOwnerDashboard>
         },
         {
           'title': 'Monthly Revenue',
-          'value': _monthlyStats.totalRevenue,
+          'value': _overviewStats.revenueMonthInr,
           'icon': Icons.account_balance_wallet_rounded,
           'color': AppColors.accentBlue,
           'prefix': '₹',
@@ -123,9 +125,9 @@ class _GymOwnerDashboardState extends ConsumerState<GymOwnerDashboard>
           'isGradient': true,
         },
         {
-          'title': 'New Joins Today',
-          'value': _todayStats.newJoinsCount,
-          'icon': Icons.person_add_rounded,
+          'title': 'Pending Requests',
+          'value': _overviewStats.pendingJoinRequests,
+          'icon': Icons.group_add_rounded,
           'color': AppColors.accentOrange,
           'prefix': '',
           'suffix': '',
@@ -140,7 +142,7 @@ class _GymOwnerDashboardState extends ConsumerState<GymOwnerDashboard>
         },
         {
           'title': 'Trainers',
-          'value': _trainerRoster.length,
+          'value': _overviewStats.totalTrainers,
           'icon': Icons.fitness_center_rounded,
           'color': AppColors.accentPurple,
           'prefix': '',
@@ -525,7 +527,7 @@ class _GymOwnerDashboardState extends ConsumerState<GymOwnerDashboard>
 
           // Notification bell
           GestureDetector(
-            onTap: () => Navigator.pushNamed(context, '/gym-owner-join-requests'),
+            onTap: () => Navigator.pushNamed(context, '/gym-owner-notifications'),
             child: Container(
               width: 44,
               height: 44,

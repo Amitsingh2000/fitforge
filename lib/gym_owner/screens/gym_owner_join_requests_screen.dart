@@ -1,65 +1,27 @@
 import 'dart:ui';
 import 'package:flutter/material.dart';
 import 'package:flutter_animate/flutter_animate.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
+import '../../models/join_request.dart';
+import '../../providers/gym_provider.dart';
+import '../../services/gym_owner_service.dart';
 import '../../theme/app_theme.dart';
 import '../../dashboard/widgets/dashboard_glass_card.dart';
+import '../../dashboard/widgets/state_views.dart';
 
-class GymOwnerJoinRequestsScreen extends StatefulWidget {
+class GymOwnerJoinRequestsScreen extends ConsumerStatefulWidget {
   const GymOwnerJoinRequestsScreen({super.key});
 
   @override
-  State<GymOwnerJoinRequestsScreen> createState() =>
+  ConsumerState<GymOwnerJoinRequestsScreen> createState() =>
       _GymOwnerJoinRequestsScreenState();
 }
 
 class _GymOwnerJoinRequestsScreenState
-    extends State<GymOwnerJoinRequestsScreen> {
-  final List<Map<String, dynamic>> _requests = [
-    {
-      'id': '1',
-      'name': 'Aditya Verma',
-      'initials': 'AV',
-      'age': '24',
-      'goal': 'Muscle Gain',
-      'weight': '68 kg',
-      'preferredTrainer': 'Rahul Sharma',
-      'requestedDate': 'Just now',
-      'avatarColor': AppColors.accentBlue,
-    },
-    {
-      'id': '2',
-      'name': 'Sneha Patil',
-      'initials': 'SP',
-      'age': '29',
-      'goal': 'Weight Loss',
-      'weight': '82 kg',
-      'preferredTrainer': 'Any Available',
-      'requestedDate': '2 hours ago',
-      'avatarColor': AppColors.accentCyan,
-    },
-    {
-      'id': '3',
-      'name': 'Karan Mehta',
-      'initials': 'KM',
-      'age': '31',
-      'goal': 'Endurance',
-      'weight': '75 kg',
-      'preferredTrainer': 'Arjun Reddy',
-      'requestedDate': 'Yesterday',
-      'avatarColor': AppColors.accentPurple,
-    },
-    {
-      'id': '4',
-      'name': 'Neha Gupta',
-      'initials': 'NG',
-      'age': '26',
-      'goal': 'General Fitness',
-      'weight': '58 kg',
-      'preferredTrainer': 'Priya Patel',
-      'requestedDate': 'Yesterday',
-      'avatarColor': AppColors.accentCoral,
-    },
-  ];
+    extends ConsumerState<GymOwnerJoinRequestsScreen> {
+  List<JoinRequest> _requests = [];
+  bool _loading = true;
+  String? _error;
 
   final List<String> _rejectionReasons = [
     'Gym at Full Capacity',
@@ -73,20 +35,70 @@ class _GymOwnerJoinRequestsScreenState
   final TextEditingController _customReasonController = TextEditingController();
 
   @override
+  void initState() {
+    super.initState();
+    WidgetsBinding.instance.addPostFrameCallback((_) => _loadRequests());
+  }
+
+  @override
   void dispose() {
     _customReasonController.dispose();
     super.dispose();
   }
 
-  void _acceptRequest(String id, String name) {
+  Future<void> _loadRequests() async {
+    final gymId = ref.read(currentGymIdProvider);
+    if (gymId == null || gymId.isEmpty) {
+      if (mounted) setState(() => _loading = false);
+      return;
+    }
+
     setState(() {
-      _requests.removeWhere((req) => req['id'] == id);
+      _loading = true;
+      _error = null;
     });
-    _showSnackBar('Accepted $name. Membership onboarding assigned.',
-        AppColors.accentCyan);
+
+    try {
+      final service = ref.read(gymOwnerServiceProvider);
+      final list = await service.getJoinRequests(gymId);
+      if (mounted) {
+        setState(() {
+          _requests = list;
+          _loading = false;
+        });
+      }
+    } catch (e) {
+      if (mounted) {
+        setState(() {
+          _loading = false;
+          _error = friendlyApiError(e);
+        });
+      }
+    }
   }
 
-  void _showRejectionDialog(String id, String name) {
+  Future<void> _acceptRequest(JoinRequest request) async {
+    final gymId = ref.read(currentGymIdProvider);
+    if (gymId == null) return;
+
+    try {
+      await ref
+          .read(gymOwnerServiceProvider)
+          .approveJoinRequest(gymId, request.membershipId);
+
+      setState(() {
+        _requests.removeWhere((req) => req.membershipId == request.membershipId);
+      });
+      _showSnackBar(
+        'Accepted ${request.fullName}. Membership onboarding assigned.',
+        AppColors.accentCyan,
+      );
+    } catch (e) {
+      _showSnackBar('Failed to approve: ${friendlyApiError(e)}', AppColors.accentCoral);
+    }
+  }
+
+  void _showRejectionDialog(JoinRequest request) {
     setState(() {
       _selectedRejectionReason = null;
       _customReasonController.clear();
@@ -159,7 +171,7 @@ class _GymOwnerJoinRequestsScreenState
                               ),
                             ),
                             Text(
-                              'Select a reason for rejecting $name',
+                              'Select a reason for rejecting ${request.fullName}',
                               style: AppTextStyles.caption.copyWith(
                                 color: AppColors.textTertiary,
                                 fontSize: 11,
@@ -275,15 +287,39 @@ class _GymOwnerJoinRequestsScreenState
                           child: GestureDetector(
                             onTap: _selectedRejectionReason == null
                                 ? null
-                                : () {
+                                : () async {
+                                    final gymId = ref.read(currentGymIdProvider);
+                                    if (gymId == null) return;
+
+                                    final finalReason = _selectedRejectionReason == 'Other (Type Below)'
+                                        ? _customReasonController.text.trim()
+                                        : _selectedRejectionReason;
+
                                     Navigator.pop(context);
-                                    setState(() {
-                                      _requests
-                                          .removeWhere((req) => req['id'] == id);
-                                    });
-                                    _showSnackBar(
-                                        'Request from $name rejected.',
-                                        AppColors.accentCoral);
+
+                                    try {
+                                      await ref
+                                          .read(gymOwnerServiceProvider)
+                                          .rejectJoinRequest(
+                                            gymId,
+                                            request.membershipId,
+                                            reason: finalReason,
+                                          );
+
+                                      setState(() {
+                                        _requests.removeWhere(
+                                            (req) => req.membershipId == request.membershipId);
+                                      });
+                                      _showSnackBar(
+                                        'Request from ${request.fullName} rejected.',
+                                        AppColors.accentCoral,
+                                      );
+                                    } catch (e) {
+                                      _showSnackBar(
+                                        'Failed to reject: ${friendlyApiError(e)}',
+                                        AppColors.accentCoral,
+                                      );
+                                    }
                                   },
                             child: Container(
                               padding: const EdgeInsets.symmetric(vertical: 14),
@@ -410,6 +446,11 @@ class _GymOwnerJoinRequestsScreenState
                       ),
                     ],
                   ),
+                  const Spacer(),
+                  IconButton(
+                    icon: const Icon(Icons.refresh_rounded, color: AppColors.textSecondary),
+                    onPressed: _loadRequests,
+                  ),
                 ],
               )
                   .animate()
@@ -419,30 +460,42 @@ class _GymOwnerJoinRequestsScreenState
 
             // Content
             Expanded(
-              child: _requests.isEmpty
-                  ? _buildEmptyState()
-                  : ListView.builder(
-                      physics: const BouncingScrollPhysics(),
-                      padding: const EdgeInsets.fromLTRB(20, 8, 20, 40),
-                      itemCount: _requests.length,
-                      itemBuilder: (context, index) {
-                        return Padding(
-                          padding: const EdgeInsets.only(bottom: 16),
-                          child: _buildRequestCard(_requests[index])
-                              .animate(key: ValueKey(_requests[index]['id']))
-                              .fadeIn(
-                                  duration: 500.ms,
-                                  delay:
-                                      Duration(milliseconds: index * 100))
-                              .slideY(
-                                  begin: 0.1,
-                                  end: 0,
-                                  duration: 500.ms,
-                                  delay:
-                                      Duration(milliseconds: index * 100)),
-                        );
-                      },
-                    ),
+              child: _loading
+                  ? const Center(child: CircularProgressIndicator())
+                  : _error != null
+                      ? Center(
+                          child: Text(
+                            _error!,
+                            style: AppTextStyles.bodyMedium.copyWith(color: AppColors.accentCoral),
+                          ),
+                        )
+                      : _requests.isEmpty
+                          ? _buildEmptyState()
+                          : RefreshIndicator(
+                              onRefresh: _loadRequests,
+                              child: ListView.builder(
+                                physics: const BouncingScrollPhysics(),
+                                padding: const EdgeInsets.fromLTRB(20, 8, 20, 40),
+                                itemCount: _requests.length,
+                                itemBuilder: (context, index) {
+                                  return Padding(
+                                    padding: const EdgeInsets.only(bottom: 16),
+                                    child: _buildRequestCard(_requests[index])
+                                        .animate(key: ValueKey(_requests[index].membershipId))
+                                        .fadeIn(
+                                            duration: 500.ms,
+                                            delay:
+                                                Duration(milliseconds: index * 100))
+                                        .slideY(
+                                            begin: 0.1,
+                                            end: 0,
+                                            duration: 500.ms,
+                                            delay:
+                                                Duration(milliseconds: index * 100)),
+                                  );
+                                },
+                              ),
+                            ),
             ),
           ],
         ),
@@ -490,8 +543,8 @@ class _GymOwnerJoinRequestsScreenState
     );
   }
 
-  Widget _buildRequestCard(Map<String, dynamic> request) {
-    final color = request['avatarColor'] as Color;
+  Widget _buildRequestCard(JoinRequest request) {
+    const color = AppColors.accentBlue;
 
     return DashboardGlassCard(
       padding: const EdgeInsets.all(16),
@@ -511,7 +564,7 @@ class _GymOwnerJoinRequestsScreenState
                 ),
                 child: Center(
                   child: Text(
-                    request['initials'],
+                    request.initials,
                     style: AppTextStyles.titleMedium.copyWith(
                       color: color,
                       fontWeight: FontWeight.w800,
@@ -525,7 +578,7 @@ class _GymOwnerJoinRequestsScreenState
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     Text(
-                      request['name'],
+                      request.fullName,
                       style: AppTextStyles.titleMedium.copyWith(
                         fontWeight: FontWeight.w700,
                       ),
@@ -533,14 +586,14 @@ class _GymOwnerJoinRequestsScreenState
                     const SizedBox(height: 2),
                     Row(
                       children: [
-                        Icon(
+                        const Icon(
                           Icons.schedule_rounded,
                           color: AppColors.textTertiary,
                           size: 12,
                         ),
                         const SizedBox(width: 4),
                         Text(
-                          'Requested ${request['requestedDate']}',
+                          'Requested ${_timeAgo(request.requestedAt)}',
                           style: AppTextStyles.caption.copyWith(
                             color: AppColors.textTertiary,
                           ),
@@ -571,9 +624,9 @@ class _GymOwnerJoinRequestsScreenState
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      _buildDetailRow(Icons.cake_rounded, 'Age', request['age']),
+                      _buildDetailRow(Icons.cake_rounded, 'Age', request.age ?? 'N/A'),
                       const SizedBox(height: 10),
-                      _buildDetailRow(Icons.flag_rounded, 'Goal', request['goal']),
+                      _buildDetailRow(Icons.flag_rounded, 'Goal', request.fitnessGoal ?? 'Fitness'),
                     ],
                   ),
                 ),
@@ -581,9 +634,9 @@ class _GymOwnerJoinRequestsScreenState
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      _buildDetailRow(Icons.monitor_weight_rounded, 'Weight', request['weight']),
+                      _buildDetailRow(Icons.monitor_weight_rounded, 'Weight', request.weight != null ? '${request.weight} kg' : 'N/A'),
                       const SizedBox(height: 10),
-                      _buildDetailRow(Icons.sports_rounded, 'Trainer', request['preferredTrainer']),
+                      _buildDetailRow(Icons.sports_rounded, 'Trainer', request.preferredTrainerName ?? 'Any'),
                     ],
                   ),
                 ),
@@ -599,8 +652,7 @@ class _GymOwnerJoinRequestsScreenState
               Expanded(
                 flex: 5,
                 child: GestureDetector(
-                  onTap: () =>
-                      _acceptRequest(request['id'], request['name']),
+                  onTap: () => _acceptRequest(request),
                   child: Container(
                     padding: const EdgeInsets.symmetric(vertical: 12),
                     decoration: BoxDecoration(
@@ -633,8 +685,7 @@ class _GymOwnerJoinRequestsScreenState
               Expanded(
                 flex: 3,
                 child: GestureDetector(
-                  onTap: () =>
-                      _showRejectionDialog(request['id'], request['name']),
+                  onTap: () => _showRejectionDialog(request),
                   child: Container(
                     padding: const EdgeInsets.symmetric(vertical: 12),
                     decoration: BoxDecoration(
@@ -659,33 +710,20 @@ class _GymOwnerJoinRequestsScreenState
               ),
             ],
           ),
-          const SizedBox(height: 10),
-          GestureDetector(
-            onTap: () {
-              // View Profile logic
-            },
-            child: Container(
-              padding: const EdgeInsets.symmetric(vertical: 12),
-              decoration: BoxDecoration(
-                borderRadius: BorderRadius.circular(12),
-                color: AppColors.glassBg,
-                border: Border.all(color: AppColors.glassBorder),
-              ),
-              child: Center(
-                child: Text(
-                  'View Full Profile',
-                  style: AppTextStyles.labelLarge.copyWith(
-                    color: AppColors.textSecondary,
-                    fontWeight: FontWeight.w600,
-                    fontSize: 13,
-                  ),
-                ),
-              ),
-            ),
-          ),
         ],
       ),
     );
+  }
+
+  String _timeAgo(DateTime dt) {
+    final diff = DateTime.now().difference(dt);
+    if (diff.inMinutes < 60) {
+      return diff.inMinutes <= 1 ? 'Just now' : '${diff.inMinutes} mins ago';
+    } else if (diff.inHours < 24) {
+      return '${diff.inHours} hours ago';
+    } else {
+      return '${diff.inDays} days ago';
+    }
   }
 
   Widget _buildDetailRow(IconData icon, String label, String value) {

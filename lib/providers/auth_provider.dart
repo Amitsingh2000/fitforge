@@ -251,20 +251,20 @@ class AuthNotifier extends StateNotifier<AuthState> {
   Future<void> logout() async {
     final storedRefreshToken = _ref.read(refreshTokenProvider);
 
-    // Optimistically clear local state first so the UI transitions immediately
-    await _clearSession();
-    state = AuthState.unauthenticated();
-
-    // Then revoke the server session (best-effort — don't block on failure)
+    // 1. Revoke the server session first while the Bearer token is still present in memory
     if (storedRefreshToken != null) {
       try {
         final dio = _ref.read(dioProvider);
         await dio.post('/auth/logout',
             data: {'refreshToken': storedRefreshToken});
-      } catch (e) {
-        // Ignore — local session is already cleared
+      } catch (_) {
+        // Best-effort — even if network fails, clear local session
       }
     }
+
+    // 2. Clear local session & tokens and notify listeners
+    await _clearSession();
+    state = AuthState.unauthenticated();
   }
 
   // ──────────────────────────────────────────────────────────────────────────
