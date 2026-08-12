@@ -73,6 +73,8 @@ class _GymOwnerTrainersScreenState extends ConsumerState<GymOwnerTrainersScreen>
         'phone': lt.phone ?? 'No phone',
         'joinDate': 'Recent',
         'gradientColors': [AppColors.accentPurple, AppColors.accentCoral],
+        'sessionsLoggedLast30Days': lt.sessionsLoggedLast30Days,
+        'clientCheckInRate7dPercent': lt.clientCheckInRate7dPercent,
       };
     }).toList();
 
@@ -756,9 +758,11 @@ class _GymOwnerTrainersScreenState extends ConsumerState<GymOwnerTrainersScreen>
               ),
               const SizedBox(width: 8),
               _buildStatItem(
-                icon: Icons.star_rounded,
-                value: '${trainer['avgRating']}',
-                label: 'Rating',
+                icon: Icons.check_circle_outline_rounded,
+                value: trainer['clientCheckInRate7dPercent'] != null
+                    ? '${(trainer['clientCheckInRate7dPercent'] as num).toStringAsFixed(0)}%'
+                    : '—',
+                label: '7d Check-in',
                 color: AppColors.accentOrange,
               ),
               const SizedBox(width: 8),
@@ -771,6 +775,13 @@ class _GymOwnerTrainersScreenState extends ConsumerState<GymOwnerTrainersScreen>
               ),
             ],
           ),
+          if (trainer['sessionsLoggedLast30Days'] != null) ...[
+            const SizedBox(height: 8),
+            Text(
+              '${trainer['sessionsLoggedLast30Days']} sessions logged in the last 30 days',
+              style: AppTextStyles.caption.copyWith(color: AppColors.textTertiary, fontSize: 10),
+            ),
+          ],
 
           const SizedBox(height: 12),
 

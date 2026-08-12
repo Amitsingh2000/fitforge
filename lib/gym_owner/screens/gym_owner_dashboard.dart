@@ -16,6 +16,7 @@ import 'communications_screen.dart';
 import 'coupons_screen.dart';
 import 'create_gym_screen.dart';
 import 'gym_owner_members_tab.dart';
+import 'gym_owner_notifications_screen.dart';
 import 'gym_owner_referrals_tab.dart';
 import 'gym_owner_analytics_tab.dart';
 import 'gym_owner_profile_tab.dart';
@@ -36,7 +37,6 @@ class _GymOwnerDashboardState extends ConsumerState<GymOwnerDashboard>
   // Live API State
   GymDashboardOverview _overviewStats = const GymDashboardOverview();
   GymDashboardToday _todayStats = const GymDashboardToday();
-  GymDashboardMonthly _monthlyStats = const GymDashboardMonthly();
   List<GymTrainer> _trainerRoster = [];
   List<GymMember> _memberPreview = [];
   bool _dashboardLoading = true;
@@ -75,14 +75,16 @@ class _GymOwnerDashboardState extends ConsumerState<GymOwnerDashboard>
       final results = await Future.wait([
         service.getDashboardOverview(gymId),
         service.getTodayDashboard(gymId),
-        service.getMembers(gymId, role: 'MEMBER', limit: 5),
+        service.getTrainersRoster(gymId),
+        service.getMembers(gymId, role: 'MEMBER', limit: 10),
       ]);
 
       if (mounted) {
         setState(() {
           _overviewStats = results[0] as GymDashboardOverview;
           _todayStats = results[1] as GymDashboardToday;
-          _memberPreview = results[2] as List<GymMember>;
+          _trainerRoster = results[2] as List<GymTrainer>;
+          _memberPreview = results[3] as List<GymMember>;
           _dashboardLoading = false;
         });
       }
@@ -527,7 +529,9 @@ class _GymOwnerDashboardState extends ConsumerState<GymOwnerDashboard>
 
           // Notification bell
           GestureDetector(
-            onTap: () => Navigator.pushNamed(context, '/gym-owner-notifications'),
+            onTap: () => Navigator.of(context).push(
+              MaterialPageRoute(builder: (_) => const GymOwnerNotificationsScreen()),
+            ),
             child: Container(
               width: 44,
               height: 44,

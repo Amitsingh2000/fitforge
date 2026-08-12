@@ -1,14 +1,15 @@
-import 'dart:ui';
 import 'package:flutter/material.dart';
 import 'package:flutter_animate/flutter_animate.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import '../../models/join_request.dart';
-import '../../providers/gym_provider.dart';
-import '../../services/gym_owner_service.dart';
 import '../../theme/app_theme.dart';
 import '../../dashboard/widgets/dashboard_glass_card.dart';
 import '../../dashboard/widgets/state_views.dart';
+import '../../models/join_request.dart';
+import '../../providers/gym_provider.dart';
+import '../../services/gym_owner_service.dart';
 
+/// `GET/POST /gyms/:gymId/join-requests` — pending self-serve member join
+/// requests (found via search/activation code), owner approves or rejects.
 class GymOwnerJoinRequestsScreen extends ConsumerStatefulWidget {
   const GymOwnerJoinRequestsScreen({super.key});
 
@@ -22,6 +23,7 @@ class _GymOwnerJoinRequestsScreenState
   List<JoinRequest> _requests = [];
   bool _loading = true;
   String? _error;
+  final Set<String> _actioningIds = {};
 
   final List<String> _rejectionReasons = [
     'Gym at Full Capacity',
@@ -37,7 +39,7 @@ class _GymOwnerJoinRequestsScreenState
   @override
   void initState() {
     super.initState();
-    WidgetsBinding.instance.addPostFrameCallback((_) => _loadRequests());
+    WidgetsBinding.instance.addPostFrameCallback((_) => _load());
   }
 
   @override
@@ -46,55 +48,58 @@ class _GymOwnerJoinRequestsScreenState
     super.dispose();
   }
 
-  Future<void> _loadRequests() async {
+  Future<void> _load() async {
     final gymId = ref.read(currentGymIdProvider);
-    if (gymId == null || gymId.isEmpty) {
-      if (mounted) setState(() => _loading = false);
+    if (gymId == null) {
+      setState(() { _loading = false; _error = 'No gym selected.'; });
       return;
     }
-
-    setState(() {
-      _loading = true;
-      _error = null;
-    });
-
+    setState(() { _loading = true; _error = null; });
     try {
-      final service = ref.read(gymOwnerServiceProvider);
-      final list = await service.getJoinRequests(gymId);
-      if (mounted) {
-        setState(() {
-          _requests = list;
-          _loading = false;
-        });
-      }
+      final requests = await ref.read(gymOwnerServiceProvider).getJoinRequests(gymId);
+      if (mounted) setState(() { _requests = requests; _loading = false; });
     } catch (e) {
-      if (mounted) {
-        setState(() {
-          _loading = false;
-          _error = friendlyApiError(e);
-        });
-      }
+      if (mounted) setState(() { _loading = false; _error = friendlyApiError(e); });
     }
   }
 
   Future<void> _acceptRequest(JoinRequest request) async {
     final gymId = ref.read(currentGymIdProvider);
     if (gymId == null) return;
+    setState(() => _actioningIds.add(request.membershipId));
+    try {
+      await ref.read(gymOwnerServiceProvider).approveJoinRequest(gymId, request.membershipId);
+      if (!mounted) return;
+      setState(() {
+        _requests.removeWhere((r) => r.membershipId == request.membershipId);
+        _actioningIds.remove(request.membershipId);
+      });
+      _showSnackBar('Accepted ${request.fullName}. Membership activated.', AppColors.accentCyan);
+    } catch (e) {
+      if (!mounted) return;
+      setState(() => _actioningIds.remove(request.membershipId));
+      _showSnackBar(friendlyApiError(e), AppColors.accentCoral);
+    }
+  }
 
+  Future<void> _rejectRequest(JoinRequest request, String? reason) async {
+    final gymId = ref.read(currentGymIdProvider);
+    if (gymId == null) return;
+    setState(() => _actioningIds.add(request.membershipId));
     try {
       await ref
           .read(gymOwnerServiceProvider)
-          .approveJoinRequest(gymId, request.membershipId);
-
+          .rejectJoinRequest(gymId, request.membershipId, reason: reason);
+      if (!mounted) return;
       setState(() {
-        _requests.removeWhere((req) => req.membershipId == request.membershipId);
+        _requests.removeWhere((r) => r.membershipId == request.membershipId);
+        _actioningIds.remove(request.membershipId);
       });
-      _showSnackBar(
-        'Accepted ${request.fullName}. Membership onboarding assigned.',
-        AppColors.accentCyan,
-      );
+      _showSnackBar('Request from ${request.fullName} rejected.', AppColors.accentCoral);
     } catch (e) {
-      _showSnackBar('Failed to approve: ${friendlyApiError(e)}', AppColors.accentCoral);
+      if (!mounted) return;
+      setState(() => _actioningIds.remove(request.membershipId));
+      _showSnackBar(friendlyApiError(e), AppColors.accentCoral);
     }
   }
 
@@ -131,7 +136,6 @@ class _GymOwnerJoinRequestsScreenState
                 child: Column(
                   mainAxisSize: MainAxisSize.min,
                   children: [
-                    // Handle bar
                     Container(
                       width: 40,
                       height: 4,
@@ -141,8 +145,6 @@ class _GymOwnerJoinRequestsScreenState
                       ),
                     ),
                     const SizedBox(height: 20),
-
-                    // Title
                     Row(
                       children: [
                         Container(
@@ -182,8 +184,6 @@ class _GymOwnerJoinRequestsScreenState
                       ],
                     ),
                     const SizedBox(height: 24),
-
-                    // Reasons
                     Wrap(
                       spacing: 8,
                       runSpacing: 10,
@@ -229,8 +229,6 @@ class _GymOwnerJoinRequestsScreenState
                         );
                       }).toList(),
                     ),
-
-                    // Custom Reason Input
                     if (_selectedRejectionReason == 'Other (Type Below)') ...[
                       const SizedBox(height: 16),
                       Container(
@@ -253,10 +251,7 @@ class _GymOwnerJoinRequestsScreenState
                         ),
                       ),
                     ],
-
                     const SizedBox(height: 28),
-
-                    // Actions
                     Row(
                       children: [
                         Expanded(
@@ -287,39 +282,16 @@ class _GymOwnerJoinRequestsScreenState
                           child: GestureDetector(
                             onTap: _selectedRejectionReason == null
                                 ? null
-                                : () async {
-                                    final gymId = ref.read(currentGymIdProvider);
-                                    if (gymId == null) return;
-
-                                    final finalReason = _selectedRejectionReason == 'Other (Type Below)'
-                                        ? _customReasonController.text.trim()
-                                        : _selectedRejectionReason;
-
+                                : () {
+                                    final reason =
+                                        _selectedRejectionReason ==
+                                                'Other (Type Below)'
+                                            ? _customReasonController.text.trim()
+                                            : _selectedRejectionReason;
                                     Navigator.pop(context);
-
-                                    try {
-                                      await ref
-                                          .read(gymOwnerServiceProvider)
-                                          .rejectJoinRequest(
-                                            gymId,
-                                            request.membershipId,
-                                            reason: finalReason,
-                                          );
-
-                                      setState(() {
-                                        _requests.removeWhere(
-                                            (req) => req.membershipId == request.membershipId);
-                                      });
-                                      _showSnackBar(
-                                        'Request from ${request.fullName} rejected.',
-                                        AppColors.accentCoral,
-                                      );
-                                    } catch (e) {
-                                      _showSnackBar(
-                                        'Failed to reject: ${friendlyApiError(e)}',
-                                        AppColors.accentCoral,
-                                      );
-                                    }
+                                    _rejectRequest(
+                                        request,
+                                        (reason?.isEmpty ?? true) ? null : reason);
                                   },
                             child: Container(
                               padding: const EdgeInsets.symmetric(vertical: 14),
@@ -364,6 +336,7 @@ class _GymOwnerJoinRequestsScreenState
   }
 
   void _showSnackBar(String message, Color color) {
+    if (!mounted) return;
     ScaffoldMessenger.of(context).hideCurrentSnackBar();
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
@@ -406,7 +379,6 @@ class _GymOwnerJoinRequestsScreenState
       body: SafeArea(
         child: Column(
           children: [
-            // Header
             Padding(
               padding: const EdgeInsets.fromLTRB(20, 16, 20, 16),
               child: Row(
@@ -446,105 +418,55 @@ class _GymOwnerJoinRequestsScreenState
                       ),
                     ],
                   ),
-                  const Spacer(),
-                  IconButton(
-                    icon: const Icon(Icons.refresh_rounded, color: AppColors.textSecondary),
-                    onPressed: _loadRequests,
-                  ),
                 ],
               )
                   .animate()
                   .fadeIn(duration: 400.ms)
                   .slideX(begin: -0.05, end: 0, duration: 400.ms),
             ),
-
-            // Content
-            Expanded(
-              child: _loading
-                  ? const Center(child: CircularProgressIndicator())
-                  : _error != null
-                      ? Center(
-                          child: Text(
-                            _error!,
-                            style: AppTextStyles.bodyMedium.copyWith(color: AppColors.accentCoral),
-                          ),
-                        )
-                      : _requests.isEmpty
-                          ? _buildEmptyState()
-                          : RefreshIndicator(
-                              onRefresh: _loadRequests,
-                              child: ListView.builder(
-                                physics: const BouncingScrollPhysics(),
-                                padding: const EdgeInsets.fromLTRB(20, 8, 20, 40),
-                                itemCount: _requests.length,
-                                itemBuilder: (context, index) {
-                                  return Padding(
-                                    padding: const EdgeInsets.only(bottom: 16),
-                                    child: _buildRequestCard(_requests[index])
-                                        .animate(key: ValueKey(_requests[index].membershipId))
-                                        .fadeIn(
-                                            duration: 500.ms,
-                                            delay:
-                                                Duration(milliseconds: index * 100))
-                                        .slideY(
-                                            begin: 0.1,
-                                            end: 0,
-                                            duration: 500.ms,
-                                            delay:
-                                                Duration(milliseconds: index * 100)),
-                                  );
-                                },
-                              ),
-                            ),
-            ),
+            Expanded(child: _buildContent()),
           ],
         ),
       ),
     );
   }
 
-  Widget _buildEmptyState() {
-    return Center(
-      child: Column(
-        mainAxisAlignment: MainAxisAlignment.center,
-        children: [
-          Container(
-            width: 100,
-            height: 100,
-            decoration: BoxDecoration(
-              shape: BoxShape.circle,
-              color: AppColors.accentBlue.withValues(alpha: 0.05),
-            ),
-            child: Icon(
-              Icons.done_all_rounded,
-              size: 48,
-              color: AppColors.accentBlue.withValues(alpha: 0.5),
-            ),
-          ),
-          const SizedBox(height: 24),
-          Text(
-            'All caught up!',
-            style: AppTextStyles.titleMedium.copyWith(
-              fontWeight: FontWeight.w700,
-            ),
-          ),
-          const SizedBox(height: 8),
-          Text(
-            'No pending join requests.',
-            style: AppTextStyles.bodyMedium.copyWith(
-              color: AppColors.textTertiary,
-            ),
-          ),
-        ]
-            .animate(interval: 100.ms)
-            .fadeIn(duration: 600.ms)
-            .slideY(begin: 0.1, end: 0, duration: 600.ms),
+  Widget _buildContent() {
+    if (_loading) return const LoadingView(message: 'Loading join requests...');
+    if (_error != null) return ErrorRetryView(message: _error!, onRetry: _load);
+    if (_requests.isEmpty) return _buildEmptyState();
+
+    return RefreshIndicator(
+      onRefresh: _load,
+      color: AppColors.accentBlue,
+      child: ListView.builder(
+        physics: const AlwaysScrollableScrollPhysics(parent: BouncingScrollPhysics()),
+        padding: const EdgeInsets.fromLTRB(20, 8, 20, 40),
+        itemCount: _requests.length,
+        itemBuilder: (context, index) {
+          return Padding(
+            padding: const EdgeInsets.only(bottom: 16),
+            child: _buildRequestCard(_requests[index])
+                .animate(key: ValueKey(_requests[index].membershipId))
+                .fadeIn(duration: 500.ms, delay: Duration(milliseconds: index * 100))
+                .slideY(begin: 0.1, end: 0, duration: 500.ms, delay: Duration(milliseconds: index * 100)),
+          );
+        },
       ),
+    );
+  }
+
+  Widget _buildEmptyState() {
+    return const EmptyStateView(
+      icon: Icons.done_all_rounded,
+      title: 'All caught up!',
+      subtitle: 'No pending join requests.',
     );
   }
 
   Widget _buildRequestCard(JoinRequest request) {
     const color = AppColors.accentBlue;
+    final isActioning = _actioningIds.contains(request.membershipId);
 
     return DashboardGlassCard(
       padding: const EdgeInsets.all(16),
@@ -552,7 +474,6 @@ class _GymOwnerJoinRequestsScreenState
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          // ── Header Row ──
           Row(
             children: [
               Container(
@@ -593,7 +514,7 @@ class _GymOwnerJoinRequestsScreenState
                         ),
                         const SizedBox(width: 4),
                         Text(
-                          'Requested ${_timeAgo(request.requestedAt)}',
+                          'Requested ${_formatRelativeTime(request.requestedAt)}',
                           style: AppTextStyles.caption.copyWith(
                             color: AppColors.textTertiary,
                           ),
@@ -605,10 +526,7 @@ class _GymOwnerJoinRequestsScreenState
               ),
             ],
           ),
-
           const SizedBox(height: 20),
-
-          // ── Details Grid ──
           Container(
             padding: const EdgeInsets.all(12),
             decoration: BoxDecoration(
@@ -618,41 +536,23 @@ class _GymOwnerJoinRequestsScreenState
                 color: AppColors.glassBorder.withValues(alpha: 0.5),
               ),
             ),
-            child: Row(
+            child: Column(
               children: [
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      _buildDetailRow(Icons.cake_rounded, 'Age', request.age ?? 'N/A'),
-                      const SizedBox(height: 10),
-                      _buildDetailRow(Icons.flag_rounded, 'Goal', request.fitnessGoal ?? 'Fitness'),
-                    ],
-                  ),
-                ),
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      _buildDetailRow(Icons.monitor_weight_rounded, 'Weight', request.weight != null ? '${request.weight} kg' : 'N/A'),
-                      const SizedBox(height: 10),
-                      _buildDetailRow(Icons.sports_rounded, 'Trainer', request.preferredTrainerName ?? 'Any'),
-                    ],
-                  ),
-                ),
+                _buildDetailRow(Icons.email_rounded, 'Email',
+                    request.email.isNotEmpty ? request.email : '—'),
+                const SizedBox(height: 10),
+                _buildDetailRow(Icons.phone_rounded, 'Phone',
+                    request.phone ?? '—'),
               ],
             ),
           ),
-
           const SizedBox(height: 20),
-
-          // ── Action Buttons ──
           Row(
             children: [
               Expanded(
                 flex: 5,
                 child: GestureDetector(
-                  onTap: () => _acceptRequest(request),
+                  onTap: isActioning ? null : () => _acceptRequest(request),
                   child: Container(
                     padding: const EdgeInsets.symmetric(vertical: 12),
                     decoration: BoxDecoration(
@@ -669,14 +569,21 @@ class _GymOwnerJoinRequestsScreenState
                       ],
                     ),
                     child: Center(
-                      child: Text(
-                        'Accept',
-                        style: AppTextStyles.labelLarge.copyWith(
-                          color: Colors.white,
-                          fontWeight: FontWeight.w700,
-                          fontSize: 13,
-                        ),
-                      ),
+                      child: isActioning
+                          ? const SizedBox(
+                              width: 16,
+                              height: 16,
+                              child: CircularProgressIndicator(
+                                strokeWidth: 2, color: Colors.white),
+                            )
+                          : Text(
+                              'Accept',
+                              style: AppTextStyles.labelLarge.copyWith(
+                                color: Colors.white,
+                                fontWeight: FontWeight.w700,
+                                fontSize: 13,
+                              ),
+                            ),
                     ),
                   ),
                 ),
@@ -685,7 +592,7 @@ class _GymOwnerJoinRequestsScreenState
               Expanded(
                 flex: 3,
                 child: GestureDetector(
-                  onTap: () => _showRejectionDialog(request),
+                  onTap: isActioning ? null : () => _showRejectionDialog(request),
                   child: Container(
                     padding: const EdgeInsets.symmetric(vertical: 12),
                     decoration: BoxDecoration(
@@ -715,48 +622,45 @@ class _GymOwnerJoinRequestsScreenState
     );
   }
 
-  String _timeAgo(DateTime dt) {
-    final diff = DateTime.now().difference(dt);
-    if (diff.inMinutes < 60) {
-      return diff.inMinutes <= 1 ? 'Just now' : '${diff.inMinutes} mins ago';
-    } else if (diff.inHours < 24) {
-      return '${diff.inHours} hours ago';
-    } else {
-      return '${diff.inDays} days ago';
-    }
-  }
-
   Widget _buildDetailRow(IconData icon, String label, String value) {
     return Row(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         Icon(icon, color: AppColors.textTertiary, size: 14),
         const SizedBox(width: 6),
+        SizedBox(
+          width: 50,
+          child: Text(
+            label,
+            style: AppTextStyles.caption.copyWith(
+              color: AppColors.textTertiary,
+              fontSize: 10,
+            ),
+          ),
+        ),
         Expanded(
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Text(
-                label,
-                style: AppTextStyles.caption.copyWith(
-                  color: AppColors.textTertiary,
-                  fontSize: 10,
-                ),
-              ),
-              Text(
-                value,
-                maxLines: 1,
-                overflow: TextOverflow.ellipsis,
-                style: AppTextStyles.labelLarge.copyWith(
-                  color: AppColors.textSecondary,
-                  fontWeight: FontWeight.w600,
-                  fontSize: 12,
-                ),
-              ),
-            ],
+          child: Text(
+            value,
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+            style: AppTextStyles.labelLarge.copyWith(
+              color: AppColors.textSecondary,
+              fontWeight: FontWeight.w600,
+              fontSize: 12,
+            ),
           ),
         ),
       ],
     );
+  }
+
+  String _formatRelativeTime(DateTime? dt) {
+    if (dt == null) return 'recently';
+    final diff = DateTime.now().difference(dt);
+    if (diff.inMinutes < 1) return 'just now';
+    if (diff.inMinutes < 60) return '${diff.inMinutes}m ago';
+    if (diff.inHours < 24) return '${diff.inHours}h ago';
+    if (diff.inDays == 1) return 'yesterday';
+    return '${diff.inDays}d ago';
   }
 }

@@ -27,25 +27,49 @@ class _GymSettingsScreenState extends ConsumerState<GymSettingsScreen> {
   final _stateController = TextEditingController();
   final _pincodeController = TextEditingController();
   final _upiController = TextEditingController();
-  final _facilitiesController = TextEditingController();
+  final _facilityController = TextEditingController();
 
   bool _loading = true;
   bool _saving = false;
   bool _uploadingLogo = false;
   bool _uploadingQr = false;
+  bool _uploadingPhoto = false;
   String? _error;
   String? _logoUrl;
   String? _upiQrUrl;
   bool _storageConfigured = false;
 
-  // Notification preferences
-  bool _muteJoinRequests = false;
-  bool _muteRenewals = false;
-  bool _muteCoupons = false;
+  List<String> _facilities = [];
+  List<String> _photoUrls = [];
+  late List<Map<String, dynamic>> _workingHours;
+  final Set<String> _mutedAlertTypes = {};
+
+  static const _weekDays = ['MON', 'TUE', 'WED', 'THU', 'FRI', 'SAT', 'SUN'];
+
+  static const _alertTypeLabels = {
+    'OWNER_JOIN_REQUEST': 'New join requests',
+    'OWNER_RENEWAL_DUE': 'Membership renewals due',
+    'OWNER_MEMBERSHIP_EXPIRED': 'Memberships expired',
+    'OWNER_COUPON_REDEEMED': 'Coupon redeemed',
+    'OWNER_TRAINER_JOINED': 'New trainer joined',
+    'OWNER_TRAINER_UPDATE': 'Trainer profile/certification updates',
+  };
+
+  List<Map<String, dynamic>> _defaultWorkingHours() {
+    return _weekDays
+        .map((d) => {
+              'day': d,
+              'isClosed': false,
+              'opensAt': '06:00',
+              'closesAt': '22:00',
+            })
+        .toList();
+  }
 
   @override
   void initState() {
     super.initState();
+    _workingHours = _defaultWorkingHours();
     WidgetsBinding.instance.addPostFrameCallback((_) => _load());
   }
 
@@ -63,10 +87,6 @@ class _GymSettingsScreenState extends ConsumerState<GymSettingsScreen> {
       ]);
       final gym = results[0] as Map<String, dynamic>;
       final configured = results[1] as bool;
-
-      final facilitiesList = (gym['facilities'] as List?)?.map((e) => e.toString()).toList() ?? [];
-      final muted = (gym['mutedOwnerAlertTypes'] as List?)?.map((e) => e.toString()).toList() ?? [];
-
       if (mounted) {
         setState(() {
           _nameController.text = gym['name'] as String? ?? '';
@@ -77,12 +97,17 @@ class _GymSettingsScreenState extends ConsumerState<GymSettingsScreen> {
           _stateController.text = gym['state'] as String? ?? '';
           _pincodeController.text = gym['pincode'] as String? ?? '';
           _upiController.text = gym['upiId'] as String? ?? '';
-          _facilitiesController.text = facilitiesList.join(', ');
           _logoUrl = gym['logoUrl'] as String?;
           _upiQrUrl = gym['upiQrCodeUrl'] as String?;
-          _muteJoinRequests = muted.contains('OWNER_JOIN_REQUEST');
-          _muteRenewals = muted.contains('OWNER_RENEWAL_DUE');
-          _muteCoupons = muted.contains('OWNER_COUPON_REDEEMED');
+          _facilities = (gym['facilities'] as List?)?.map((e) => e.toString()).toList() ?? [];
+          _photoUrls = (gym['photoUrls'] as List?)?.map((e) => e.toString()).toList() ?? [];
+          final hours = gym['workingHours'] as List?;
+          if (hours != null && hours.isNotEmpty) {
+            _workingHours = hours.map((e) => Map<String, dynamic>.from(e as Map)).toList();
+          }
+          _mutedAlertTypes
+            ..clear()
+            ..addAll((gym['mutedOwnerAlertTypes'] as List?)?.map((e) => e.toString()) ?? []);
           _storageConfigured = configured;
           _loading = false;
         });
@@ -128,6 +153,45 @@ class _GymSettingsScreenState extends ConsumerState<GymSettingsScreen> {
     }
   }
 
+  Future<void> _pickAndUploadPhoto() async {
+    final picker = ImagePicker();
+    final picked = await picker.pickImage(source: ImageSource.gallery, imageQuality: 85);
+    if (picked == null) return;
+
+    setState(() => _uploadingPhoto = true);
+    try {
+      final ext = picked.path.split('.').last.toLowerCase();
+      final contentType = ext == 'png' ? 'image/png' : 'image/jpeg';
+      final url = await ref.read(mediaUploadServiceProvider).uploadFile(
+            file: File(picked.path),
+            purpose: 'GYM_PHOTO',
+            contentType: contentType,
+          );
+      if (mounted) {
+        setState(() {
+          _photoUrls = [..._photoUrls, url];
+          _uploadingPhoto = false;
+        });
+      }
+    } catch (e) {
+      if (mounted) {
+        setState(() => _uploadingPhoto = false);
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Upload failed: ${friendlyApiError(e)}')),
+        );
+      }
+    }
+  }
+
+  void _addFacility() {
+    final value = _facilityController.text.trim();
+    if (value.isEmpty || _facilities.contains(value)) return;
+    setState(() {
+      _facilities = [..._facilities, value];
+      _facilityController.clear();
+    });
+  }
+
   Future<void> _save() async {
     final gymId = ref.read(currentGymIdProvider);
     if (gymId == null) return;
@@ -136,18 +200,6 @@ class _GymSettingsScreenState extends ConsumerState<GymSettingsScreen> {
       return;
     }
     setState(() => _saving = true);
-
-    final facilities = _facilitiesController.text
-        .split(',')
-        .map((s) => s.trim())
-        .where((s) => s.isNotEmpty)
-        .toList();
-
-    final mutedTypes = <String>[];
-    if (_muteJoinRequests) mutedTypes.add('OWNER_JOIN_REQUEST');
-    if (_muteRenewals) mutedTypes.add('OWNER_RENEWAL_DUE');
-    if (_muteCoupons) mutedTypes.add('OWNER_COUPON_REDEEMED');
-
     try {
       await ref.read(gymOwnerServiceProvider).updateGym(
             gymId,
@@ -161,8 +213,10 @@ class _GymSettingsScreenState extends ConsumerState<GymSettingsScreen> {
             upiId: _upiController.text.trim(),
             logoUrl: _logoUrl,
             upiQrCodeUrl: _upiQrUrl,
-            facilities: facilities,
-            mutedOwnerAlertTypes: mutedTypes,
+            facilities: _facilities,
+            workingHours: _workingHours,
+            photoUrls: _photoUrls,
+            mutedOwnerAlertTypes: _mutedAlertTypes.toList(),
           );
       ref.read(selectedGymProvider.notifier).update((g) => g?.copyWith(gymName: _nameController.text.trim()));
       if (mounted) {
@@ -189,6 +243,7 @@ class _GymSettingsScreenState extends ConsumerState<GymSettingsScreen> {
     _stateController.dispose();
     _pincodeController.dispose();
     _upiController.dispose();
+    _facilityController.dispose();
     super.dispose();
   }
 
@@ -239,37 +294,6 @@ class _GymSettingsScreenState extends ConsumerState<GymSettingsScreen> {
         const SizedBox(height: 12),
         _field(_pincodeController, 'Pincode', keyboardType: TextInputType.number),
         const SizedBox(height: 24),
-        _sectionLabel('FACILITIES & AMENITIES'),
-        const SizedBox(height: 4),
-        Text('Separate facilities with commas (e.g. AC, Sauna, Cardio, Parking, Personal Training)',
-            style: AppTextStyles.caption.copyWith(color: AppColors.textTertiary, fontSize: 11)),
-        const SizedBox(height: 10),
-        _field(_facilitiesController, 'Facilities', hint: 'AC, Sauna, Parking'),
-        const SizedBox(height: 24),
-        _sectionLabel('NOTIFICATION PREFERENCES'),
-        const SizedBox(height: 4),
-        Text('Mute specific owner notifications from your feed',
-            style: AppTextStyles.caption.copyWith(color: AppColors.textTertiary, fontSize: 11)),
-        const SizedBox(height: 10),
-        SwitchListTile(
-          title: const Text('Mute Join Request Alerts', style: TextStyle(color: AppColors.textPrimary, fontSize: 14)),
-          value: _muteJoinRequests,
-          onChanged: (v) => setState(() => _muteJoinRequests = v),
-          activeColor: AppColors.accentBlue,
-        ),
-        SwitchListTile(
-          title: const Text('Mute Membership Renewal Alerts', style: TextStyle(color: AppColors.textPrimary, fontSize: 14)),
-          value: _muteRenewals,
-          onChanged: (v) => setState(() => _muteRenewals = v),
-          activeColor: AppColors.accentBlue,
-        ),
-        SwitchListTile(
-          title: const Text('Mute Coupon Redemption Alerts', style: TextStyle(color: AppColors.textPrimary, fontSize: 14)),
-          value: _muteCoupons,
-          onChanged: (v) => setState(() => _muteCoupons = v),
-          activeColor: AppColors.accentBlue,
-        ),
-        const SizedBox(height: 24),
         _sectionLabel('PAYMENTS (UPI)'),
         const SizedBox(height: 4),
         Text('Members will see this so they can pay you directly via any UPI app.',
@@ -290,6 +314,25 @@ class _GymSettingsScreenState extends ConsumerState<GymSettingsScreen> {
           Text('Image upload is temporarily unavailable — you can still save the UPI ID.',
               style: AppTextStyles.caption.copyWith(color: AppColors.accentOrange, fontSize: 11)),
         ],
+        const SizedBox(height: 24),
+        _sectionLabel('PHOTO GALLERY'),
+        const SizedBox(height: 10),
+        _buildPhotoGallery(),
+        const SizedBox(height: 24),
+        _sectionLabel('FACILITIES'),
+        const SizedBox(height: 10),
+        _buildFacilities(),
+        const SizedBox(height: 24),
+        _sectionLabel('WORKING HOURS'),
+        const SizedBox(height: 10),
+        _buildWorkingHours(),
+        const SizedBox(height: 24),
+        _sectionLabel('NOTIFICATION PREFERENCES'),
+        const SizedBox(height: 4),
+        Text('Choose which owner alerts you want to receive.',
+            style: AppTextStyles.caption.copyWith(color: AppColors.textTertiary, fontSize: 11)),
+        const SizedBox(height: 10),
+        _buildNotificationPreferences(),
         const SizedBox(height: 32),
         SizedBox(
           width: double.infinity,
@@ -348,6 +391,206 @@ class _GymSettingsScreenState extends ConsumerState<GymSettingsScreen> {
                     ),
                   ),
       ),
+    );
+  }
+
+  Widget _buildPhotoGallery() {
+    return Wrap(
+      spacing: 10,
+      runSpacing: 10,
+      children: [
+        for (final url in _photoUrls)
+          Stack(
+            children: [
+              Container(
+                width: 90,
+                height: 90,
+                decoration: BoxDecoration(
+                  borderRadius: BorderRadius.circular(14),
+                  border: Border.all(color: AppColors.glassBorder),
+                  image: DecorationImage(image: NetworkImage(url), fit: BoxFit.cover),
+                ),
+              ),
+              Positioned(
+                top: 4,
+                right: 4,
+                child: GestureDetector(
+                  onTap: () => setState(() => _photoUrls = _photoUrls.where((u) => u != url).toList()),
+                  child: Container(
+                    padding: const EdgeInsets.all(3),
+                    decoration: const BoxDecoration(color: Colors.black54, shape: BoxShape.circle),
+                    child: const Icon(Icons.close_rounded, color: Colors.white, size: 14),
+                  ),
+                ),
+              ),
+            ],
+          ),
+        GestureDetector(
+          onTap: _storageConfigured && !_uploadingPhoto ? _pickAndUploadPhoto : null,
+          child: Container(
+            width: 90,
+            height: 90,
+            decoration: BoxDecoration(
+              color: AppColors.bgSecondary,
+              borderRadius: BorderRadius.circular(14),
+              border: Border.all(color: AppColors.glassBorder),
+            ),
+            child: _uploadingPhoto
+                ? const Center(child: CircularProgressIndicator(color: AppColors.accentBlue, strokeWidth: 2))
+                : Icon(Icons.add_photo_alternate_rounded,
+                    color: AppColors.textTertiary, size: 26),
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildFacilities() {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Wrap(
+          spacing: 8,
+          runSpacing: 8,
+          children: [
+            for (final facility in _facilities)
+              Chip(
+                label: Text(facility, style: AppTextStyles.bodyMedium.copyWith(fontSize: 12)),
+                backgroundColor: AppColors.bgSecondary,
+                side: BorderSide(color: AppColors.glassBorder),
+                deleteIcon: const Icon(Icons.close_rounded, size: 16),
+                onDeleted: () =>
+                    setState(() => _facilities = _facilities.where((f) => f != facility).toList()),
+              ),
+          ],
+        ),
+        const SizedBox(height: 10),
+        Row(
+          children: [
+            Expanded(
+              child: TextField(
+                controller: _facilityController,
+                style: const TextStyle(color: AppColors.textPrimary),
+                onSubmitted: (_) => _addFacility(),
+                decoration: InputDecoration(
+                  hintText: 'e.g. Free parking, Sauna',
+                  hintStyle: const TextStyle(color: AppColors.textTertiary),
+                  filled: true,
+                  fillColor: AppColors.bgSecondary,
+                  contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+                  border: OutlineInputBorder(borderRadius: BorderRadius.circular(14), borderSide: BorderSide(color: AppColors.glassBorder)),
+                  enabledBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(14), borderSide: BorderSide(color: AppColors.glassBorder)),
+                  focusedBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(14), borderSide: const BorderSide(color: AppColors.accentBlue)),
+                ),
+              ),
+            ),
+            const SizedBox(width: 10),
+            IconButton(
+              onPressed: _addFacility,
+              icon: const Icon(Icons.add_circle_rounded, color: AppColors.accentBlue, size: 30),
+            ),
+          ],
+        ),
+      ],
+    );
+  }
+
+  Widget _buildWorkingHours() {
+    return Column(
+      children: [
+        for (var i = 0; i < _workingHours.length; i++) _buildDayRow(i),
+      ],
+    );
+  }
+
+  Widget _buildDayRow(int index) {
+    final day = _workingHours[index];
+    final isClosed = day['isClosed'] as bool? ?? false;
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 8),
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+        decoration: BoxDecoration(
+          color: AppColors.bgSecondary,
+          borderRadius: BorderRadius.circular(12),
+          border: Border.all(color: AppColors.glassBorder),
+        ),
+        child: Row(
+          children: [
+            SizedBox(width: 40, child: Text(day['day'] as String, style: AppTextStyles.labelLarge.copyWith(fontSize: 12, fontWeight: FontWeight.w700))),
+            Expanded(
+              child: isClosed
+                  ? Text('Closed', style: AppTextStyles.caption.copyWith(color: AppColors.textTertiary))
+                  : Row(
+                      children: [
+                        Expanded(child: _timeField(day, 'opensAt', index)),
+                        const SizedBox(width: 8),
+                        const Text('–', style: TextStyle(color: AppColors.textTertiary)),
+                        const SizedBox(width: 8),
+                        Expanded(child: _timeField(day, 'closesAt', index)),
+                      ],
+                    ),
+            ),
+            Switch(
+              value: !isClosed,
+              activeThumbColor: AppColors.accentBlue,
+              onChanged: (open) => setState(() => _workingHours[index]['isClosed'] = !open),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _timeField(Map<String, dynamic> day, String key, int index) {
+    return GestureDetector(
+      onTap: () async {
+        final current = (day[key] as String? ?? '06:00').split(':');
+        final picked = await showTimePicker(
+          context: context,
+          initialTime: TimeOfDay(
+            hour: int.tryParse(current[0]) ?? 6,
+            minute: int.tryParse(current.length > 1 ? current[1] : '0') ?? 0,
+          ),
+        );
+        if (picked != null) {
+          setState(() {
+            _workingHours[index][key] =
+                '${picked.hour.toString().padLeft(2, '0')}:${picked.minute.toString().padLeft(2, '0')}';
+          });
+        }
+      },
+      child: Container(
+        padding: const EdgeInsets.symmetric(vertical: 8, horizontal: 10),
+        decoration: BoxDecoration(
+          color: AppColors.bgPrimary.withValues(alpha: 0.5),
+          borderRadius: BorderRadius.circular(8),
+        ),
+        child: Text(day[key] as String? ?? '--:--',
+            textAlign: TextAlign.center,
+            style: AppTextStyles.bodyMedium.copyWith(fontSize: 12)),
+      ),
+    );
+  }
+
+  Widget _buildNotificationPreferences() {
+    return Column(
+      children: _alertTypeLabels.entries.map((entry) {
+        final isMuted = _mutedAlertTypes.contains(entry.key);
+        return SwitchListTile(
+          contentPadding: EdgeInsets.zero,
+          value: !isMuted,
+          activeThumbColor: AppColors.accentBlue,
+          title: Text(entry.value, style: AppTextStyles.bodyMedium.copyWith(fontSize: 13)),
+          onChanged: (enabled) => setState(() {
+            if (enabled) {
+              _mutedAlertTypes.remove(entry.key);
+            } else {
+              _mutedAlertTypes.add(entry.key);
+            }
+          }),
+        );
+      }).toList(),
     );
   }
 

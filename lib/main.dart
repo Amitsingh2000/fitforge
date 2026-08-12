@@ -21,8 +21,8 @@ import 'gym_owner/screens/create_gym_screen.dart';
 import 'auth/screens/forgot_password_screen.dart';
 import 'auth/screens/reset_password_screen.dart';
 import 'auth/screens/email_verification_screen.dart';
-import 'gym_owner/screens/notifications_screen.dart';
-import 'gym_owner/screens/support_screen.dart';
+import 'gym_owner/screens/gym_owner_notifications_screen.dart';
+import 'gym_owner/screens/gym_owner_support_screen.dart';
 import 'models/user.dart';
 import 'providers/auth_provider.dart';
 import 'providers/onboarding_provider.dart';
@@ -64,8 +64,9 @@ class FitForgeApp extends StatelessWidget {
         '/gym-owner-trainers': (context) => const GymOwnerTrainersScreen(),
         '/gym-owner-join-requests': (context) =>
             const GymOwnerJoinRequestsScreen(),
-        '/gym-owner-notifications': (context) => const NotificationsScreen(),
-        '/gym-owner-support': (context) => const SupportScreen(),
+        '/gym-owner-notifications': (context) =>
+            const GymOwnerNotificationsScreen(),
+        '/gym-owner-support': (context) => const GymOwnerSupportScreen(),
         '/billing-plans': (context) => const BillingPlansScreen(),
         '/settings': (context) => const SettingsScreen(),
         '/register': (context) =>

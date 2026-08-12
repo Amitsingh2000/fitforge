@@ -9,6 +9,8 @@ class GymTrainer {
   final String specialization;
   final int activeClientsCount;
   final String status; // 'ACTIVE', 'INACTIVE'
+  final int sessionsLoggedLast30Days;
+  final double? clientCheckInRate7dPercent;
 
   const GymTrainer({
     required this.trainerId,
@@ -20,6 +22,8 @@ class GymTrainer {
     this.specialization = 'General Trainer',
     this.activeClientsCount = 0,
     this.status = 'ACTIVE',
+    this.sessionsLoggedLast30Days = 0,
+    this.clientCheckInRate7dPercent,
   });
 
   factory GymTrainer.fromJson(Map<String, dynamic> json) {
@@ -39,8 +43,10 @@ class GymTrainer {
       phone: json['phone'] as String? ?? userMap['phone'] as String?,
       avatarUrl: json['avatarUrl'] as String? ?? userMap['avatarUrl'] as String?,
       specialization: json['specialization'] as String? ?? json['spec'] as String? ?? 'Fitness Trainer',
-      activeClientsCount: json['activeClientsCount'] as int? ?? json['clientsCount'] as int? ?? json['assignedClients'] as int? ?? 0,
+      activeClientsCount: json['activeClientsCount'] as int? ?? json['clientsCount'] as int? ?? json['assignedClients'] as int? ?? json['assignedActiveClients'] as int? ?? 0,
       status: json['status'] as String? ?? 'ACTIVE',
+      sessionsLoggedLast30Days: json['sessionsLoggedLast30Days'] as int? ?? 0,
+      clientCheckInRate7dPercent: (json['clientCheckInRate7dPercent'] as num?)?.toDouble(),
     );
   }
 }

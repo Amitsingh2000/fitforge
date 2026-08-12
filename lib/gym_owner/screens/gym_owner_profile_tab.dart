@@ -9,6 +9,8 @@ import '../../theme/app_theme.dart';
 import '../../dashboard/widgets/dashboard_glass_card.dart';
 import '../../dashboard/widgets/state_views.dart';
 import 'checkin_poster_screen.dart';
+import 'gym_owner_notifications_screen.dart';
+import 'gym_owner_support_screen.dart';
 import 'gym_settings_screen.dart';
 import 'invite_management_screen.dart';
 import 'membership_plans_screen.dart';
@@ -386,11 +388,18 @@ class _GymOwnerProfileTabState extends ConsumerState<GymOwnerProfileTab> {
         'onTap': () => Navigator.of(context).push(MaterialPageRoute(builder: (_) => const CheckinPosterScreen())),
       },
       {
-        'icon': Icons.headset_mic_outlined,
-        'title': 'Help & Support',
-        'subtitle': 'Raise platform support tickets',
+        'icon': Icons.notifications_outlined,
+        'title': 'Notifications',
+        'subtitle': 'Owner alerts: join requests, renewals, more',
         'color': AppColors.accentCoral,
-        'onTap': () => Navigator.pushNamed(context, '/gym-owner-support'),
+        'onTap': () => Navigator.of(context).push(MaterialPageRoute(builder: (_) => const GymOwnerNotificationsScreen())),
+      },
+      {
+        'icon': Icons.support_agent_rounded,
+        'title': 'Support',
+        'subtitle': 'Get help from the platform team',
+        'color': AppColors.accentCyan,
+        'onTap': () => Navigator.of(context).push(MaterialPageRoute(builder: (_) => const GymOwnerSupportScreen())),
       },
     ];
 

@@ -39,6 +39,7 @@ class GymDashboardMonthly {
   final int activeMembersCount;
   final int renewalsCount;
   final int churnCount;
+  final double? retentionRatePercent;
   final List<dynamic> attendanceTrend;
 
   const GymDashboardMonthly({
@@ -46,6 +47,7 @@ class GymDashboardMonthly {
     this.activeMembersCount = 0,
     this.renewalsCount = 0,
     this.churnCount = 0,
+    this.retentionRatePercent,
     this.attendanceTrend = const [],
   });
 
@@ -55,12 +57,13 @@ class GymDashboardMonthly {
       activeMembersCount: GymDashboardToday._parseInt(json['activeMembersCount'] ?? json['activeMembers']),
       renewalsCount: GymDashboardToday._parseInt(json['renewalsCount'] ?? json['renewals']),
       churnCount: GymDashboardToday._parseInt(json['churnCount'] ?? json['churn']),
+      retentionRatePercent: (json['retentionRatePercent'] as num?)?.toDouble(),
       attendanceTrend: json['attendanceTrend'] as List? ?? [],
     );
   }
 }
 
-/// Data from `GET /gyms/:gymId/dashboard/overview`
+/// Data from `GET /gyms/:gymId/dashboard/overview` — page-1 dashboard widget set.
 class GymDashboardOverview {
   final int totalMembers;
   final int totalTrainers;
@@ -83,117 +86,119 @@ class GymDashboardOverview {
   });
 
   factory GymDashboardOverview.fromJson(Map<String, dynamic> json) {
-    final rev = json['revenueOverview'] is Map<String, dynamic>
-        ? json['revenueOverview'] as Map<String, dynamic>
-        : {};
-
+    final revenue = json['revenueOverview'] as Map<String, dynamic>? ?? {};
     return GymDashboardOverview(
       totalMembers: GymDashboardToday._parseInt(json['totalMembers']),
       totalTrainers: GymDashboardToday._parseInt(json['totalTrainers']),
       activeMemberships: GymDashboardToday._parseInt(json['activeMemberships']),
       pendingJoinRequests: GymDashboardToday._parseInt(json['pendingJoinRequests']),
       membershipRenewalsDue: GymDashboardToday._parseInt(json['membershipRenewalsDue']),
-      revenueTodayInr: GymDashboardToday._parseInt(rev['todayInr'] ?? json['revenueToday']),
-      revenueMonthInr: GymDashboardToday._parseInt(rev['monthInr'] ?? json['revenueMonth']),
+      revenueTodayInr: GymDashboardToday._parseInt(revenue['todayInr']),
+      revenueMonthInr: GymDashboardToday._parseInt(revenue['monthInr']),
       unreadNotifications: GymDashboardToday._parseInt(json['unreadNotifications']),
     );
   }
 }
 
-/// Data item from `GET /gyms/:gymId/dashboard/growth`
-class GrowthPoint {
-  final String month;
-  final int memberCount;
+/// One point from `GET /gyms/:gymId/dashboard/growth`.
+class GymGrowthPoint {
+  final String month; // "YYYY-MM"
+  final int newMembers;
 
-  const GrowthPoint({required this.month, required this.memberCount});
+  const GymGrowthPoint({required this.month, this.newMembers = 0});
 
-  factory GrowthPoint.fromJson(Map<String, dynamic> json) {
-    return GrowthPoint(
-      month: json['month']?.toString() ?? '',
-      memberCount: GymDashboardToday._parseInt(json['memberCount'] ?? json['count'] ?? json['members'] ?? json['value']),
+  factory GymGrowthPoint.fromJson(Map<String, dynamic> json) {
+    return GymGrowthPoint(
+      month: json['month'] as String? ?? '',
+      newMembers: GymDashboardToday._parseInt(json['newMembers']),
     );
   }
 }
 
-/// Data from `GET /gyms/:gymId/dashboard/progress`
-class GymDashboardProgress {
+/// Per-trainer row inside `GymProgressOverview.byTrainer`.
+class TrainerProgressRow {
+  final String trainerUserId;
+  final String trainerName;
+  final int assignedActiveClients;
+  final double? clientCheckInRate7dPercent;
+  final double? avgSessionPackUtilizationPercent;
+
+  const TrainerProgressRow({
+    required this.trainerUserId,
+    required this.trainerName,
+    this.assignedActiveClients = 0,
+    this.clientCheckInRate7dPercent,
+    this.avgSessionPackUtilizationPercent,
+  });
+
+  factory TrainerProgressRow.fromJson(Map<String, dynamic> json) {
+    return TrainerProgressRow(
+      trainerUserId: json['trainerUserId'] as String? ?? '',
+      trainerName: json['trainerName'] as String? ?? 'Trainer',
+      assignedActiveClients: GymDashboardToday._parseInt(json['assignedActiveClients']),
+      clientCheckInRate7dPercent: (json['clientCheckInRate7dPercent'] as num?)?.toDouble(),
+      avgSessionPackUtilizationPercent:
+          (json['avgSessionPackUtilizationPercent'] as num?)?.toDouble(),
+    );
+  }
+}
+
+/// Data from `GET /gyms/:gymId/dashboard/progress` — attendance/session-based
+/// engagement proxy, not literal workout/diet progress (see backend doc comment).
+class GymProgressOverview {
   final int activeMembers;
   final int inactiveMembers;
-  final double checkInRate7dPercent;
-  final List<TrainerProgressSummary> byTrainer;
+  final double? activeMemberRate7dPercent;
+  final List<TrainerProgressRow> byTrainer;
+  final String? definition;
 
-  const GymDashboardProgress({
+  const GymProgressOverview({
     this.activeMembers = 0,
     this.inactiveMembers = 0,
-    this.checkInRate7dPercent = 0.0,
+    this.activeMemberRate7dPercent,
     this.byTrainer = const [],
+    this.definition,
   });
 
-  factory GymDashboardProgress.fromJson(Map<String, dynamic> json) {
-    final overall = json['overall'] is Map<String, dynamic>
-        ? json['overall'] as Map<String, dynamic>
-        : json;
-
-    final trainerList = (json['byTrainer'] as List?)
-            ?.map((e) => TrainerProgressSummary.fromJson(Map<String, dynamic>.from(e as Map)))
-            .toList() ??
-        const [];
-
-    return GymDashboardProgress(
+  factory GymProgressOverview.fromJson(Map<String, dynamic> json) {
+    final overall = json['overall'] as Map<String, dynamic>? ?? {};
+    final trainers = json['byTrainer'] as List? ?? [];
+    return GymProgressOverview(
       activeMembers: GymDashboardToday._parseInt(overall['activeMembers']),
       inactiveMembers: GymDashboardToday._parseInt(overall['inactiveMembers']),
-      checkInRate7dPercent: (overall['checkInRate7dPercent'] as num?)?.toDouble() ?? 0.0,
-      byTrainer: trainerList,
+      activeMemberRate7dPercent: (overall['activeMemberRate7dPercent'] as num?)?.toDouble(),
+      byTrainer: trainers
+          .map((e) => TrainerProgressRow.fromJson(Map<String, dynamic>.from(e as Map)))
+          .toList(),
+      definition: json['definition'] as String?,
     );
   }
 }
 
-class TrainerProgressSummary {
-  final String trainerId;
-  final String trainerName;
-  final double checkInRatePercent;
-  final double avgSessionUtilizationPercent;
-
-  const TrainerProgressSummary({
-    required this.trainerId,
-    required this.trainerName,
-    this.checkInRatePercent = 0.0,
-    this.avgSessionUtilizationPercent = 0.0,
-  });
-
-  factory TrainerProgressSummary.fromJson(Map<String, dynamic> json) {
-    return TrainerProgressSummary(
-      trainerId: json['trainerId']?.toString() ?? '',
-      trainerName: json['trainerName']?.toString() ?? json['name']?.toString() ?? 'Trainer',
-      checkInRatePercent: (json['checkInRatePercent'] as num?)?.toDouble() ?? 0.0,
-      avgSessionUtilizationPercent: (json['avgSessionUtilizationPercent'] as num?)?.toDouble() ?? 0.0,
-    );
-  }
-}
-
-/// Data from `GET /gyms/:gymId/dashboard/subscription-usage`
+/// Data from `GET /gyms/:gymId/dashboard/subscription-usage`.
 class GymSubscriptionUsage {
-  final int freeCount;
-  final int trialFullCount;
-  final int trialLimitedCount;
-  final int premiumCount;
+  final int totalMembers;
+  final int free;
+  final int trialFull;
+  final int trialLimited;
+  final int premium;
 
   const GymSubscriptionUsage({
-    this.freeCount = 0,
-    this.trialFullCount = 0,
-    this.trialLimitedCount = 0,
-    this.premiumCount = 0,
+    this.totalMembers = 0,
+    this.free = 0,
+    this.trialFull = 0,
+    this.trialLimited = 0,
+    this.premium = 0,
   });
 
-  int get total => freeCount + trialFullCount + trialLimitedCount + premiumCount;
-
   factory GymSubscriptionUsage.fromJson(Map<String, dynamic> json) {
+    final byTier = json['byTier'] as Map<String, dynamic>? ?? {};
     return GymSubscriptionUsage(
-      freeCount: GymDashboardToday._parseInt(json['FREE'] ?? json['freeCount']),
-      trialFullCount: GymDashboardToday._parseInt(json['TRIAL_FULL'] ?? json['trialFullCount']),
-      trialLimitedCount: GymDashboardToday._parseInt(json['TRIAL_LIMITED'] ?? json['trialLimitedCount']),
-      premiumCount: GymDashboardToday._parseInt(json['PREMIUM'] ?? json['premiumCount']),
+      totalMembers: GymDashboardToday._parseInt(json['totalMembers']),
+      free: GymDashboardToday._parseInt(byTier['FREE']),
+      trialFull: GymDashboardToday._parseInt(byTier['TRIAL_FULL']),
+      trialLimited: GymDashboardToday._parseInt(byTier['TRIAL_LIMITED']),
+      premium: GymDashboardToday._parseInt(byTier['PREMIUM']),
     );
   }
 }
-
