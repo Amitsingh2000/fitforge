@@ -29,10 +29,15 @@ class GymMembership {
   });
 
   /// Parse a single gym-membership object from the `/users/me` response.
+  ///
+  /// The backend nests the gym details under a `gym` object
+  /// (`gym: {id, name, slug}`) rather than a flat `gymName` — and does not
+  /// include a `membershipId` on `/users/me` (owner self-membership).
   factory GymMembership.fromJson(Map<String, dynamic> json) {
+    final gym = json['gym'] as Map<String, dynamic>?;
     return GymMembership(
-      gymId: json['gymId'] as String? ?? '',
-      gymName: json['gymName'] as String?,
+      gymId: json['gymId'] as String? ?? gym?['id'] as String? ?? '',
+      gymName: json['gymName'] as String? ?? gym?['name'] as String?,
       role: _parseGymRole(json['role'] as String?),
       membershipId: json['membershipId'] as String? ??
           json['id'] as String? ??

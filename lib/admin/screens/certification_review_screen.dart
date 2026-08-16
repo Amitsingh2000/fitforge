@@ -39,7 +39,11 @@ class _CertificationReviewScreenState extends ConsumerState<CertificationReviewS
   Future<void> _approve(Map<String, dynamic> cert) async {
     try {
       await ref.read(trainerServiceProvider).reviewCertification(cert['id'] as String, approve: true);
-      setState(() => _pending.removeWhere((c) => c['id'] == cert['id']));
+      if (mounted) {
+        setState(() {
+          _pending = _pending.where((c) => c['id'] != cert['id']).toList();
+        });
+      }
     } catch (e) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Failed: ${friendlyApiError(e)}')));
@@ -76,6 +80,7 @@ class _CertificationReviewScreenState extends ConsumerState<CertificationReviewS
         ],
       ),
     );
+    reasonController.dispose();
     if (confirmed != true) return;
     try {
       await ref.read(trainerServiceProvider).reviewCertification(
@@ -83,7 +88,11 @@ class _CertificationReviewScreenState extends ConsumerState<CertificationReviewS
             approve: false,
             rejectionReason: reasonController.text.trim(),
           );
-      setState(() => _pending.removeWhere((c) => c['id'] == cert['id']));
+      if (mounted) {
+        setState(() {
+          _pending = _pending.where((c) => c['id'] != cert['id']).toList();
+        });
+      }
     } catch (e) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Failed: ${friendlyApiError(e)}')));

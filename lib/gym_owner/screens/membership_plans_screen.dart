@@ -58,6 +58,7 @@ class _MembershipPlansScreenState extends ConsumerState<MembershipPlansScreen> {
     );
     String type = existing?['type'] as String? ?? 'DURATION';
     final isEdit = existing != null;
+    try {
 
     final saved = await showModalBottomSheet<bool>(
       context: context,
@@ -183,13 +184,20 @@ class _MembershipPlansScreenState extends ConsumerState<MembershipPlansScreen> {
           priceInr: price,
         );
       }
-      _load();
+      if (mounted) _load();
     } catch (e) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(content: Text('Failed to save plan: ${friendlyApiError(e)}')),
         );
       }
+    }
+    } finally {
+      nameController.dispose();
+      descController.dispose();
+      priceController.dispose();
+      durationController.dispose();
+      sessionController.dispose();
     }
   }
 
@@ -215,7 +223,7 @@ class _MembershipPlansScreenState extends ConsumerState<MembershipPlansScreen> {
     if (gymId == null) return;
     try {
       await ref.read(gymOwnerServiceProvider).retirePlan(gymId, plan['id'] as String);
-      _load();
+      if (mounted) _load();
     } catch (e) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(

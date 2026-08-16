@@ -118,6 +118,7 @@ class _GymOwnerMembersTabState extends ConsumerState<GymOwnerMembersTab> {
   Future<void> _configureTrainer(GymMember trainer) async {
     final shiftController = TextEditingController();
     final commissionController = TextEditingController();
+    try {
     final saved = await showModalBottomSheet<bool>(
       context: context,
       backgroundColor: Colors.transparent,
@@ -203,6 +204,10 @@ class _GymOwnerMembersTabState extends ConsumerState<GymOwnerMembersTab> {
           SnackBar(content: Text('Failed to update: ${friendlyApiError(e)}')),
         );
       }
+    }
+    } finally {
+      shiftController.dispose();
+      commissionController.dispose();
     }
   }
 
@@ -327,7 +332,7 @@ class _GymOwnerMembersTabState extends ConsumerState<GymOwnerMembersTab> {
     final result = await Navigator.of(context).push(
       MaterialPageRoute(builder: (_) => const AddMemberScreen()),
     );
-    if (result != null) _loadMembers();
+    if (result != null && mounted) _loadMembers();
   }
 
   Widget _buildHeader() {
@@ -367,7 +372,7 @@ class _GymOwnerMembersTabState extends ConsumerState<GymOwnerMembersTab> {
               final result = await Navigator.of(context).push(
                 MaterialPageRoute(builder: (_) => const BulkImportScreen()),
               );
-              if (result == true) _loadMembers();
+              if (result == true && mounted) _loadMembers();
             },
             icon: const Icon(Icons.upload_file_rounded, color: AppColors.textSecondary),
             tooltip: 'Bulk import from CSV/Excel',

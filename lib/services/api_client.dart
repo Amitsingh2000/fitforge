@@ -1,6 +1,7 @@
 import 'package:dio/dio.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import '../providers/auth_provider.dart';
 import 'token_storage_service.dart';
 
 // ─────────────────────────────────────────────
@@ -9,6 +10,15 @@ import 'token_storage_service.dart';
 
 final tokenProvider = StateProvider<String?>((ref) => null);
 final refreshTokenProvider = StateProvider<String?>((ref) => null);
+
+/// Thrown internally when a token refresh resolves after the session changed
+/// (logout or new login). Distinguishes a stale response — where the new
+/// session's tokens must be left untouched — from a genuine refresh failure.
+class _StaleRefreshException implements Exception {
+  const _StaleRefreshException();
+  @override
+  String toString() => 'Session changed during token refresh.';
+}
 
 void _log(String message) {
   if (kDebugMode) debugPrint(message);
@@ -44,6 +54,10 @@ final dioProvider = Provider<Dio>((ref) {
         throw StateError('No refresh token available.');
       }
       try {
+        // Snapshot the current refresh token so we can detect a session change
+        // (logout / new login) while the refresh call is in flight. The backend
+        // rotates refresh tokens on every use, so applying a stale response to
+        // a newer session would clobber the new user's credentials.
         final refreshDio = Dio(BaseOptions(
           baseUrl: 'https://fitos-backend-55g6.onrender.com/api/v1',
           connectTimeout: const Duration(seconds: 30),
@@ -69,6 +83,13 @@ final dioProvider = Provider<Dio>((ref) {
         final newRefreshToken =
             tokenData['refreshToken'] as String? ?? storedRefreshToken;
 
+        // Guard against a stale refresh overwriting a session that was cleared
+        // (logout) or replaced (new login) while this call was in flight.
+        if (ref.read(refreshTokenProvider) != storedRefreshToken) {
+          _log('⚠️ [Auth] Refresh response stale — session changed, discarding.');
+          throw const _StaleRefreshException();
+        }
+
         ref.read(tokenProvider.notifier).state = newAccessToken;
         ref.read(refreshTokenProvider.notifier).state = newRefreshToken;
         await tokenStorageService.saveTokens(
@@ -80,9 +101,14 @@ final dioProvider = Provider<Dio>((ref) {
         return newAccessToken;
       } catch (refreshError) {
         _log('❌ [Auth] Token refresh failed: $refreshError — logging out.');
-        ref.read(tokenProvider.notifier).state = null;
-        ref.read(refreshTokenProvider.notifier).state = null;
-        await tokenStorageService.clearTokens();
+        // If the session changed while refresh was in flight (logout or a new
+        // login), do NOT clobber the newer session's tokens/storage.
+        if (refreshError is! _StaleRefreshException &&
+            ref.read(refreshTokenProvider) == storedRefreshToken) {
+          ref.read(tokenProvider.notifier).state = null;
+          ref.read(refreshTokenProvider.notifier).state = null;
+          await tokenStorageService.clearTokens();
+        }
         rethrow;
       } finally {
         refreshInFlight = null;
@@ -132,9 +158,15 @@ final dioProvider = Provider<Dio>((ref) {
             retryOptions.headers['Authorization'] = 'Bearer $newAccessToken';
             final retryResponse = await dio.fetch(retryOptions);
             return handler.resolve(retryResponse);
+          } on _StaleRefreshException {
+            // The session changed (logout/new login) while refresh was in
+            // flight — propagate the original 401 without touching auth state.
           } catch (_) {
-            // Fall through to propagate the original 401 — refreshAccessToken
-            // already cleared local session state on failure.
+            // Both tokens are expired. Tokens/storage were already cleared
+            // by refreshAccessToken; flip the whole app to the login screen so
+            // the UI stops showing an authenticated dashboard that can never
+            // authenticate again.
+            ref.read(authProvider.notifier).handleSessionExpired();
           }
         }
       }

@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import '../../services/api_failure.dart';
 import '../../theme/app_theme.dart';
 
 /// Shared loading / empty / error state widgets used across screens that
@@ -126,6 +127,9 @@ class ErrorRetryView extends StatelessWidget {
 /// Turns a caught exception into a message that accounts for this backend's
 /// free-tier cold starts / deploy blips instead of a raw stack-ish string.
 String friendlyApiError(Object e) {
+  // Trainer-flow services throw structured ApiFailure — use its ready message.
+  if (e is ApiFailure) return e.message;
+
   final msg = e.toString();
   if (msg.contains('SocketException') ||
       msg.contains('timeout') ||

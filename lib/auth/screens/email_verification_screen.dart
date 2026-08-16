@@ -123,7 +123,7 @@ class _EmailVerificationScreenState
 
   @override
   Widget build(BuildContext context) {
-    final userEmail = ref.read(authProvider).user?.email ?? 'your email';
+    final userEmail = ref.watch(authProvider).user?.email ?? 'your email';
 
     return Scaffold(
       backgroundColor: AppColors.bgPrimary,

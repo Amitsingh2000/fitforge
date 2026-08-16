@@ -81,6 +81,7 @@ class _ExerciseDetailScreenState extends State<ExerciseDetailScreen>
   // ── Workout state ──
   final List<SetLog> _setLogs = [];
   Timer? _ticker;
+  Timer? _healthTimer;
   DateTime? _startedAt;
   DateTime? _finishedAt;
   DateTime? _restEndsAt;
@@ -135,6 +136,7 @@ class _ExerciseDetailScreenState extends State<ExerciseDetailScreen>
   @override
   void dispose() {
     _ticker?.cancel();
+    _healthTimer?.cancel();
     _pulseController.dispose();
     super.dispose();
   }
@@ -153,9 +155,10 @@ class _ExerciseDetailScreenState extends State<ExerciseDetailScreen>
   }
 
   void _startHealthPolling() {
-    Timer.periodic(const Duration(seconds: 4), (timer) {
+    _healthTimer = Timer.periodic(const Duration(seconds: 4), (timer) {
       if (!mounted || _isFinished) {
         timer.cancel();
+        if (_healthTimer == timer) _healthTimer = null;
         return;
       }
       setState(() {

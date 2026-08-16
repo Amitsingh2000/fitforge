@@ -1,18 +1,29 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
+import '../../models/diet_plan.dart';
+import '../../models/trainer_client.dart';
+import '../../models/workout_plan.dart';
+import '../../providers/gym_provider.dart';
+import '../../services/api_failure.dart';
+import '../../services/diet_plan_service.dart';
+import '../../services/workout_plan_service.dart';
 import '../../theme/app_theme.dart';
 import '../../onboarding/widgets/primary_button.dart';
+import '../../dashboard/widgets/state_views.dart';
 
-class TrainerPlanEditorSheet extends StatefulWidget {
-  final Map<String, dynamic> client;
+class TrainerPlanEditorSheet extends ConsumerStatefulWidget {
+  final TrainerClient client;
 
   const TrainerPlanEditorSheet({super.key, required this.client});
 
   @override
-  State<TrainerPlanEditorSheet> createState() => _TrainerPlanEditorSheetState();
+  ConsumerState<TrainerPlanEditorSheet> createState() =>
+      _TrainerPlanEditorSheetState();
 }
 
-class _TrainerPlanEditorSheetState extends State<TrainerPlanEditorSheet> {
+class _TrainerPlanEditorSheetState extends ConsumerState<TrainerPlanEditorSheet> {
   bool _isWorkoutSelected = true;
+  bool _saving = false;
 
   // Controllers for Workout Plan
   final List<Map<String, String>> _exercises = [
@@ -47,6 +58,91 @@ class _TrainerPlanEditorSheetState extends State<TrainerPlanEditorSheet> {
     _newMealTime.dispose();
     _newMealCalories.dispose();
     super.dispose();
+  }
+
+  double _parseCalories(String raw) {
+    final digits = raw.replaceAll(RegExp(r'[^0-9]'), '');
+    return double.tryParse(digits) ?? 0;
+  }
+
+  Future<void> _save() async {
+    final gymId = ref.read(currentGymIdProvider);
+    if (gymId == null || _saving) return;
+    setState(() => _saving = true);
+
+    void showError(Object e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          backgroundColor: AppColors.bgTertiary,
+          content: Text(
+            'Could not save plan: ${friendlyApiError(e)}',
+            style: AppTextStyles.bodyMedium.copyWith(color: AppColors.accentCoral),
+          ),
+        ),
+      );
+      setState(() => _saving = false);
+    }
+
+    try {
+      if (_isWorkoutSelected) {
+        final days = [
+          WorkoutDay(
+            dayNumber: 1,
+            label: 'Day 1',
+            exercises: _exercises
+                .map((e) => WorkoutPlanExercise(
+                      name: e['name']!,
+                      sets: int.tryParse(e['sets'] ?? ''),
+                      reps: int.tryParse((e['reps'] ?? '').split('-').first),
+                    ))
+                .toList(),
+          ),
+        ];
+        final plan = await ref
+            .read(workoutPlanServiceProvider)
+            .createWorkoutPlan(
+              gymId,
+              title: 'Custom Workout Plan',
+              status: 'ACTIVE',
+              memberId: widget.client.userId,
+              days: days,
+            );
+        await ref
+            .read(workoutPlanServiceProvider)
+            .assignWorkoutPlan(gymId, plan.id, memberId: widget.client.userId);
+      } else {
+        final meals = _meals
+            .map((m) => Meal(
+                  name: m['name']!,
+                  time: m['time'],
+                  targetCalories: _parseCalories(m['calories'] ?? ''),
+                  items: [
+                    FoodItem(
+                      foodName: m['name']!,
+                      calories: _parseCalories(m['calories'] ?? ''),
+                    ),
+                  ],
+                ))
+            .toList();
+        final plan = await ref.read(dietPlanServiceProvider).createDietPlan(
+              gymId,
+              title: 'Custom Diet Plan',
+              status: 'ACTIVE',
+              memberId: widget.client.userId,
+              meals: meals,
+            );
+        await ref
+            .read(dietPlanServiceProvider)
+            .assignDietPlan(gymId, plan.id, memberId: widget.client.userId);
+      }
+
+      if (mounted) Navigator.of(context).pop(true);
+    } on ApiFailure catch (e) {
+      showError(e);
+    } on Object catch (e) {
+      showError(e);
+    }
   }
 
   @override
@@ -86,7 +182,7 @@ class _TrainerPlanEditorSheetState extends State<TrainerPlanEditorSheet> {
                 style: AppTextStyles.titleLarge.copyWith(fontWeight: FontWeight.bold),
               ),
               Text(
-                widget.client['name'] as String,
+                widget.client.fullName,
                 style: AppTextStyles.bodyMedium.copyWith(color: AppColors.textSecondary),
               ),
             ],
@@ -174,10 +270,9 @@ class _TrainerPlanEditorSheetState extends State<TrainerPlanEditorSheet> {
 
           // Action Button
           PrimaryButton(
-            label: 'Save & Update Plan',
-            onTap: () {
-              Navigator.of(context).pop(true);
-            },
+            label: _saving ? 'Saving plan…' : 'Save & Update Plan',
+            isEnabled: !_saving,
+            onTap: _save,
           ),
         ],
       ),
@@ -217,11 +312,13 @@ class _TrainerPlanEditorSheetState extends State<TrainerPlanEditorSheet> {
                 ),
               ),
               GestureDetector(
-                onTap: () {
-                  setState(() {
-                    _exercises.removeAt(index);
-                  });
-                },
+                onTap: _saving
+                    ? null
+                    : () {
+                        setState(() {
+                          _exercises.removeAt(index);
+                        });
+                      },
                 child: const Icon(Icons.remove_circle_outline_rounded, color: AppColors.accentCoral, size: 20),
               ),
             ],
@@ -261,20 +358,22 @@ class _TrainerPlanEditorSheetState extends State<TrainerPlanEditorSheet> {
       Align(
         alignment: Alignment.centerRight,
         child: TextButton.icon(
-          onPressed: () {
-            if (_newExerciseName.text.isNotEmpty) {
-              setState(() {
-                _exercises.add({
-                  'name': _newExerciseName.text,
-                  'sets': _newExerciseSets.text.isEmpty ? '3' : _newExerciseSets.text,
-                  'reps': _newExerciseReps.text.isEmpty ? '10' : _newExerciseReps.text,
-                });
-                _newExerciseName.clear();
-                _newExerciseSets.clear();
-                _newExerciseReps.clear();
-              });
-            }
-          },
+          onPressed: _saving
+              ? null
+              : () {
+                  if (_newExerciseName.text.isNotEmpty) {
+                    setState(() {
+                      _exercises.add({
+                        'name': _newExerciseName.text,
+                        'sets': _newExerciseSets.text.isEmpty ? '3' : _newExerciseSets.text,
+                        'reps': _newExerciseReps.text.isEmpty ? '10' : _newExerciseReps.text,
+                      });
+                      _newExerciseName.clear();
+                      _newExerciseSets.clear();
+                      _newExerciseReps.clear();
+                    });
+                  }
+                },
           icon: const Icon(Icons.add_rounded, color: AppColors.accentCyan, size: 18),
           label: Text('Add Exercise', style: AppTextStyles.caption.copyWith(color: AppColors.accentCyan, fontWeight: FontWeight.bold)),
         ),
@@ -315,11 +414,13 @@ class _TrainerPlanEditorSheetState extends State<TrainerPlanEditorSheet> {
                 ),
               ),
               GestureDetector(
-                onTap: () {
-                  setState(() {
-                    _meals.removeAt(index);
-                  });
-                },
+                onTap: _saving
+                    ? null
+                    : () {
+                        setState(() {
+                          _meals.removeAt(index);
+                        });
+                      },
                 child: const Icon(Icons.remove_circle_outline_rounded, color: AppColors.accentCoral, size: 20),
               ),
             ],
@@ -358,20 +459,22 @@ class _TrainerPlanEditorSheetState extends State<TrainerPlanEditorSheet> {
       Align(
         alignment: Alignment.centerRight,
         child: TextButton.icon(
-          onPressed: () {
-            if (_newMealName.text.isNotEmpty) {
-              setState(() {
-                _meals.add({
-                  'name': _newMealName.text,
-                  'time': _newMealTime.text.isEmpty ? '12:00 PM' : _newMealTime.text,
-                  'calories': _newMealCalories.text.isEmpty ? '300 kcal' : _newMealCalories.text,
-                });
-                _newMealName.clear();
-                _newMealTime.clear();
-                _newMealCalories.clear();
-              });
-            }
-          },
+          onPressed: _saving
+              ? null
+              : () {
+                  if (_newMealName.text.isNotEmpty) {
+                    setState(() {
+                      _meals.add({
+                        'name': _newMealName.text,
+                        'time': _newMealTime.text.isEmpty ? '12:00 PM' : _newMealTime.text,
+                        'calories': _newMealCalories.text.isEmpty ? '300 kcal' : _newMealCalories.text,
+                      });
+                      _newMealName.clear();
+                      _newMealTime.clear();
+                      _newMealCalories.clear();
+                    });
+                  }
+                },
           icon: const Icon(Icons.add_rounded, color: AppColors.accentCyan, size: 18),
           label: Text('Add Meal', style: AppTextStyles.caption.copyWith(color: AppColors.accentCyan, fontWeight: FontWeight.bold)),
         ),

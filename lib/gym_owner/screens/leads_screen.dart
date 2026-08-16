@@ -1,7 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../models/lead.dart';
-import '../../providers/gym_provider.dart';
 import '../../services/gym_owner_service.dart';
 import '../../theme/app_theme.dart';
 import '../../dashboard/widgets/dashboard_glass_card.dart';
@@ -51,6 +50,7 @@ class _LeadsScreenState extends ConsumerState<LeadsScreen> {
     final phoneCtrl = TextEditingController();
     final emailCtrl = TextEditingController();
     String source = 'WALK_IN';
+    try {
 
     final saved = await showModalBottomSheet<bool>(
       context: context,
@@ -142,6 +142,11 @@ class _LeadsScreenState extends ConsumerState<LeadsScreen> {
       } catch (e) {
         if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('$e')));
       }
+    }
+    } finally {
+      nameCtrl.dispose();
+      phoneCtrl.dispose();
+      emailCtrl.dispose();
     }
   }
 

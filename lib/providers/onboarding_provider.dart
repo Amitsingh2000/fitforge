@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:dio/dio.dart';
@@ -7,6 +8,8 @@ import '../services/api_client.dart';
 class OnboardingNotifier extends StateNotifier<OnboardingState> {
   final Ref _ref;
   OnboardingNotifier(this._ref) : super(const OnboardingState());
+
+  Timer? _persistDebounce;
 
   void updateGoal(String goal) {
     state = state.copyWith(goal: goal);
@@ -58,14 +61,23 @@ class OnboardingNotifier extends StateNotifier<OnboardingState> {
   /// collected before the final screen. Never surfaces errors to the wizard
   /// UI — the authoritative save/validation still happens in
   /// [completeOnboarding]; this is purely a resilience measure.
+  ///
+  /// Debounced so continuous input (slider drags, chip taps) collapses into
+  /// a single PATCH after the user pauses, instead of one network call per
+  /// value change.
   void _persistProgress() {
-    final dio = _ref.read(dioProvider);
-    dio.patch('/members/me/profile', data: state.toBackendJson()).catchError(
-      (Object e) {
-        if (kDebugMode) debugPrint('⚠️ [Onboarding] Progress save failed (non-fatal): $e');
-        return Response(requestOptions: RequestOptions(path: '/members/me/profile'));
-      },
-    );
+    _persistDebounce?.cancel();
+    _persistDebounce = Timer(const Duration(milliseconds: 600), () {
+      final dio = _ref.read(dioProvider);
+      dio.patch('/members/me/profile', data: state.toBackendJson()).catchError(
+        (Object e) {
+          if (kDebugMode) {
+            debugPrint('⚠️ [Onboarding] Progress save failed (non-fatal): $e');
+          }
+          return Response(requestOptions: RequestOptions(path: '/members/me/profile'));
+        },
+      );
+    });
   }
 
   /// Rehydrates local wizard state from the backend — used on session
@@ -128,6 +140,10 @@ class OnboardingNotifier extends StateNotifier<OnboardingState> {
       };
 
   Future<void> completeOnboarding() async {
+    // Cancel any pending debounced progress save — the authoritative PATCH
+    // below supersedes it, and a stale one must not land after completion.
+    _persistDebounce?.cancel();
+    _persistDebounce = null;
     final dio = _ref.read(dioProvider);
     try {
       // 1. Save profile via PATCH
@@ -142,6 +158,8 @@ class OnboardingNotifier extends StateNotifier<OnboardingState> {
   }
 
   void reset() {
+    _persistDebounce?.cancel();
+    _persistDebounce = null;
     state = const OnboardingState();
   }
 }

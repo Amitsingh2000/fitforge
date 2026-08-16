@@ -72,6 +72,7 @@ class _PaymentsScreenState extends ConsumerState<PaymentsScreen>
     String selectedMethod = 'CASH';
     final amountCtrl = TextEditingController();
     final notesCtrl = TextEditingController();
+    try {
 
     final saved = await showModalBottomSheet<bool>(
       context: context,
@@ -167,6 +168,10 @@ class _PaymentsScreenState extends ConsumerState<PaymentsScreen>
       } catch (e) {
         if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('$e')));
       }
+    }
+    } finally {
+      amountCtrl.dispose();
+      notesCtrl.dispose();
     }
   }
 

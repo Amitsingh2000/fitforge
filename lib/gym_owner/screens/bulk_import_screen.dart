@@ -40,6 +40,7 @@ class _BulkImportScreenState extends ConsumerState<BulkImportScreen> {
       allowedExtensions: ['csv', 'xlsx', 'xls'],
     );
     if (result == null || result.files.single.path == null) return;
+    if (!mounted) return;
 
     final path = result.files.single.path!;
     final name = result.files.single.name;

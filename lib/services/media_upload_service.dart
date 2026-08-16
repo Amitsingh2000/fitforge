@@ -66,5 +66,5 @@ class MediaUploadService {
 }
 
 final mediaUploadServiceProvider = Provider<MediaUploadService>((ref) {
-  return MediaUploadService(ref.read(dioProvider));
+  return MediaUploadService(ref.watch(dioProvider));
 });
