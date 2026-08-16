@@ -90,7 +90,10 @@ class _RegisterScreenState extends ConsumerState<RegisterScreen>
         if (isGymOwner) {
           Navigator.of(context).pushNamedAndRemoveUntil('/create-gym', (_) => false);
         } else if (widget.isEmbeddedInOnboarding) {
-          // Navigate to email verification before continuing onboarding
+          // Navigate to email verification before continuing onboarding, and
+          // let the host flow know registration succeeded so it can advance
+          // its own page state while the verification screen sits on top.
+          widget.onRegisterSuccess?.call();
           Navigator.of(context).pushNamed('/verify-email');
         } else {
           Navigator.of(context).pushReplacementNamed('/verify-email');

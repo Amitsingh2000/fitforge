@@ -8,6 +8,14 @@ class TrainerProfile {
   final String verificationStatus; // UNVERIFIED | PENDING | VERIFIED | REJECTED
   final List<TrainerCertification> certifications;
 
+  /// Weekly availability — same 7-day shape as the gym's `workingHours`
+  /// (opaque per-day schedule list; no per-field contract in the API ref).
+  final List<Map<String, dynamic>>? availability;
+
+  /// Settings > Notifications — alert types suppressed on the trainer's own
+  /// feed (e.g. `TRAINER_NEW_MESSAGE`, `TRAINER_NEW_CLIENT_ASSIGNED`).
+  final List<String> mutedAlertTypes;
+
   const TrainerProfile({
     this.bio,
     this.specializations = const [],
@@ -16,6 +24,8 @@ class TrainerProfile {
     this.photoUrls = const [],
     this.verificationStatus = 'UNVERIFIED',
     this.certifications = const [],
+    this.availability,
+    this.mutedAlertTypes = const [],
   });
 
   bool get isVerified => verificationStatus == 'VERIFIED';
@@ -31,6 +41,14 @@ class TrainerProfile {
       verificationStatus: json['verificationStatus'] as String? ?? 'UNVERIFIED',
       certifications: certs
               ?.map((e) => TrainerCertification.fromJson(Map<String, dynamic>.from(e as Map)))
+              .toList() ??
+          [],
+      availability: (json['availability'] as List?)
+          ?.whereType<Map>()
+          .map((e) => Map<String, dynamic>.from(e))
+          .toList(),
+      mutedAlertTypes: (json['mutedAlertTypes'] as List?)
+              ?.map((e) => e.toString())
               .toList() ??
           [],
     );

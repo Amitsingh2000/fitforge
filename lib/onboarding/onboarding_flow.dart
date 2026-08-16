@@ -147,7 +147,9 @@ class _OnboardingFlowState extends ConsumerState<OnboardingFlow> {
                   setState(() => _isLoading = true);
                   try {
                     await ref.read(onboardingProvider.notifier).completeOnboarding();
-                    navigator.pushReplacementNamed('/billing-plans');
+                    if (mounted) {
+                      navigator.pushReplacementNamed('/billing-plans');
+                    }
                   } catch (e) {
                     scaffoldMessenger.showSnackBar(
                       SnackBar(

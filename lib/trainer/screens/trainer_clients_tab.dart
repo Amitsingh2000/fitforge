@@ -1,120 +1,48 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_animate/flutter_animate.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
+import '../../models/trainer_client.dart';
+import '../../providers/trainer_flow_providers.dart';
 import '../../theme/app_theme.dart';
 import '../../dashboard/widgets/dashboard_glass_card.dart';
 import '../../dashboard/widgets/linear_progress_bar.dart';
+import '../../dashboard/widgets/state_views.dart';
+import '../widgets/client_gradient.dart';
 import 'trainer_client_detail_screen.dart';
 
-class TrainerClientsTab extends StatefulWidget {
+class TrainerClientsTab extends ConsumerStatefulWidget {
   const TrainerClientsTab({super.key});
 
   @override
-  State<TrainerClientsTab> createState() => _TrainerClientsTabState();
+  ConsumerState<TrainerClientsTab> createState() => _TrainerClientsTabState();
 }
 
-class _TrainerClientsTabState extends State<TrainerClientsTab> {
+class _TrainerClientsTabState extends ConsumerState<TrainerClientsTab> {
   String _searchQuery = '';
   String _selectedFilter = 'All';
   final TextEditingController _searchController = TextEditingController();
 
   final List<String> _filters = ['All', 'Active', 'Inactive', 'New'];
 
-  final List<Map<String, dynamic>> _allClients = [
-    {
-      'id': 'c1',
-      'name': 'Rahul Sharma',
-      'initials': 'RS',
-      'status': 'Active',
-      'attendance': 0.92,
-      'goal': 'Weight Loss',
-      'progress': 0.78,
-      'joinDate': '12 Jan 2026',
-      'plan': 'Premium Fit',
-      'xp': 2850,
-      'gradientColors': [AppColors.accentBlue, AppColors.accentCyan],
-    },
-    {
-      'id': 'c2',
-      'name': 'Priya Patel',
-      'initials': 'PP',
-      'status': 'Active',
-      'attendance': 0.88,
-      'goal': 'Muscle Gain',
-      'progress': 0.65,
-      'joinDate': '3 Feb 2026',
-      'plan': 'Standard Fit',
-      'xp': 1950,
-      'gradientColors': [AppColors.accentPurple, AppColors.accentCoral],
-    },
-    {
-      'id': 'c3',
-      'name': 'Vikram Singh',
-      'initials': 'VS',
-      'status': 'Inactive',
-      'attendance': 0.45,
-      'goal': 'Endurance',
-      'progress': 0.32,
-      'joinDate': '8 Nov 2025',
-      'plan': 'Basic Fit',
-      'xp': 820,
-      'gradientColors': [AppColors.accentOrange, AppColors.accentCoral],
-    },
-    {
-      'id': 'c4',
-      'name': 'Sneha Gupta',
-      'initials': 'SG',
-      'status': 'Active',
-      'attendance': 0.95,
-      'goal': 'Flexibility',
-      'progress': 0.88,
-      'joinDate': '20 Mar 2026',
-      'plan': 'Premium Fit',
-      'xp': 3400,
-      'gradientColors': [AppColors.accentCyan, AppColors.accentBlue],
-    },
-    {
-      'id': 'c5',
-      'name': 'Arjun Reddy',
-      'initials': 'AR',
-      'status': 'Active',
-      'attendance': 0.76,
-      'goal': 'Strength',
-      'progress': 0.55,
-      'joinDate': '15 Apr 2026',
-      'plan': 'Premium Fit',
-      'xp': 1420,
-      'gradientColors': [AppColors.accentBlue, AppColors.accentPurple],
-    },
-    {
-      'id': 'c6',
-      'name': 'Karan Malhotra',
-      'initials': 'KM',
-      'status': 'New',
-      'attendance': 1.0,
-      'goal': 'Muscle Gain',
-      'progress': 0.05,
-      'joinDate': '01 Jul 2026',
-      'plan': 'Standard Fit',
-      'xp': 100,
-      'gradientColors': [AppColors.accentOrange, AppColors.accentPurple],
-    },
-  ];
+  /// Display status derived from the member's plan status + recency.
+  String _statusFor(TrainerClient client) {
+    final joined = client.joinedAt;
+    final isRecent = joined != null &&
+        !joined.isBefore(DateTime.now().subtract(const Duration(days: 30)));
+    if (isRecent) return 'New';
+    final status = (client.membershipStatus ?? '').toUpperCase();
+    if (status == 'ACTIVE') return 'Active';
+    return 'Inactive';
+  }
 
-  List<Map<String, dynamic>> get _filteredClients {
-    return _allClients.where((client) {
-      final matchesSearch = client['name']
-          .toString()
-          .toLowerCase()
-          .contains(_searchQuery.toLowerCase()) ||
-          client['goal']
-              .toString()
-              .toLowerCase()
-              .contains(_searchQuery.toLowerCase());
-
+  List<TrainerClient> _filteredClients(List<TrainerClient> clients) {
+    final query = _searchQuery.toLowerCase();
+    return clients.where((client) {
+      final matchesSearch = query.isEmpty ||
+          client.fullName.toLowerCase().contains(query) ||
+          (client.fitnessGoal ?? '').toLowerCase().contains(query);
       final matchesFilter = _selectedFilter == 'All' ||
-          client['status'].toString().toLowerCase() ==
-              _selectedFilter.toLowerCase();
-
+          _statusFor(client).toLowerCase() == _selectedFilter.toLowerCase();
       return matchesSearch && matchesFilter;
     }).toList();
   }
@@ -127,6 +55,8 @@ class _TrainerClientsTabState extends State<TrainerClientsTab> {
 
   @override
   Widget build(BuildContext context) {
+    final clientsAsync = ref.watch(currentGymTrainerClientsProvider);
+
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
@@ -229,16 +159,28 @@ class _TrainerClientsTabState extends State<TrainerClientsTab> {
 
         // List view of Clients
         Expanded(
-          child: _filteredClients.isEmpty
-              ? _buildEmptyState()
-              : ListView.separated(
-            padding: const EdgeInsets.fromLTRB(20, 0, 20, 130),
-            physics: const BouncingScrollPhysics(),
-            itemCount: _filteredClients.length,
-            separatorBuilder: (_, __) => const SizedBox(height: 12),
-            itemBuilder: (context, index) {
-              final client = _filteredClients[index];
-              return _buildClientCard(client, index);
+          child: clientsAsync.when(
+            loading: () =>
+                const Center(child: LoadingView(message: 'Loading clients…')),
+            error: (e, _) => Center(
+              child: ErrorRetryView(
+                message: friendlyApiError(e),
+                onRetry: () =>
+                    ref.invalidate(currentGymTrainerClientsProvider),
+              ),
+            ),
+            data: (clients) {
+              final filtered = _filteredClients(clients);
+              if (filtered.isEmpty) return _buildEmptyState();
+              return ListView.separated(
+                padding: const EdgeInsets.fromLTRB(20, 0, 20, 130),
+                physics: const BouncingScrollPhysics(),
+                itemCount: filtered.length,
+                separatorBuilder: (_, __) => const SizedBox(height: 12),
+                itemBuilder: (context, index) {
+                  return _buildClientCard(filtered[index], index);
+                },
+              );
             },
           ),
         ),
@@ -267,9 +209,9 @@ class _TrainerClientsTabState extends State<TrainerClientsTab> {
     );
   }
 
-  Widget _buildClientCard(Map<String, dynamic> client, int index) {
-    final gradientColors = client['gradientColors'] as List<Color>;
-    final status = client['status'] as String;
+  Widget _buildClientCard(TrainerClient client, int index) {
+    final gradientColors = clientGradient(client.userId);
+    final status = _statusFor(client);
 
     Color badgeColor;
     if (status == 'Active') {
@@ -279,6 +221,11 @@ class _TrainerClientsTabState extends State<TrainerClientsTab> {
     } else {
       badgeColor = AppColors.accentOrange;
     }
+
+    final summary = client.progressSummary;
+    final progress = summary == null
+        ? 0.0
+        : (summary.workoutCompletionRatePercent / 100).clamp(0.0, 1.0);
 
     return DashboardGlassCard(
       padding: const EdgeInsets.all(16),
@@ -307,7 +254,7 @@ class _TrainerClientsTabState extends State<TrainerClientsTab> {
             ),
             child: Center(
               child: Text(
-                client['initials'] as String,
+                client.initials,
                 style: AppTextStyles.labelLarge.copyWith(
                   color: Colors.white,
                   fontWeight: FontWeight.bold,
@@ -327,7 +274,7 @@ class _TrainerClientsTabState extends State<TrainerClientsTab> {
                   mainAxisAlignment: MainAxisAlignment.spaceBetween,
                   children: [
                     Text(
-                      client['name'] as String,
+                      client.fullName,
                       style: AppTextStyles.labelLarge.copyWith(fontSize: 15),
                     ),
                     // Status Badge
@@ -336,7 +283,8 @@ class _TrainerClientsTabState extends State<TrainerClientsTab> {
                       decoration: BoxDecoration(
                         color: badgeColor.withValues(alpha: 0.1),
                         borderRadius: BorderRadius.circular(20),
-                        border: Border.all(color: badgeColor.withValues(alpha: 0.3), width: 0.8),
+                        border: Border.all(
+                            color: badgeColor.withValues(alpha: 0.3), width: 0.8),
                       ),
                       child: Text(
                         status,
@@ -351,7 +299,7 @@ class _TrainerClientsTabState extends State<TrainerClientsTab> {
                 ),
                 const SizedBox(height: 2),
                 Text(
-                  client['goal'] as String,
+                  client.fitnessGoal ?? 'No goal set',
                   style: AppTextStyles.caption.copyWith(color: AppColors.textSecondary),
                 ),
                 const SizedBox(height: 12),
@@ -360,12 +308,12 @@ class _TrainerClientsTabState extends State<TrainerClientsTab> {
                 Row(
                   children: [
                     Text(
-                      'Goal Progress',
+                      'Workout Completion',
                       style: AppTextStyles.caption.copyWith(fontSize: 10),
                     ),
                     const Spacer(),
                     Text(
-                      '${(client['progress'] * 100).toInt()}%',
+                      '${(progress * 100).toInt()}%',
                       style: AppTextStyles.caption.copyWith(
                         color: AppColors.textSecondary,
                         fontWeight: FontWeight.w600,
@@ -376,7 +324,7 @@ class _TrainerClientsTabState extends State<TrainerClientsTab> {
                 ),
                 const SizedBox(height: 4),
                 LinearProgressBar(
-                  progress: client['progress'] as double,
+                  progress: progress,
                   color: gradientColors[0],
                   height: 4,
                 ),
@@ -385,14 +333,15 @@ class _TrainerClientsTabState extends State<TrainerClientsTab> {
                 // Attendance row
                 Row(
                   children: [
-                    Icon(Icons.calendar_today_rounded, size: 12, color: AppColors.textTertiary),
+                    Icon(Icons.monitor_heart_rounded,
+                        size: 12, color: AppColors.textTertiary),
                     const SizedBox(width: 4),
                     Text(
-                      'Attendance: ',
+                      'Trend: ',
                       style: AppTextStyles.caption.copyWith(fontSize: 10),
                     ),
                     Text(
-                      '${(client['attendance'] * 100).toInt()}%',
+                      _weightTrendLabel(summary?.weightTrend),
                       style: AppTextStyles.caption.copyWith(
                         color: AppColors.textSecondary,
                         fontWeight: FontWeight.w600,
@@ -401,7 +350,7 @@ class _TrainerClientsTabState extends State<TrainerClientsTab> {
                     ),
                     const Spacer(),
                     Text(
-                      'Plan: ${client['plan']}',
+                      'Plan: ${client.planName ?? 'No plan'}',
                       style: AppTextStyles.caption.copyWith(fontSize: 10),
                     ),
                   ],
@@ -415,5 +364,18 @@ class _TrainerClientsTabState extends State<TrainerClientsTab> {
         .animate()
         .fadeIn(duration: 500.ms, delay: (index * 50).ms)
         .slideY(begin: 0.05, end: 0, duration: 500.ms, delay: (index * 50).ms);
+  }
+
+  String _weightTrendLabel(String? trend) {
+    switch (trend?.toUpperCase()) {
+      case 'DOWN':
+        return 'Losing';
+      case 'UP':
+        return 'Gaining';
+      case 'STABLE':
+        return 'Stable';
+      default:
+        return 'Tracking…';
+    }
   }
 }

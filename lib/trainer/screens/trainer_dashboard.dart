@@ -1,8 +1,15 @@
 import 'dart:ui';
 import 'package:flutter/material.dart';
 import 'package:flutter_animate/flutter_animate.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../theme/app_theme.dart';
 import '../../dashboard/widgets/dashboard_glass_card.dart';
+import '../../dashboard/widgets/state_views.dart';
+import '../../models/trainer_dashboard.dart' as dash;
+import '../../models/trainer_profile.dart';
+import '../../providers/auth_provider.dart';
+import '../../services/trainer_dashboard_service.dart';
+import '../../services/trainer_service.dart';
 import '../widgets/trainer_glass_stat_card.dart';
 import '../widgets/trainer_schedule_card.dart';
 import 'trainer_clients_tab.dart';
@@ -10,59 +17,110 @@ import 'trainer_reviews_tab.dart';
 import 'trainer_analytics_tab.dart';
 import 'trainer_profile_tab.dart';
 
-class TrainerDashboard extends StatefulWidget {
+class TrainerDashboard extends ConsumerStatefulWidget {
   const TrainerDashboard({super.key});
 
   @override
-  State<TrainerDashboard> createState() => _TrainerDashboardState();
+  ConsumerState<TrainerDashboard> createState() => _TrainerDashboardState();
 }
 
-class _TrainerDashboardState extends State<TrainerDashboard>
+class _TrainerDashboardState extends ConsumerState<TrainerDashboard>
     with TickerProviderStateMixin {
   int _currentNavIndex = 0;
 
-  // Simulated Trainer Profile info
-  final String _trainerName = 'Coach Anil';
-  final String _trainerInitials = 'CA';
-  final String _specialization = 'Elite Strength Coach';
-  final int _notificationCount = 2;
+  dash.TrainerDashboard? _dashboard;
+  TrainerProfile? _profile;
+  bool _loading = true;
+  String? _error;
 
-  final List<Map<String, dynamic>> _analyticsData = [
-    {
-      'title': 'Active Clients',
-      'value': 18,
-      'icon': Icons.people_rounded,
-      'color': AppColors.accentCyan,
-      'trendText': '+12%',
-      'isTrendPositive': true,
-    },
-    {
-      'title': 'Sessions Today',
-      'value': 6,
-      'icon': Icons.calendar_today_rounded,
-      'color': AppColors.accentBlue,
-      'trendText': 'On track',
-      'isTrendPositive': true,
-    },
-    {
-      'title': 'Avg Rating',
-      'value': 4.8,
-      'icon': Icons.star_rounded,
-      'color': AppColors.accentOrange,
-      'trendText': 'High',
-      'isTrendPositive': true,
-      'suffix': ' ★',
-    },
-    {
-      'title': 'Retention Rate',
-      'value': 94,
-      'icon': Icons.cached_rounded,
-      'color': AppColors.accentPurple,
-      'trendText': '+3%',
-      'isTrendPositive': true,
-      'suffix': '%',
-    },
-  ];
+  @override
+  void initState() {
+    super.initState();
+    WidgetsBinding.instance.addPostFrameCallback((_) => _load());
+  }
+
+  Future<void> _load() async {
+    setState(() {
+      _loading = true;
+      _error = null;
+    });
+    try {
+      final results = await Future.wait([
+        ref.read(trainerDashboardServiceProvider).getDashboard(),
+        ref.read(trainerServiceProvider).getMyProfile(),
+      ]);
+      if (mounted) {
+        setState(() {
+          _dashboard = results[0] as dash.TrainerDashboard;
+          _profile = results[1] as TrainerProfile;
+          _loading = false;
+        });
+      }
+    } catch (e) {
+      if (mounted) {
+        setState(() {
+          _loading = false;
+          _error = friendlyApiError(e);
+        });
+      }
+    }
+  }
+
+  // Live header/stat derivations (refreshed by pull-to-refresh via _load).
+  String get _displayName {
+    final user = ref.watch(authProvider).user;
+    if (user != null && user.name.trim().isNotEmpty) return user.name;
+    return 'Trainer';
+  }
+
+  String get _displayInitials =>
+      _displayName.isNotEmpty ? _displayName[0].toUpperCase() : 'T';
+
+  String get _displaySpecialization {
+    final specializations = _profile?.specializations ?? const [];
+    return specializations.isNotEmpty ? specializations.first : 'FitForge Trainer';
+  }
+
+  int get _notifCount => _dashboard?.unreadNotificationsCount ?? 0;
+
+  /// Dashboard widget cards, fed from `GET /trainers/me/dashboard` counts.
+  List<Map<String, dynamic>> get _overviewCards {
+    final d = _dashboard;
+    return [
+      {
+        'title': 'Assigned Clients',
+        'value': d?.assignedMembersCount ?? 0,
+        'icon': Icons.people_rounded,
+        'color': AppColors.accentCyan,
+        'trendText': 'Self-scoped',
+        'isTrendPositive': true,
+      },
+      {
+        'title': 'Pending Workout Plans',
+        'value': d?.pendingWorkoutPlansCount ?? 0,
+        'icon': Icons.fitness_center_rounded,
+        'color': AppColors.accentBlue,
+        'trendText': 'Draft',
+        'isTrendPositive': true,
+      },
+      {
+        'title': 'Pending Diet Plans',
+        'value': d?.pendingDietPlansCount ?? 0,
+        'icon': Icons.restaurant_rounded,
+        'color': AppColors.accentOrange,
+        'trendText': 'Draft',
+        'isTrendPositive': true,
+      },
+      {
+        'title': 'Unread Messages',
+        'value': d?.unreadMessagesCount ?? 0,
+        'icon': Icons.chat_bubble_rounded,
+        'color': AppColors.accentPurple,
+        'trendText': 'Chat',
+        'isTrendPositive': true,
+      },
+    ];
+  }
 
   final List<Map<String, dynamic>> _quickActions = [
     {
@@ -139,6 +197,26 @@ class _TrainerDashboardState extends State<TrainerDashboard>
 
   @override
   Widget build(BuildContext context) {
+    if (_loading) {
+      return Scaffold(
+        backgroundColor: AppColors.bgPrimary,
+        body: SafeArea(
+          child: Center(
+            child: LoadingView(message: 'Loading your dashboard…'),
+          ),
+        ),
+      );
+    }
+    if (_error != null) {
+      return Scaffold(
+        backgroundColor: AppColors.bgPrimary,
+        body: SafeArea(
+          child: Center(
+            child: ErrorRetryView(message: _error!, onRetry: _load),
+          ),
+        ),
+      );
+    }
     return Scaffold(
       backgroundColor: AppColors.bgPrimary,
       body: Stack(
@@ -314,7 +392,7 @@ class _TrainerDashboardState extends State<TrainerDashboard>
             ),
             child: Center(
               child: Text(
-                _trainerInitials,
+                _displayInitials,
                 style: AppTextStyles.titleLarge.copyWith(
                   color: Colors.white,
                   fontWeight: FontWeight.w700,
@@ -331,7 +409,7 @@ class _TrainerDashboardState extends State<TrainerDashboard>
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Text(
-                  _trainerName,
+                  _displayName,
                   style: AppTextStyles.titleMedium.copyWith(
                     fontWeight: FontWeight.w700,
                   ),
@@ -353,7 +431,7 @@ class _TrainerDashboardState extends State<TrainerDashboard>
                     ),
                   ),
                   child: Text(
-                    _specialization,
+                    _displaySpecialization,
                     style: AppTextStyles.caption.copyWith(
                       color: AppColors.accentCyan,
                       fontWeight: FontWeight.w600,
@@ -384,7 +462,7 @@ class _TrainerDashboardState extends State<TrainerDashboard>
                     color: AppColors.textSecondary,
                     size: 22,
                   ),
-                  if (_notificationCount > 0)
+                  if (_notifCount > 0)
                     Positioned(
                       top: 11,
                       right: 12,
@@ -439,9 +517,9 @@ class _TrainerDashboardState extends State<TrainerDashboard>
         mainAxisSpacing: 12,
         childAspectRatio: 1.4,
       ),
-      itemCount: _analyticsData.length,
+      itemCount: _overviewCards.length,
       itemBuilder: (context, index) {
-        final data = _analyticsData[index];
+        final data = _overviewCards[index];
         return TrainerGlassStatCard(
           title: data['title'] as String,
           value: data['value'],

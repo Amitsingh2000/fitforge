@@ -1,22 +1,61 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_animate/flutter_animate.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
+import '../../models/trainer_analytics.dart';
+import '../../models/trainer_client.dart';
+import '../../providers/trainer_flow_providers.dart';
 import '../../theme/app_theme.dart';
 import '../../dashboard/widgets/dashboard_glass_card.dart';
 import '../../dashboard/widgets/linear_progress_bar.dart';
 import '../../dashboard/widgets/radial_progress.dart';
+import '../../dashboard/widgets/state_views.dart';
+import '../widgets/client_gradient.dart';
 import '../widgets/trainer_glass_stat_card.dart';
 
-class TrainerAnalyticsTab extends StatelessWidget {
+class TrainerAnalyticsTab extends ConsumerStatefulWidget {
   const TrainerAnalyticsTab({super.key});
 
   @override
+  ConsumerState<TrainerAnalyticsTab> createState() => _TrainerAnalyticsTabState();
+}
+
+class _TrainerAnalyticsTabState extends ConsumerState<TrainerAnalyticsTab> {
+  @override
   Widget build(BuildContext context) {
-    final List<Map<String, dynamic>> clientProgress = [
-      {'name': 'Rahul Sharma', 'goal': 'Weight Loss', 'val': 0.78, 'color': AppColors.accentCyan},
-      {'name': 'Priya Patel', 'goal': 'Muscle Gain', 'val': 0.65, 'color': AppColors.accentPurple},
-      {'name': 'Sneha Gupta', 'goal': 'Flexibility', 'val': 0.88, 'color': AppColors.accentBlue},
-      {'name': 'Arjun Reddy', 'goal': 'Strength', 'val': 0.55, 'color': AppColors.accentOrange},
-    ];
+    final analyticsAsync = ref.watch(currentGymTrainerAnalyticsProvider);
+    final clientsAsync = ref.watch(currentGymTrainerClientsProvider);
+
+    return analyticsAsync.when(
+      loading: () =>
+          const Center(child: LoadingView(message: 'Loading analytics…')),
+      error: (e, _) => Center(
+        child: ErrorRetryView(
+          message: e.toString(),
+          onRetry: () => ref.invalidate(currentGymTrainerAnalyticsProvider),
+        ),
+      ),
+      data: (analytics) {
+        return clientsAsync.when(
+          loading: () =>
+              const Center(child: LoadingView(message: 'Loading clients…')),
+          error: (e, _) => Center(
+            child: ErrorRetryView(
+              message: e.toString(),
+              onRetry: () => ref.invalidate(currentGymTrainerClientsProvider),
+            ),
+          ),
+          data: (clients) => _buildBody(analytics, clients),
+        );
+      },
+    );
+  }
+
+  Widget _buildBody(TrainerAnalytics analytics, List<TrainerClient> clients) {
+    final activeMembers = analytics.activeMembers;
+    final workoutPct = analytics.avgWorkoutCompletionRatePercent.toInt();
+    final nutritionPct = analytics.avgNutritionComplianceRatePercent.toInt();
+    final engagedPct = analytics.engagedClientsLast7dPercent.toInt();
+    final goalPct = analytics.goalCompletionRatePercent.toInt();
 
     return CustomScrollView(
       physics: const BouncingScrollPhysics(),
@@ -57,40 +96,42 @@ class TrainerAnalyticsTab extends StatelessWidget {
             mainAxisSpacing: 12,
             childAspectRatio: 1.4,
             children: [
-              const TrainerGlassStatCard(
+              TrainerGlassStatCard(
                 title: 'Total Clients',
-                value: 18,
+                value: activeMembers,
                 icon: Icons.people_rounded,
                 color: AppColors.accentCyan,
-                trendText: '+3 new',
+                trendText: 'Assigned',
               ),
-              const TrainerGlassStatCard(
-                title: 'Sessions Taught',
-                value: 124,
+              TrainerGlassStatCard(
+                title: 'Workout Completion',
+                value: workoutPct,
                 icon: Icons.fitness_center_rounded,
                 color: AppColors.accentBlue,
-                trendText: '+15% MoM',
+                trendText: 'Clients avg',
+                suffix: '%',
               ),
-              const TrainerGlassStatCard(
-                title: 'Client Avg XP',
-                value: 1980,
-                icon: Icons.flash_on_rounded,
+              TrainerGlassStatCard(
+                title: 'Nutrition Compliance',
+                value: nutritionPct,
+                icon: Icons.restaurant_rounded,
                 color: AppColors.accentOrange,
-                trendText: '+240 XP',
+                trendText: 'Clients avg',
+                suffix: '%',
               ),
-              const TrainerGlassStatCard(
-                title: 'Retention Rate',
-                value: 94,
+              TrainerGlassStatCard(
+                title: 'Engaged (7d)',
+                value: engagedPct,
                 icon: Icons.cached_rounded,
                 color: AppColors.accentPurple,
-                trendText: 'Steady',
+                trendText: 'Logged 7d',
                 suffix: '%',
               ),
             ],
           ),
         ),
 
-        // Weekly Target radial card
+        // Goal completion radial card
         SliverToBoxAdapter(
           child: Padding(
             padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 10),
@@ -98,15 +139,15 @@ class TrainerAnalyticsTab extends StatelessWidget {
               padding: const EdgeInsets.all(20),
               child: Row(
                 children: [
-                  const RadialProgress(
-                    progress: 24 / 30,
+                  RadialProgress(
+                    progress: goalPct / 100,
                     size: 90,
                     strokeWidth: 8,
                     progressColor: AppColors.accentCyan,
                     child: Center(
                       child: Text(
-                        '24/30',
-                        style: TextStyle(
+                        '$goalPct%',
+                        style: const TextStyle(
                           color: AppColors.textPrimary,
                           fontWeight: FontWeight.bold,
                           fontSize: 14,
@@ -119,16 +160,18 @@ class TrainerAnalyticsTab extends StatelessWidget {
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        Text('Weekly Session Target', style: AppTextStyles.labelLarge),
+                        Text('Goal Completion', style: AppTextStyles.labelLarge),
                         const SizedBox(height: 4),
                         Text(
-                          'You have completed 24 out of your target 30 sessions for this week.',
-                          style: AppTextStyles.bodyMedium.copyWith(color: AppColors.textSecondary, fontSize: 12),
+                          'Share of your clients currently meeting their goal trajectory.',
+                          style: AppTextStyles.bodyMedium
+                              .copyWith(color: AppColors.textSecondary, fontSize: 12),
                         ),
                         const SizedBox(height: 8),
                         Text(
-                          'Next session: Today, 4:00 PM',
-                          style: AppTextStyles.caption.copyWith(color: AppColors.textTertiary),
+                          '$activeMembers clients · ${analytics.avgWorkoutCompletionRatePercent.toStringAsFixed(0)}% avg workout completion',
+                          style: AppTextStyles.caption
+                              .copyWith(color: AppColors.textTertiary),
                         ),
                       ],
                     ),
@@ -158,43 +201,66 @@ class TrainerAnalyticsTab extends StatelessWidget {
                   ),
                 ),
                 const SizedBox(height: 12),
-                ListView.separated(
-                  shrinkWrap: true,
-                  physics: const NeverScrollableScrollPhysics(),
-                  itemCount: clientProgress.length,
-                  separatorBuilder: (_, __) => const SizedBox(height: 10),
-                  itemBuilder: (context, index) {
-                    final client = clientProgress[index];
-                    final progressVal = client['val'] as double;
-                    return DashboardGlassCard(
-                      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
-                      borderRadius: 14,
-                      child: Column(
-                        children: [
-                          Row(
-                            children: [
-                              Text(client['name'] as String, style: AppTextStyles.labelLarge.copyWith(fontSize: 14)),
-                              const Spacer(),
-                              Text(
-                                '${(progressVal * 100).toInt()}%',
-                                style: AppTextStyles.caption.copyWith(
-                                  color: AppColors.textSecondary,
-                                  fontWeight: FontWeight.bold,
-                                ),
-                              ),
-                            ],
-                          ),
-                          const SizedBox(height: 6),
-                          LinearProgressBar(
-                            progress: progressVal,
-                            color: client['color'] as Color,
-                            height: 4,
-                          ),
-                        ],
+                if (clients.isEmpty)
+                  DashboardGlassCard(
+                    padding: const EdgeInsets.symmetric(vertical: 28),
+                    borderRadius: 14,
+                    child: Center(
+                      child: Text(
+                        'No assigned clients yet.',
+                        style: AppTextStyles.caption
+                            .copyWith(color: AppColors.textTertiary),
                       ),
-                    );
-                  },
-                ),
+                    ),
+                  )
+                else
+                  ListView.separated(
+                    shrinkWrap: true,
+                    physics: const NeverScrollableScrollPhysics(),
+                    itemCount: clients.length,
+                    separatorBuilder: (_, __) => const SizedBox(height: 10),
+                    itemBuilder: (context, index) {
+                      final client = clients[index];
+                      final summary = client.progressSummary;
+                      final progressVal = summary == null
+                          ? 0.0
+                          : (summary.workoutCompletionRatePercent / 100)
+                              .clamp(0.0, 1.0);
+                      final color = clientGradient(client.userId)[0];
+                      return DashboardGlassCard(
+                        padding: const EdgeInsets.symmetric(
+                            horizontal: 16, vertical: 14),
+                        borderRadius: 14,
+                        child: Column(
+                          children: [
+                            Row(
+                              children: [
+                                Text(
+                                  client.fullName,
+                                  style: AppTextStyles.labelLarge
+                                      .copyWith(fontSize: 14),
+                                ),
+                                const Spacer(),
+                                Text(
+                                  '${(progressVal * 100).toInt()}%',
+                                  style: AppTextStyles.caption.copyWith(
+                                    color: AppColors.textSecondary,
+                                    fontWeight: FontWeight.bold,
+                                  ),
+                                ),
+                              ],
+                            ),
+                            const SizedBox(height: 6),
+                            LinearProgressBar(
+                              progress: progressVal,
+                              color: color,
+                              height: 4,
+                            ),
+                          ],
+                        ),
+                      );
+                    },
+                  ),
                 const SizedBox(height: 130), // space for bottom nav
               ],
             ),

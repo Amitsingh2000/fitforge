@@ -73,6 +73,7 @@ class _EnrollmentScreenState extends ConsumerState<EnrollmentScreen> {
     String? selectedPlanId;
     final couponCtrl = TextEditingController();
     final priceCtrl = TextEditingController();
+    try {
 
     final saved = await showModalBottomSheet<bool>(
       context: context,
@@ -186,6 +187,10 @@ class _EnrollmentScreenState extends ConsumerState<EnrollmentScreen> {
           ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Enrollment failed: $e')));
         }
       }
+    }
+    } finally {
+      couponCtrl.dispose();
+      priceCtrl.dispose();
     }
   }
 

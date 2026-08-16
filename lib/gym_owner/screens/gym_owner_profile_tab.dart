@@ -75,7 +75,7 @@ class _GymOwnerProfileTabState extends ConsumerState<GymOwnerProfileTab> {
     setState(() => _startingTrial = true);
     try {
       await ref.read(gymOwnerServiceProvider).startGymTrial(gymId);
-      await _load();
+      if (mounted) await _load();
     } catch (e) {
       if (mounted) {
         setState(() => _startingTrial = false);

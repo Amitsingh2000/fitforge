@@ -34,13 +34,13 @@ final currentGymRoleProvider = Provider<GymRole?>((ref) {
 /// Auto-selects a gym after login/session-restore.
 ///
 /// Call this once after the user object is available.
-/// - 1 membership  → auto-select
-/// - 0 memberships → leave null (join/create gym flow will set it)
-/// - >1 membership → leave null (a gym-picker will be shown)
+/// - >0 memberships → auto-select the first if nothing is selected yet, so
+///   gym-scoped screens always have a gymId (a gym picker can override).
+/// - 0 memberships  → leave null (join/create gym flow will set it)
 void autoSelectGym(WidgetRef ref) {
   final memberships = ref.read(gymMembershipsProvider);
-  if (memberships.length == 1) {
-    ref.read(selectedGymProvider.notifier).state = memberships.first;
+  if (memberships.isNotEmpty) {
+    ref.read(selectedGymProvider.notifier).state ??= memberships.first;
   }
 }
 
@@ -48,7 +48,7 @@ void autoSelectGym(WidgetRef ref) {
 void autoSelectGymFromRef(Ref ref) {
   final user = ref.read(authProvider).user;
   final memberships = user?.gymMemberships ?? [];
-  if (memberships.length == 1) {
-    ref.read(selectedGymProvider.notifier).state = memberships.first;
+  if (memberships.isNotEmpty) {
+    ref.read(selectedGymProvider.notifier).state ??= memberships.first;
   }
 }

@@ -95,7 +95,8 @@ class _TrainerCertificationsScreenState extends ConsumerState<TrainerCertificati
   Future<Map<String, String>?> _promptDetails() async {
     final titleController = TextEditingController();
     final issuerController = TextEditingController();
-    return showModalBottomSheet<Map<String, String>>(
+    try {
+      return await showModalBottomSheet<Map<String, String>>(
       context: context,
       backgroundColor: Colors.transparent,
       isScrollControlled: true,
@@ -161,6 +162,10 @@ class _TrainerCertificationsScreenState extends ConsumerState<TrainerCertificati
         ),
       ),
     );
+    } finally {
+      titleController.dispose();
+      issuerController.dispose();
+    }
   }
 
   @override

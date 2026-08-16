@@ -3,7 +3,10 @@ import 'package:dio/dio.dart';
 import '../models/gym_membership.dart';
 import '../models/user.dart';
 import '../services/api_client.dart';
+import '../services/chat_socket_service.dart';
 import '../services/token_storage_service.dart';
+import 'gym_provider.dart';
+import 'onboarding_provider.dart';
 
 enum AuthStatus { initial, loading, authenticated, unauthenticated, error }
 
@@ -66,7 +69,9 @@ class AuthNotifier extends StateNotifier<AuthState> {
         await _clearSession();
         state = AuthState.unauthenticated();
       } else {
-        // Network error etc — stay authenticated optimistically
+        // Network error — we have valid tokens but no user object to render
+        // an authenticated UI, so show the login screen. The tokens remain
+        // stored, so the next cold start can still restore the session.
         state = AuthState.unauthenticated();
       }
     } catch (_) {
@@ -264,7 +269,37 @@ class AuthNotifier extends StateNotifier<AuthState> {
 
     // 2. Clear local session & tokens and notify listeners
     await _clearSession();
+
+    // 3. Drop any live Socket.IO chat connection — its token is now invalid.
+    _ref.read(chatSocketServiceProvider).disconnect();
+
+    // 4. Reset per-user UI state so the next account that logs in doesn't
+    // inherit the previous user's selected gym or onboarding progress.
+    _resetPerUserState();
+
     state = AuthState.unauthenticated();
+  }
+
+  /// Called by the Dio interceptor when BOTH tokens expire (a refresh attempt
+  /// failed). The tokens have already been cleared — this mirrors that in the
+  /// auth state so the UI drops to the login screen instead of staying on an
+  /// authenticated dashboard that can never authenticate again.
+  void handleSessionExpired() {
+    if (state.status == AuthStatus.unauthenticated ||
+        state.status == AuthStatus.initial) {
+      return;
+    }
+    _ref.read(chatSocketServiceProvider).disconnect();
+    _resetPerUserState();
+    state = AuthState.unauthenticated();
+  }
+
+  /// Clears the currently-selected gym and any in-flight onboarding wizard
+  /// state — both are scoped to the logged-in account and would otherwise
+  /// leak across user switches.
+  void _resetPerUserState() {
+    _ref.read(selectedGymProvider.notifier).state = null;
+    _ref.read(onboardingProvider.notifier).reset();
   }
 
   // ──────────────────────────────────────────────────────────────────────────

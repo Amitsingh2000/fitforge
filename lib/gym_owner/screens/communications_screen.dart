@@ -2,7 +2,6 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:url_launcher/url_launcher.dart';
 import '../../models/communication_log.dart';
-import '../../providers/gym_provider.dart';
 import '../../services/gym_owner_service.dart';
 import '../../theme/app_theme.dart';
 import '../../dashboard/widgets/dashboard_glass_card.dart';
@@ -69,6 +68,7 @@ class _CommunicationsScreenState extends ConsumerState<CommunicationsScreen> {
   Future<void> _openAnnounceSheet() async {
     final titleCtrl = TextEditingController();
     final bodyCtrl = TextEditingController();
+    try {
 
     final saved = await showModalBottomSheet<bool>(
       context: context,
@@ -150,6 +150,10 @@ class _CommunicationsScreenState extends ConsumerState<CommunicationsScreen> {
       } catch (e) {
         if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('$e')));
       }
+    }
+    } finally {
+      titleCtrl.dispose();
+      bodyCtrl.dispose();
     }
   }
 

@@ -1586,11 +1586,10 @@ class _ProfileContentState extends ConsumerState<ProfileContent> {
         ),
         const SizedBox(height: 12),
         GestureDetector(
-          onTap: () async {
-            await ref.read(authProvider.notifier).logout();
-            if (context.mounted) {
-              Navigator.of(context).pushReplacementNamed('/login');
-            }
+          onTap: () {
+            // Logout flips auth to unauthenticated; _AppEntry pops the whole
+            // route stack back to the login/onboarding home.
+            ref.read(authProvider.notifier).logout();
           },
           child: Container(
             width: double.infinity,

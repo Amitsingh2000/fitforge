@@ -1,19 +1,26 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
+import '../../models/trainer_client.dart';
+import '../../providers/gym_provider.dart';
+import '../../services/chat_service.dart';
 import '../../theme/app_theme.dart';
 import '../../onboarding/widgets/primary_button.dart';
+import '../../dashboard/widgets/state_views.dart';
 
-class TrainerFeedbackSheet extends StatefulWidget {
-  final Map<String, dynamic> client;
+class TrainerFeedbackSheet extends ConsumerStatefulWidget {
+  final TrainerClient client;
 
   const TrainerFeedbackSheet({super.key, required this.client});
 
   @override
-  State<TrainerFeedbackSheet> createState() => _TrainerFeedbackSheetState();
+  ConsumerState<TrainerFeedbackSheet> createState() =>
+      _TrainerFeedbackSheetState();
 }
 
-class _TrainerFeedbackSheetState extends State<TrainerFeedbackSheet> {
+class _TrainerFeedbackSheetState extends ConsumerState<TrainerFeedbackSheet> {
   int _selectedRating = 5;
   String _selectedCategory = 'Progress';
+  bool _sending = false;
   final _feedbackController = TextEditingController();
 
   final List<String> _categories = ['Progress', 'Diet', 'Consistency', 'Effort'];
@@ -22,6 +29,40 @@ class _TrainerFeedbackSheetState extends State<TrainerFeedbackSheet> {
   void dispose() {
     _feedbackController.dispose();
     super.dispose();
+  }
+
+  Future<void> _send() async {
+    final gymId = ref.read(currentGymIdProvider);
+    if (gymId == null || _sending) return;
+    setState(() => _sending = true);
+
+    try {
+      final chat = ref.read(chatServiceProvider);
+      final thread = await chat.createOrGetThread(
+        gymId,
+        otherUserId: widget.client.userId,
+      );
+      final body = [
+        '⭐ Feedback (${_selectedRating}/5) · $_selectedCategory',
+        if (_feedbackController.text.trim().isNotEmpty)
+          _feedbackController.text.trim(),
+      ].join('\n');
+      await chat.sendMessage(gymId, thread.id, body: body);
+
+      if (mounted) Navigator.of(context).pop(true);
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          backgroundColor: AppColors.bgTertiary,
+          content: Text(
+            'Could not send feedback: ${friendlyApiError(e)}',
+            style: AppTextStyles.bodyMedium.copyWith(color: AppColors.accentCoral),
+          ),
+        ),
+      );
+      setState(() => _sending = false);
+    }
   }
 
   @override
@@ -67,7 +108,7 @@ class _TrainerFeedbackSheetState extends State<TrainerFeedbackSheet> {
                   style: AppTextStyles.titleLarge.copyWith(fontWeight: FontWeight.bold),
                 ),
                 Text(
-                  widget.client['name'] as String,
+                  widget.client.fullName,
                   style: AppTextStyles.bodyMedium.copyWith(color: AppColors.textSecondary),
                 ),
               ],
@@ -86,7 +127,9 @@ class _TrainerFeedbackSheetState extends State<TrainerFeedbackSheet> {
                 final starValue = index + 1;
                 final isSelected = starValue <= _selectedRating;
                 return GestureDetector(
-                  onTap: () => setState(() => _selectedRating = starValue),
+                  onTap: _sending
+                      ? null
+                      : () => setState(() => _selectedRating = starValue),
                   child: Padding(
                     padding: const EdgeInsets.symmetric(horizontal: 6),
                     child: Icon(
@@ -112,7 +155,9 @@ class _TrainerFeedbackSheetState extends State<TrainerFeedbackSheet> {
               children: _categories.map((category) {
                 final isSelected = _selectedCategory == category;
                 return GestureDetector(
-                  onTap: () => setState(() => _selectedCategory = category),
+                  onTap: _sending
+                      ? null
+                      : () => setState(() => _selectedCategory = category),
                   child: Container(
                     padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
                     decoration: BoxDecoration(
@@ -174,10 +219,9 @@ class _TrainerFeedbackSheetState extends State<TrainerFeedbackSheet> {
 
             // Submit Button
             PrimaryButton(
-              label: 'Send Feedback to Member',
-              onTap: () {
-                Navigator.of(context).pop(true);
-              },
+              label: _sending ? 'Sending…' : 'Send Feedback to Member',
+              isEnabled: !_sending,
+              onTap: _send,
             ),
           ],
         ),

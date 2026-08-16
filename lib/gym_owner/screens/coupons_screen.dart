@@ -2,7 +2,6 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../models/coupon.dart';
-import '../../providers/gym_provider.dart';
 import '../../services/gym_owner_service.dart';
 import '../../theme/app_theme.dart';
 import '../../dashboard/widgets/dashboard_glass_card.dart';
@@ -49,6 +48,7 @@ class _CouponsScreenState extends ConsumerState<CouponsScreen> {
     final valueCtrl = TextEditingController();
     final limitCtrl = TextEditingController();
     String type = 'PERCENT';
+    try {
 
     final saved = await showModalBottomSheet<bool>(
       context: context,
@@ -146,6 +146,11 @@ class _CouponsScreenState extends ConsumerState<CouponsScreen> {
       } catch (e) {
         if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('$e')));
       }
+    }
+    } finally {
+      codeCtrl.dispose();
+      valueCtrl.dispose();
+      limitCtrl.dispose();
     }
   }
 

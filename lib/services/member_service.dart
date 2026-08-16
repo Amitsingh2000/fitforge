@@ -243,5 +243,5 @@ class MemberService {
 
 /// Riverpod provider for [MemberService].
 final memberServiceProvider = Provider<MemberService>((ref) {
-  return MemberService(ref.read(dioProvider));
+  return MemberService(ref.watch(dioProvider));
 });

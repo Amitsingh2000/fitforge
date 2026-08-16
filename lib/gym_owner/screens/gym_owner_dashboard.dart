@@ -98,6 +98,55 @@ class _GymOwnerDashboardState extends ConsumerState<GymOwnerDashboard>
   // ── Gym data ──
   final String _membershipPlan = 'Pro Plan';
 
+  /// Bottom sheet to switch the active gym. Available to owners with multiple
+  /// gym memberships — without it, auto-select would pin them to the first gym.
+  void _showGymPicker() {
+    final memberships = ref.read(gymMembershipsProvider);
+    if (memberships.isEmpty) return;
+    final current = ref.read(selectedGymProvider);
+
+    showModalBottomSheet<void>(
+      context: context,
+      backgroundColor: AppColors.bgSecondary,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+      ),
+      builder: (sheetCtx) => SafeArea(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            const SizedBox(height: 16),
+            Text('Switch Gym',
+                style: AppTextStyles.titleMedium.copyWith(fontWeight: FontWeight.w700)),
+            const SizedBox(height: 8),
+            ...memberships.map((m) {
+              final isCurrent = m.gymId == current?.gymId;
+              return ListTile(
+                leading: const Icon(Icons.fitness_center_rounded,
+                    color: AppColors.accentBlue),
+                title: Text(m.gymName ?? 'Unnamed Gym',
+                    style: AppTextStyles.bodyMedium.copyWith(
+                        color: AppColors.textPrimary,
+                        fontWeight: isCurrent ? FontWeight.w700 : FontWeight.w500)),
+                trailing: isCurrent
+                    ? const Icon(Icons.check_rounded, color: AppColors.accentCyan)
+                    : null,
+                onTap: () {
+                  Navigator.of(sheetCtx).pop();
+                  if (!isCurrent) {
+                    ref.read(selectedGymProvider.notifier).state = m;
+                    _loadDashboardData();
+                  }
+                },
+              );
+            }),
+            const SizedBox(height: 8),
+          ],
+        ),
+      ),
+    );
+  }
+
   int get _notificationCount => _overviewStats.unreadNotifications;
 
   List<Map<String, dynamic>> get _analyticsData => [
@@ -284,15 +333,19 @@ class _GymOwnerDashboardState extends ConsumerState<GymOwnerDashboard>
   }
 
   Widget _buildCurrentPage() {
+    // Key every tab by the active gym id so switching gyms (header picker)
+    // disposes the old tab's state and recreates it — each tab reloads its own
+    // data for the new gym in initState.
+    final gymKey = ref.watch(currentGymIdProvider) ?? 'no-gym';
     switch (_currentNavIndex) {
       case 1:
-        return const GymOwnerMembersTab(key: ValueKey('members'));
+        return GymOwnerMembersTab(key: ValueKey('members-$gymKey'));
       case 2:
-        return const GymOwnerReferralsTab(key: ValueKey('referrals'));
+        return GymOwnerReferralsTab(key: ValueKey('referrals-$gymKey'));
       case 3:
-        return GymOwnerAnalyticsTab(key: const ValueKey('analytics'));
+        return GymOwnerAnalyticsTab(key: ValueKey('analytics-$gymKey'));
       case 4:
-        return const GymOwnerProfileTab(key: ValueKey('profile'));
+        return GymOwnerProfileTab(key: ValueKey('profile-$gymKey'));
       case 0:
       default:
         return _buildDashboardHome(key: const ValueKey('dashboard_home'));
@@ -486,44 +539,61 @@ class _GymOwnerDashboardState extends ConsumerState<GymOwnerDashboard>
           ),
           const SizedBox(width: 14),
 
-          // Gym name + plan badge
+          // Gym name + plan badge (tap to switch when there are multiple gyms)
           Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  _gymName,
-                  style: AppTextStyles.titleMedium.copyWith(
-                    fontWeight: FontWeight.w700,
-                  ),
-                ),
-                const SizedBox(height: 2),
-                Container(
-                  padding:
-                      const EdgeInsets.symmetric(horizontal: 10, vertical: 3),
-                  decoration: BoxDecoration(
-                    borderRadius: BorderRadius.circular(20),
-                    gradient: LinearGradient(
-                      colors: [
-                        AppColors.accentBlue.withValues(alpha: 0.2),
-                        AppColors.accentPurple.withValues(alpha: 0.15),
+            child: GestureDetector(
+              onTap: ref.read(gymMembershipsProvider).length > 1
+                  ? _showGymPicker
+                  : null,
+              child: Row(
+                children: [
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          _gymName,
+                          style: AppTextStyles.titleMedium.copyWith(
+                            fontWeight: FontWeight.w700,
+                          ),
+                        ),
+                        const SizedBox(height: 2),
+                        Container(
+                          padding:
+                              const EdgeInsets.symmetric(horizontal: 10, vertical: 3),
+                          decoration: BoxDecoration(
+                            borderRadius: BorderRadius.circular(20),
+                            gradient: LinearGradient(
+                              colors: [
+                                AppColors.accentBlue.withValues(alpha: 0.2),
+                                AppColors.accentPurple.withValues(alpha: 0.15),
+                              ],
+                            ),
+                            border: Border.all(
+                              color: AppColors.accentBlue.withValues(alpha: 0.3),
+                              width: 1,
+                            ),
+                          ),
+                          child: Text(
+                            _membershipPlan,
+                            style: AppTextStyles.caption.copyWith(
+                              color: AppColors.accentBlue,
+                              fontWeight: FontWeight.w600,
+                              fontSize: 11,
+                            ),
+                          ),
+                        ),
                       ],
                     ),
-                    border: Border.all(
-                      color: AppColors.accentBlue.withValues(alpha: 0.3),
-                      width: 1,
-                    ),
                   ),
-                  child: Text(
-                    _membershipPlan,
-                    style: AppTextStyles.caption.copyWith(
-                      color: AppColors.accentBlue,
-                      fontWeight: FontWeight.w600,
-                      fontSize: 11,
+                  if (ref.watch(gymMembershipsProvider).length > 1)
+                    const Padding(
+                      padding: EdgeInsets.only(left: 6),
+                      child: Icon(Icons.swap_horiz_rounded,
+                          size: 18, color: AppColors.textTertiary),
                     ),
-                  ),
-                ),
-              ],
+                ],
+              ),
             ),
           ),
 
@@ -866,7 +936,7 @@ class _GymOwnerDashboardState extends ConsumerState<GymOwnerDashboard>
             final result = await Navigator.of(context).push(
               MaterialPageRoute(builder: (_) => const AddMemberScreen()),
             );
-            if (result != null) _loadDashboardData();
+            if (result != null && mounted) _loadDashboardData();
           },
         ),
       );

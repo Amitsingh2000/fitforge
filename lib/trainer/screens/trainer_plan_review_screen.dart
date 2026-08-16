@@ -335,7 +335,10 @@ class _TrainerPlanReviewScreenState extends State<TrainerPlanReviewScreen> {
           ),
         ],
       ),
-    );
+    ).then((_) {
+      titleController.dispose();
+      subController.dispose();
+    });
   }
 
   Widget _buildActionPanel() {

@@ -147,6 +147,23 @@ class _AppEntryState extends ConsumerState<_AppEntry> {
 
   @override
   Widget build(BuildContext context) {
+    // Drop any pushed route (dashboard, settings, etc.) the moment the session
+    // ends — whether from an explicit logout or a server-side session expiry.
+    // Those screens sit on TOP of this home widget, so the home swapping to the
+    // unauthenticated UI on its own is invisible; without this the user stays
+    // stuck on a stale dashboard after logging out.
+    ref.listen<AuthState>(authProvider, (previous, next) {
+      final wasAuthenticated = previous?.status == AuthStatus.authenticated;
+      final sessionEnded = next.status == AuthStatus.unauthenticated ||
+          next.status == AuthStatus.error;
+      if (wasAuthenticated && sessionEnded && mounted) {
+        WidgetsBinding.instance.addPostFrameCallback((_) {
+          if (!mounted) return;
+          Navigator.of(context).popUntil((route) => route.isFirst);
+        });
+      }
+    });
+
     final authState = ref.watch(authProvider);
 
     switch (authState.status) {
@@ -198,11 +215,12 @@ class _AppEntryState extends ConsumerState<_AppEntry> {
     });
   }
 
-  /// If the authenticated user has exactly one gym membership,
-  /// auto-select it so gym-scoped screens work immediately.
+  /// If the authenticated user has any gym memberships and none is selected,
+  /// auto-select the first so gym-scoped screens work immediately — even for
+  /// owners with multiple gyms (no gym picker exists yet).
   void _autoSelectGymIfNeeded() {
     final user = ref.read(authProvider).user;
-    if (user != null && user.gymMemberships.length == 1) {
+    if (user != null && user.gymMemberships.isNotEmpty) {
       final current = ref.read(selectedGymProvider);
       if (current == null) {
         ref.read(selectedGymProvider.notifier).state =

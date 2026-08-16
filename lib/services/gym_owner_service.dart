@@ -1032,5 +1032,5 @@ class GymOwnerService {
 
 /// Riverpod provider for [GymOwnerService].
 final gymOwnerServiceProvider = Provider<GymOwnerService>((ref) {
-  return GymOwnerService(ref.read(dioProvider));
+  return GymOwnerService(ref.watch(dioProvider));
 });

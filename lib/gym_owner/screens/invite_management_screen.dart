@@ -57,6 +57,7 @@ class _InviteManagementScreenState extends ConsumerState<InviteManagementScreen>
     String role = 'MEMBER';
     final maxUsesController = TextEditingController();
     DateTime? expiresAt;
+    try {
 
     final created = await showModalBottomSheet<bool>(
       context: context,
@@ -182,13 +183,16 @@ class _InviteManagementScreenState extends ConsumerState<InviteManagementScreen>
             maxUses: maxUses,
             expiresAt: expiresAt?.toIso8601String(),
           );
-      _load();
+      if (mounted) _load();
     } catch (e) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(content: Text('Failed to create invite: ${friendlyApiError(e)}')),
         );
       }
+    }
+    } finally {
+      maxUsesController.dispose();
     }
   }
 
@@ -212,7 +216,7 @@ class _InviteManagementScreenState extends ConsumerState<InviteManagementScreen>
     if (gymId == null) return;
     try {
       await ref.read(gymOwnerServiceProvider).revokeInvite(gymId, invite['id'] as String);
-      _load();
+      if (mounted) _load();
     } catch (e) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
