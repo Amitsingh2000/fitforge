@@ -8,6 +8,7 @@ import 'screens/personal_details_screen.dart';
 import 'screens/lifestyle_screen.dart';
 import 'screens/final_screen.dart';
 import 'widgets/progress_indicator.dart';
+import '../providers/auth_provider.dart';
 import '../providers/onboarding_provider.dart';
 import '../auth/screens/register_screen.dart';
 
@@ -147,6 +148,7 @@ class _OnboardingFlowState extends ConsumerState<OnboardingFlow> {
                   setState(() => _isLoading = true);
                   try {
                     await ref.read(onboardingProvider.notifier).completeOnboarding();
+                    await ref.read(authProvider.notifier).refreshUser();
                     if (mounted) {
                       navigator.pushReplacementNamed('/billing-plans');
                     }

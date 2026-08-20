@@ -76,7 +76,7 @@ class _CreateGymScreenState extends ConsumerState<CreateGymScreen> {
             backgroundColor: AppColors.accentBlue,
           ),
         );
-        Navigator.of(context).pushReplacementNamed('/gym-owner-dashboard');
+        Navigator.of(context).pushNamedAndRemoveUntil('/', (_) => false);
       }
     } catch (e) {
       if (mounted) {

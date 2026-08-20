@@ -110,6 +110,9 @@ class _EmailVerificationScreenState
     } else if (role == UserRole.trainer || targetRole == UserRole.trainer) {
       Navigator.of(context)
           .pushNamedAndRemoveUntil('/trainer-dashboard', (_) => false);
+    } else if (user != null && !user.isOnboardingComplete) {
+      Navigator.of(context)
+          .pushNamedAndRemoveUntil('/onboarding', (_) => false, arguments: 2);
     } else {
       Navigator.of(context)
           .pushNamedAndRemoveUntil('/dashboard', (_) => false);
