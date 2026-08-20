@@ -33,8 +33,8 @@ class MemberProfile {
     return MemberProfile(
       dateOfBirth: _tryParseDate(json['dateOfBirth']),
       sex: json['sex'] as String?,
-      heightCm: (json['heightCm'] as num?)?.toDouble(),
-      weightKg: (json['weightKg'] as num?)?.toDouble(),
+      heightCm: _tryParseDouble(json['heightCm']),
+      weightKg: _tryParseDouble(json['weightKg']),
       goal: json['goal'] as String?,
       experienceLevel: json['experienceLevel'] as String?,
       dietaryPreference: json['dietaryPreference'] as String?,
@@ -69,6 +69,13 @@ class MemberProfile {
   static DateTime? _tryParseDate(dynamic v) {
     if (v == null) return null;
     if (v is String) return DateTime.tryParse(v);
+    return null;
+  }
+
+  static double? _tryParseDouble(dynamic v) {
+    if (v == null) return null;
+    if (v is num) return v.toDouble();
+    if (v is String) return double.tryParse(v);
     return null;
   }
 }

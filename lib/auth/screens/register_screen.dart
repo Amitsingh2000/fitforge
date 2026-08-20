@@ -88,7 +88,7 @@ class _RegisterScreenState extends ConsumerState<RegisterScreen>
       if (next.status == AuthStatus.authenticated) {
         final isGymOwner = _selectedRole == UserRole.gymOwner || next.targetRole == UserRole.gymOwner;
         if (isGymOwner) {
-          Navigator.of(context).pushNamedAndRemoveUntil('/create-gym', (_) => false);
+          Navigator.of(context).pushNamedAndRemoveUntil('/', (_) => false);
         } else if (widget.isEmbeddedInOnboarding) {
           // Navigate to email verification before continuing onboarding, and
           // let the host flow know registration succeeded so it can advance

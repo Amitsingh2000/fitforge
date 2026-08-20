@@ -67,6 +67,8 @@ class _ProfileContentState extends ConsumerState<ProfileContent> {
     }
   }
 
+  bool _profileLoading = true;
+
   /// Syncs age/goal/height/weight display from the real backend profile
   /// (`GET /members/me/profile`) instead of the fixed placeholder values
   /// these fields used to carry regardless of what the user onboarded with.
@@ -79,9 +81,14 @@ class _ProfileContentState extends ConsumerState<ProfileContent> {
         _userGoal = profile.goalLabel;
         if (profile.heightCm != null) _userHeight = profile.heightCm!;
         if (profile.weightKg != null) _userWeight = profile.weightKg!;
+        _profileLoading = false;
       });
     } catch (_) {
-      // Keep placeholder values if the profile hasn't been filled yet.
+      if (mounted) {
+        setState(() {
+          _profileLoading = false;
+        });
+      }
     }
   }
 
@@ -90,10 +97,10 @@ class _ProfileContentState extends ConsumerState<ProfileContent> {
   String _userGoal = 'Build Muscle';
   double _userHeight = 175.0; // cm
   double _userWeight = 78.0; // kg
-  double _userTargetWeight = 72.0; // kg
+  final double _userTargetWeight = 72.0; // kg
   double _userBodyFat = 18.4; // %
   double _userMuscleMass = 60.5; // kg
-  String _dietType = 'Vegetarian';
+  final String _dietType = 'Vegetarian';
 
   // Metrics History state
   final List<Map<String, dynamic>> _metricsHistory = [
@@ -137,87 +144,100 @@ class _ProfileContentState extends ConsumerState<ProfileContent> {
 
   @override
   Widget build(BuildContext context) {
+    final isLoading = _profileLoading || _subscriptionLoading;
+
     return CustomScrollView(
       physics: const BouncingScrollPhysics(),
       slivers: [
         // Screen Header with Settings button
         SliverToBoxAdapter(child: _buildHeader()),
 
-        // Premium Profile Header Section
-        SliverToBoxAdapter(child: _buildProfileHeader()),
+        if (isLoading)
+          const SliverFillRemaining(
+            hasScrollBody: false,
+            child: Center(
+              child: Padding(
+                padding: EdgeInsets.only(bottom: 120),
+                child: CircularProgressIndicator(
+                  color: AppColors.accentBlue,
+                  strokeWidth: 2.5,
+                ),
+              ),
+            ),
+          )
+        else ...[
+          // Premium Profile Header Section
+          SliverToBoxAdapter(child: _buildProfileHeader()),
 
-        // Scrollable content body
-        SliverPadding(
-          padding: const EdgeInsets.fromLTRB(20, 8, 20, 130), // Bottom padding to clear floating nav bar
-          sliver: SliverList(
-            delegate: SliverChildListDelegate([
-              const SizedBox(height: 12),
+          // Scrollable content body
+          SliverPadding(
+            padding: const EdgeInsets.fromLTRB(20, 8, 20, 130), // Bottom padding to clear floating nav bar
+            sliver: SliverList(
+              delegate: SliverChildListDelegate([
+                const SizedBox(height: 12),
 
-              // Fitness Snapshot Hero Card
-              _buildFitnessSnapshot()
-                  .animate()
-                  .fadeIn(duration: 500.ms, delay: 100.ms)
-                  .slideY(begin: 0.05, end: 0, duration: 500.ms, delay: 100.ms),
-              const SizedBox(height: 20),
+                // Fitness Snapshot Hero Card
+                _buildFitnessSnapshot()
+                    .animate()
+                    .fadeIn(duration: 500.ms, delay: 100.ms)
+                    .slideY(begin: 0.05, end: 0, duration: 500.ms, delay: 100.ms),
+                const SizedBox(height: 20),
 
-              // Subscription Manager Section
-              _buildSubscriptionCard()
-                  .animate()
-                  .fadeIn(duration: 500.ms, delay: 150.ms),
-              const SizedBox(height: 20),
+                // Subscription Manager Section
+                _buildSubscriptionCard()
+                    .animate()
+                    .fadeIn(duration: 500.ms, delay: 150.ms),
+                const SizedBox(height: 20),
 
-              // Body Metrics Section
-              _buildSectionLabel('BODY METRICS'),
-              const SizedBox(height: 12),
-              _buildBodyMetricsSection()
-                  .animate()
-                  .fadeIn(duration: 500.ms, delay: 200.ms),
-              const SizedBox(height: 20),
+                // Body Metrics Section
+                _buildSectionLabel('BODY METRICS'),
+                const SizedBox(height: 12),
+                _buildBodyMetricsSection()
+                    .animate()
+                    .fadeIn(duration: 500.ms, delay: 200.ms),
+                const SizedBox(height: 20),
 
+                // Active Goals Progress Section
+                _buildSectionLabel('MY GOALS'),
+                const SizedBox(height: 12),
+                _buildGoalsSection()
+                    .animate()
+                    .fadeIn(duration: 500.ms, delay: 250.ms),
+                const SizedBox(height: 20),
 
+                // Nutrition Preferences Card
+                _buildSectionLabel('NUTRITION PREFERENCES'),
+                const SizedBox(height: 12),
+                _buildNutritionPreferences()
+                    .animate()
+                    .fadeIn(duration: 500.ms, delay: 300.ms),
+                const SizedBox(height: 20),
 
-              // Active Goals Progress Section
-              _buildSectionLabel('MY GOALS'),
-              const SizedBox(height: 12),
-              _buildGoalsSection()
-                  .animate()
-                  .fadeIn(duration: 500.ms, delay: 250.ms),
-              const SizedBox(height: 20),
+                // Lifetime Activity Stats
+                _buildSectionLabel('LIFETIME STATS'),
+                const SizedBox(height: 12),
+                _buildLifetimeStats()
+                    .animate()
+                    .fadeIn(duration: 500.ms, delay: 400.ms),
+                const SizedBox(height: 20),
 
-              // Nutrition Preferences Card
-              _buildSectionLabel('NUTRITION PREFERENCES'),
-              const SizedBox(height: 12),
-              _buildNutritionPreferences()
-                  .animate()
-                  .fadeIn(duration: 500.ms, delay: 300.ms),
-              const SizedBox(height: 20),
+                // Gym & Rewards Section
+                _buildSectionLabel('GYM & REWARDS'),
+                const SizedBox(height: 12),
+                _buildGymActionsSection()
+                    .animate()
+                    .fadeIn(duration: 500.ms, delay: 500.ms),
+                const SizedBox(height: 20),
 
-              // Lifetime Activity Stats
-              _buildSectionLabel('LIFETIME STATS'),
-              const SizedBox(height: 12),
-              _buildLifetimeStats()
-                  .animate()
-                  .fadeIn(duration: 500.ms, delay: 400.ms),
-              const SizedBox(height: 20),
-
-
-
-              // Gym & Rewards Section
-              _buildSectionLabel('GYM & REWARDS'),
-              const SizedBox(height: 12),
-              _buildGymActionsSection()
-                  .animate()
-                  .fadeIn(duration: 500.ms, delay: 500.ms),
-              const SizedBox(height: 20),
-
-              // Account Action controls
-              _buildAccountActions()
-                  .animate()
-                  .fadeIn(duration: 500.ms, delay: 600.ms),
-              const SizedBox(height: 16),
-            ]),
+                // Account Action controls
+                _buildAccountActions()
+                    .animate()
+                    .fadeIn(duration: 500.ms, delay: 600.ms),
+                const SizedBox(height: 16),
+              ]),
+            ),
           ),
-        ),
+        ],
       ],
     );
   }

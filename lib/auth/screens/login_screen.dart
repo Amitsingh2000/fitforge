@@ -5,7 +5,6 @@ import 'package:url_launcher/url_launcher.dart';
 import '../../theme/app_theme.dart';
 import '../../onboarding/widgets/primary_button.dart';
 import '../../providers/auth_provider.dart';
-import '../../models/user.dart';
 
 class LoginScreen extends ConsumerStatefulWidget {
   const LoginScreen({super.key});
@@ -47,8 +46,8 @@ class _LoginScreenState extends ConsumerState<LoginScreen>
   @override
   Widget build(BuildContext context) {
     ref.listen<AuthState>(authProvider, (previous, next) {
-      if (next.status == AuthStatus.authenticated && next.user?.role == UserRole.client) {
-        Navigator.of(context).pushReplacementNamed('/dashboard');
+      if (next.status == AuthStatus.authenticated) {
+        Navigator.of(context).pushNamedAndRemoveUntil('/', (_) => false);
       } else if (next.status == AuthStatus.error) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(

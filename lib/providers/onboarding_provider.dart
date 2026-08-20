@@ -93,8 +93,8 @@ class OnboardingNotifier extends StateNotifier<OnboardingState> {
       state = state.copyWith(
         goal: _goalFromBackend(data['goal'] as String?),
         gender: data['sex'] == 'FEMALE' ? 'Female' : (data['sex'] == 'MALE' ? 'Male' : null),
-        height: (data['heightCm'] as num?)?.round(),
-        weight: (data['weightKg'] as num?)?.round(),
+        height: _intFromBackend(data['heightCm']),
+        weight: _intFromBackend(data['weightKg']),
         experience: _experienceFromBackend(data['experienceLevel'] as String?),
         dietPreference: _dietFromBackend(data['dietaryPreference'] as String?),
         equipmentAccess: _equipmentFromBackend(data['equipmentAccess'] as String?),
@@ -103,6 +103,13 @@ class OnboardingNotifier extends StateNotifier<OnboardingState> {
     } catch (_) {
       // No profile yet, or offline — the wizard just starts fresh.
     }
+  }
+
+  static int? _intFromBackend(dynamic v) {
+    if (v == null) return null;
+    if (v is num) return v.round();
+    if (v is String) return double.tryParse(v)?.round() ?? int.tryParse(v);
+    return null;
   }
 
   static String? _goalFromBackend(String? v) => switch (v) {

@@ -47,7 +47,7 @@ class _TrainerLoginScreenState extends ConsumerState<TrainerLoginScreen>
   Widget build(BuildContext context) {
     ref.listen<AuthState>(authProvider, (previous, next) {
       if (next.status == AuthStatus.authenticated && next.user?.role == UserRole.trainer) {
-        Navigator.of(context).pushReplacementNamed('/trainer-dashboard');
+        Navigator.of(context).pushNamedAndRemoveUntil('/', (_) => false);
       } else if (next.status == AuthStatus.error) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(

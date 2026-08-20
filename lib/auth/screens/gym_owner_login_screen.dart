@@ -50,11 +50,7 @@ class _GymOwnerLoginScreenState extends ConsumerState<GymOwnerLoginScreen>
     ref.listen<AuthState>(authProvider, (previous, next) {
       if (next.status == AuthStatus.authenticated &&
           (next.user?.role == UserRole.gymOwner || next.targetRole == UserRole.gymOwner)) {
-        if (next.user?.gymMemberships.isEmpty ?? true) {
-          Navigator.of(context).pushReplacementNamed('/create-gym');
-        } else {
-          Navigator.of(context).pushReplacementNamed('/gym-owner-dashboard');
-        }
+        Navigator.of(context).pushNamedAndRemoveUntil('/', (_) => false);
       } else if (next.status == AuthStatus.error) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(

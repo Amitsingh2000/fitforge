@@ -20,7 +20,7 @@ class BillingPlansScreen extends StatelessWidget {
         child: BillingPlansContent(
           isStandalone: true,
           onCompleted: onCompleted ?? () {
-            Navigator.of(context).pushReplacementNamed('/dashboard');
+            Navigator.of(context).pushNamedAndRemoveUntil('/dashboard', (_) => false);
           },
         ),
       ),
