@@ -16,11 +16,11 @@ class GymDashboardToday {
 
   factory GymDashboardToday.fromJson(Map<String, dynamic> json) {
     return GymDashboardToday(
-      totalCheckIns: _parseInt(json['totalCheckIns'] ?? json['checkIns'] ?? json['checkInsToday']),
-      collectionsAmount: _parseInt(json['collectionsAmount'] ?? json['collectionsToday'] ?? json['collections']),
-      newJoinsCount: _parseInt(json['newJoinsCount'] ?? json['newJoins'] ?? json['newJoinsToday']),
-      expiringSoonCount: _parseInt(json['expiringSoonCount'] ?? json['expiringSoon']),
-      totalDuesAmount: _parseInt(json['totalDuesAmount'] ?? json['totalDues'] ?? json['pendingDues']),
+      totalCheckIns: _parseInt(json['checkIns'] ?? json['totalCheckIns'] ?? json['checkInsToday']),
+      collectionsAmount: _parseInt(json['collectionsInr'] ?? json['collectionsAmount'] ?? json['collectionsToday'] ?? json['collections']),
+      newJoinsCount: _parseInt(json['newJoins'] ?? json['newJoinsCount'] ?? json['newJoinsToday']),
+      expiringSoonCount: _parseInt(json['expiringSoon'] ?? json['expiringSoonCount']),
+      totalDuesAmount: _parseInt(json['duesTotalInr'] ?? json['totalDuesAmount'] ?? json['totalDues'] ?? json['pendingDues']),
     );
   }
 
@@ -53,10 +53,10 @@ class GymDashboardMonthly {
 
   factory GymDashboardMonthly.fromJson(Map<String, dynamic> json) {
     return GymDashboardMonthly(
-      totalRevenue: GymDashboardToday._parseInt(json['totalRevenue'] ?? json['revenue']),
-      activeMembersCount: GymDashboardToday._parseInt(json['activeMembersCount'] ?? json['activeMembers']),
-      renewalsCount: GymDashboardToday._parseInt(json['renewalsCount'] ?? json['renewals']),
-      churnCount: GymDashboardToday._parseInt(json['churnCount'] ?? json['churn']),
+      totalRevenue: GymDashboardToday._parseInt(json['revenueInr'] ?? json['totalRevenue'] ?? json['revenue']),
+      activeMembersCount: GymDashboardToday._parseInt(json['activeMembers'] ?? json['activeMembersCount']),
+      renewalsCount: GymDashboardToday._parseInt(json['renewalsThisMonth'] ?? json['renewalsCount'] ?? json['renewals']),
+      churnCount: GymDashboardToday._parseInt(json['churnThisMonth'] ?? json['churnCount'] ?? json['churn']),
       retentionRatePercent: (json['retentionRatePercent'] as num?)?.toDouble(),
       attendanceTrend: json['attendanceTrend'] as List? ?? [],
     );

@@ -16,15 +16,93 @@ class GymOwnerAnalyticsTab extends ConsumerStatefulWidget {
 }
 
 class _GymOwnerAnalyticsTabState extends ConsumerState<GymOwnerAnalyticsTab> {
-  String _selectedPeriod = 'This Month';
-  final List<String> _periods = ['This Week', 'This Month', 'This Year'];
-
   // Live data (§ owner-flow extension: growth/progress/subscription-usage)
   GymDashboardMonthly _monthlyStats = const GymDashboardMonthly();
   List<GymGrowthPoint> _growthTrend = [];
   GymProgressOverview _progressOverview = const GymProgressOverview();
   GymSubscriptionUsage _subscriptionUsage = const GymSubscriptionUsage();
   bool _liveDataLoading = true;
+
+  List<Map<String, dynamic>> get _revenueData {
+    return _monthlyStats.attendanceTrend.take(14).map((raw) {
+      final m = Map<String, dynamic>.from(raw as Map);
+      final parsed = DateTime.tryParse('${m['date']}');
+      return {
+        'month': parsed != null ? '${parsed.day}/${parsed.month}' : 'Day',
+        'value': (m['checkIns'] as num?)?.toDouble() ?? 0,
+      };
+    }).toList();
+  }
+
+  List<Map<String, dynamic>> get _weeklyAttendance {
+    const days = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
+    final sums = List<double>.filled(7, 0);
+    final counts = List<int>.filled(7, 0);
+    for (final raw in _monthlyStats.attendanceTrend) {
+      final m = Map<String, dynamic>.from(raw as Map);
+      final d = DateTime.tryParse('${m['date']}');
+      if (d == null) continue;
+      final i = d.weekday - 1;
+      sums[i] += (m['checkIns'] as num?)?.toDouble() ?? 0;
+      counts[i] += 1;
+    }
+    final peak = sums.fold<double>(0, (a, b) => a > b ? a : b);
+    return List.generate(7, (i) {
+      final avg = counts[i] == 0 ? 0.0 : sums[i] / counts[i];
+      return {
+        'day': days[i],
+        'value': peak == 0 ? 0.0 : (avg / peak).clamp(0.0, 1.0),
+      };
+    });
+  }
+
+  List<Map<String, dynamic>> get _topMetrics {
+    final checkIns = _monthlyStats.attendanceTrend
+        .map((raw) {
+          final m = Map<String, dynamic>.from(raw as Map);
+          return (m['checkIns'] as num?)?.toInt() ?? 0;
+        })
+        .toList();
+    final avgAttendance = checkIns.isEmpty
+        ? 0
+        : (checkIns.reduce((a, b) => a + b) / checkIns.length).round();
+    return [
+      {
+        'title': 'Avg. Daily Attendance',
+        'value': '$avgAttendance',
+        'change': '',
+        'isUp': true,
+        'icon': Icons.trending_up_rounded,
+        'color': AppColors.accentCyan,
+      },
+      {
+        'title': 'Member Retention',
+        'value': _monthlyStats.retentionRatePercent != null
+            ? '${_monthlyStats.retentionRatePercent!.toStringAsFixed(0)}%'
+            : '—',
+        'change': '',
+        'isUp': true,
+        'icon': Icons.loyalty_rounded,
+        'color': AppColors.accentPurple,
+      },
+      {
+        'title': 'Revenue this month',
+        'value': '₹${_monthlyStats.totalRevenue}',
+        'change': '',
+        'isUp': true,
+        'icon': Icons.show_chart_rounded,
+        'color': AppColors.accentBlue,
+      },
+      {
+        'title': 'Churn this month',
+        'value': '${_monthlyStats.churnCount}',
+        'change': '',
+        'isUp': false,
+        'icon': Icons.trending_down_rounded,
+        'color': AppColors.accentCoral,
+      },
+    ];
+  }
 
   @override
   void initState() {
@@ -60,90 +138,6 @@ class _GymOwnerAnalyticsTabState extends ConsumerState<GymOwnerAnalyticsTab> {
     }
   }
 
-  // Revenue data (last 7 months)
-  final List<Map<String, dynamic>> _revenueData = [
-    {'month': 'Jan', 'value': 3.2},
-    {'month': 'Feb', 'value': 3.5},
-    {'month': 'Mar', 'value': 3.8},
-    {'month': 'Apr', 'value': 4.1},
-    {'month': 'May', 'value': 4.5},
-    {'month': 'Jun', 'value': 4.8},
-    {'month': 'Jul', 'value': 5.1},
-  ];
-
-  // Attendance by day of week
-  final List<Map<String, dynamic>> _weeklyAttendance = [
-    {'day': 'Mon', 'value': 0.85},
-    {'day': 'Tue', 'value': 0.78},
-    {'day': 'Wed', 'value': 0.92},
-    {'day': 'Thu', 'value': 0.70},
-    {'day': 'Fri', 'value': 0.88},
-    {'day': 'Sat', 'value': 0.95},
-    {'day': 'Sun', 'value': 0.55},
-  ];
-
-  // Plan distribution
-  final List<Map<String, dynamic>> _planDistribution = [
-    {
-      'plan': 'Premium',
-      'count': 98,
-      'percent': 0.40,
-      'color': AppColors.accentBlue,
-    },
-    {
-      'plan': 'Standard',
-      'count': 86,
-      'percent': 0.35,
-      'color': AppColors.accentPurple,
-    },
-    {
-      'plan': 'Basic',
-      'count': 64,
-      'percent': 0.25,
-      'color': AppColors.accentCyan,
-    },
-  ];
-
-  // Top metrics — retention/churn from `dashboard/monthly` (real); attendance/revenue-growth
-  // trend indicators aren't backed by a comparison-period endpoint yet, so those two stay
-  // illustrative pending that data existing.
-  List<Map<String, dynamic>> get _topMetrics => [
-        {
-          'title': 'Avg. Daily Attendance',
-          'value': '142',
-          'change': '+12%',
-          'isUp': true,
-          'icon': Icons.trending_up_rounded,
-          'color': AppColors.accentCyan,
-        },
-        {
-          'title': 'Member Retention',
-          'value': _monthlyStats.retentionRatePercent != null
-              ? '${_monthlyStats.retentionRatePercent!.toStringAsFixed(0)}%'
-              : '—',
-          'change': '',
-          'isUp': true,
-          'icon': Icons.loyalty_rounded,
-          'color': AppColors.accentPurple,
-        },
-        {
-          'title': 'Revenue Growth',
-          'value': '+18%',
-          'change': '+5%',
-          'isUp': true,
-          'icon': Icons.show_chart_rounded,
-          'color': AppColors.accentBlue,
-        },
-        {
-          'title': 'Churn Rate',
-          'value': '${_monthlyStats.churnCount}',
-          'change': '',
-          'isUp': false,
-          'icon': Icons.trending_down_rounded,
-          'color': AppColors.accentCoral,
-        },
-      ];
-
   @override
   Widget build(BuildContext context) {
     return CustomScrollView(
@@ -177,54 +171,6 @@ class _GymOwnerAnalyticsTabState extends ConsumerState<GymOwnerAnalyticsTab> {
               .slideY(begin: -0.05, end: 0, duration: 500.ms),
         ),
 
-        // Period selector
-        SliverToBoxAdapter(
-          child: Padding(
-            padding: const EdgeInsets.fromLTRB(20, 8, 20, 16),
-            child: Row(
-              children: _periods.map((period) {
-                final isSelected = period == _selectedPeriod;
-                return Padding(
-                  padding: const EdgeInsets.only(right: 8),
-                  child: GestureDetector(
-                    onTap: () => setState(() => _selectedPeriod = period),
-                    child: AnimatedContainer(
-                      duration: const Duration(milliseconds: 200),
-                      padding: const EdgeInsets.symmetric(
-                          horizontal: 14, vertical: 8),
-                      decoration: BoxDecoration(
-                        borderRadius: BorderRadius.circular(12),
-                        color: isSelected
-                            ? AppColors.accentBlue.withValues(alpha: 0.15)
-                            : AppColors.glassBg,
-                        border: Border.all(
-                          color: isSelected
-                              ? AppColors.accentBlue.withValues(alpha: 0.4)
-                              : AppColors.glassBorder,
-                          width: 1,
-                        ),
-                      ),
-                      child: Text(
-                        period,
-                        style: AppTextStyles.caption.copyWith(
-                          color: isSelected
-                              ? AppColors.accentBlue
-                              : AppColors.textSecondary,
-                          fontWeight:
-                              isSelected ? FontWeight.w600 : FontWeight.w500,
-                          fontSize: 12,
-                        ),
-                      ),
-                    ),
-                  ),
-                );
-              }).toList(),
-            ),
-          )
-              .animate()
-              .fadeIn(duration: 500.ms, delay: 100.ms),
-        ),
-
         // Top metrics row
         SliverToBoxAdapter(
           child: SizedBox(
@@ -249,8 +195,10 @@ class _GymOwnerAnalyticsTabState extends ConsumerState<GymOwnerAnalyticsTab> {
           padding: const EdgeInsets.fromLTRB(20, 24, 20, 120),
           sliver: SliverList(
             delegate: SliverChildListDelegate([
-              // Revenue chart
-              _buildSectionLabel('REVENUE TREND'),
+              // Check-in trend (the backend only tracks a per-day check-in
+              // count, not a per-day revenue breakdown — revenue is a single
+              // month total, shown in the metric card above instead).
+              _buildSectionLabel('CHECK-IN TREND'),
               const SizedBox(height: 12),
               _buildRevenueChart()
                   .animate()
@@ -277,16 +225,6 @@ class _GymOwnerAnalyticsTabState extends ConsumerState<GymOwnerAnalyticsTab> {
                   .fadeIn(duration: 500.ms, delay: 450.ms)
                   .slideY(
                       begin: 0.05, end: 0, duration: 500.ms, delay: 450.ms),
-              const SizedBox(height: 24),
-
-              // Plan distribution
-              _buildSectionLabel('PLAN DISTRIBUTION'),
-              const SizedBox(height: 12),
-              _buildPlanDistribution()
-                  .animate()
-                  .fadeIn(duration: 500.ms, delay: 550.ms)
-                  .slideY(
-                      begin: 0.05, end: 0, duration: 500.ms, delay: 550.ms),
               const SizedBox(height: 24),
 
               // Progress monitoring (attendance/session-based engagement proxy)
@@ -401,11 +339,11 @@ class _GymOwnerAnalyticsTabState extends ConsumerState<GymOwnerAnalyticsTab> {
     );
   }
 
-  // ── Revenue Chart (Bar chart) ──
+  // ── Check-in Trend Chart (Bar chart) ──
   Widget _buildRevenueChart() {
-    final maxVal = _revenueData
-        .map((e) => e['value'] as double)
-        .reduce((a, b) => a > b ? a : b);
+    final values = _revenueData.map((e) => e['value'] as double);
+    final maxVal = values.fold<double>(1, (a, b) => a > b ? a : b);
+    final totalCheckIns = values.fold<double>(0, (a, b) => a + b).round();
 
     return DashboardGlassCard(
       padding: const EdgeInsets.all(20),
@@ -416,33 +354,34 @@ class _GymOwnerAnalyticsTabState extends ConsumerState<GymOwnerAnalyticsTab> {
           Row(
             children: [
               Text(
-                '₹4.8L',
+                '$totalCheckIns',
                 style: AppTextStyles.titleLarge.copyWith(
                   fontWeight: FontWeight.w800,
                   fontSize: 22,
                 ),
               ),
               const SizedBox(width: 8),
-              Container(
-                padding:
-                    const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
-                decoration: BoxDecoration(
-                  borderRadius: BorderRadius.circular(6),
-                  color: AppColors.accentCyan.withValues(alpha: 0.1),
-                ),
-                child: Text(
-                  '+18% vs last month',
-                  style: AppTextStyles.caption.copyWith(
-                    color: AppColors.accentCyan,
-                    fontWeight: FontWeight.w600,
-                    fontSize: 9,
-                  ),
+              Text(
+                'check-ins this month · by day',
+                style: AppTextStyles.caption.copyWith(
+                  color: AppColors.textTertiary,
+                  fontWeight: FontWeight.w600,
+                  fontSize: 9,
                 ),
               ),
             ],
           ),
           const SizedBox(height: 20),
-          SizedBox(
+          if (_revenueData.isEmpty)
+            Padding(
+              padding: const EdgeInsets.symmetric(vertical: 24),
+              child: Text(
+                'No check-in trend yet this month.',
+                style: AppTextStyles.bodyMedium.copyWith(color: AppColors.textTertiary),
+              ),
+            )
+          else
+            SizedBox(
             height: 140,
             child: Row(
               crossAxisAlignment: CrossAxisAlignment.end,
@@ -777,68 +716,6 @@ class _GymOwnerAnalyticsTabState extends ConsumerState<GymOwnerAnalyticsTab> {
     );
   }
 
-  // ── Plan Distribution ──
-  Widget _buildPlanDistribution() {
-    return DashboardGlassCard(
-      padding: const EdgeInsets.all(20),
-      borderRadius: 18,
-      child: Column(
-        children: _planDistribution.map((plan) {
-          final color = plan['color'] as Color;
-          return Padding(
-            padding: const EdgeInsets.only(bottom: 14),
-            child: Row(
-              children: [
-                Container(
-                  width: 10,
-                  height: 10,
-                  decoration: BoxDecoration(
-                    shape: BoxShape.circle,
-                    color: color,
-                  ),
-                ),
-                const SizedBox(width: 10),
-                SizedBox(
-                  width: 70,
-                  child: Text(
-                    plan['plan'] as String,
-                    style: AppTextStyles.labelLarge.copyWith(
-                      fontSize: 13,
-                      fontWeight: FontWeight.w600,
-                    ),
-                  ),
-                ),
-                const SizedBox(width: 8),
-                Expanded(
-                  child: LinearProgressBar(
-                    progress: plan['percent'] as double,
-                    color: color,
-                    height: 6,
-                  ),
-                ),
-                const SizedBox(width: 12),
-                Text(
-                  '${plan['count']}',
-                  style: AppTextStyles.labelLarge.copyWith(
-                    fontSize: 14,
-                    fontWeight: FontWeight.w700,
-                  ),
-                ),
-                const SizedBox(width: 4),
-                Text(
-                  '(${((plan['percent'] as double) * 100).toInt()}%)',
-                  style: AppTextStyles.caption.copyWith(
-                    color: AppColors.textTertiary,
-                    fontSize: 10,
-                  ),
-                ),
-              ],
-            ),
-          );
-        }).toList(),
-      ),
-    );
-  }
 }
 
 // ── Custom painter for membership growth line chart ──

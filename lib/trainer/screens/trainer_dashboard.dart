@@ -12,9 +12,12 @@ import '../../services/trainer_dashboard_service.dart';
 import '../../services/trainer_service.dart';
 import '../widgets/trainer_glass_stat_card.dart';
 import '../widgets/trainer_schedule_card.dart';
+import '../../providers/gym_provider.dart';
+import 'trainer_chat_conversation_screen.dart';
+import 'trainer_chat_threads_screen.dart';
 import 'trainer_clients_tab.dart';
-import 'trainer_reviews_tab.dart';
 import 'trainer_analytics_tab.dart';
+import 'trainer_notifications_screen.dart';
 import 'trainer_profile_tab.dart';
 
 class TrainerDashboard extends ConsumerStatefulWidget {
@@ -112,6 +115,14 @@ class _TrainerDashboardState extends ConsumerState<TrainerDashboard>
         'isTrendPositive': true,
       },
       {
+        'title': 'Active this week',
+        'value': d?.engagedClientsLast7Days ?? 0,
+        'icon': Icons.local_fire_department_rounded,
+        'color': AppColors.accentCoral,
+        'trendText': '7 days',
+        'isTrendPositive': true,
+      },
+      {
         'title': 'Unread Messages',
         'value': d?.unreadMessagesCount ?? 0,
         'icon': Icons.chat_bubble_rounded,
@@ -130,10 +141,10 @@ class _TrainerDashboardState extends ConsumerState<TrainerDashboard>
       'action': 'clients',
     },
     {
-      'label': 'Review Plans',
-      'icon': Icons.rate_review_rounded,
+      'label': 'Messages',
+      'icon': Icons.chat_bubble_outline_rounded,
       'gradient': [AppColors.accentPurple, const Color(0xFFA855F7)],
-      'action': 'reviews',
+      'action': 'messages',
     },
     {
       'label': 'New Session',
@@ -146,52 +157,6 @@ class _TrainerDashboardState extends ConsumerState<TrainerDashboard>
       'icon': Icons.insights_rounded,
       'gradient': [AppColors.accentOrange, const Color(0xFFF59E0B)],
       'action': 'analytics',
-    },
-  ];
-
-  final List<Map<String, dynamic>> _todaySessions = [
-    {
-      'name': 'Rahul Sharma',
-      'initials': 'RS',
-      'time': '09:00 AM',
-      'type': 'Strength & Conditioning',
-      'gradient': [AppColors.accentBlue, AppColors.accentCyan],
-    },
-    {
-      'name': 'Priya Patel',
-      'initials': 'PP',
-      'time': '11:30 AM',
-      'type': 'Nutrition Review',
-      'gradient': [AppColors.accentPurple, AppColors.accentCoral],
-    },
-    {
-      'name': 'Sneha Gupta',
-      'initials': 'SG',
-      'time': '04:00 PM',
-      'type': 'Flexibility Training',
-      'gradient': [AppColors.accentCyan, AppColors.accentBlue],
-    },
-    {
-      'name': 'Arjun Reddy',
-      'initials': 'AR',
-      'time': '06:30 PM',
-      'type': 'Hypertrophy Session',
-      'gradient': [AppColors.accentBlue, AppColors.accentPurple],
-    },
-  ];
-
-  final List<Map<String, dynamic>> _pendingReviews = [
-    {
-      'name': 'Rahul Sharma',
-      'goal': 'Weight Loss',
-      'date': 'Today',
-      'type': 'Workout Plan',
-    },
-    {
-      'name': 'Priya Patel',
-      'goal': 'Muscle Gain',
-      'date': 'Yesterday',
-      'type': 'Meal Plan',
     },
   ];
 
@@ -291,10 +256,8 @@ class _TrainerDashboardState extends ConsumerState<TrainerDashboard>
       case 1:
         return const TrainerClientsTab(key: ValueKey('clients'));
       case 2:
-        return const TrainerReviewsTab(key: ValueKey('reviews'));
-      case 3:
         return const TrainerAnalyticsTab(key: ValueKey('analytics'));
-      case 4:
+      case 3:
         return const TrainerProfileTab(key: ValueKey('profile'));
       case 0:
       default:
@@ -337,7 +300,7 @@ class _TrainerDashboardState extends ConsumerState<TrainerDashboard>
               const SizedBox(height: 24),
 
               // Today's Sessions schedule
-              _buildSectionLabel('TODAY\'S SCHEDULE'),
+              _buildSectionLabel('RECENT MESSAGES'),
               const SizedBox(height: 12),
             ]),
           ),
@@ -359,7 +322,7 @@ class _TrainerDashboardState extends ConsumerState<TrainerDashboard>
           sliver: SliverList(
             delegate: SliverChildListDelegate([
               // Pending AI reviews
-              _buildSectionLabel('PENDING AI REVIEWS'),
+              _buildSectionLabel('DRAFT PLANS'),
               const SizedBox(height: 12),
               _buildPendingReviewsList()
                   .animate()
@@ -445,7 +408,9 @@ class _TrainerDashboardState extends ConsumerState<TrainerDashboard>
 
           // Notification bell
           GestureDetector(
-            onTap: () {},
+            onTap: () => Navigator.of(context).push(
+              MaterialPageRoute(builder: (_) => const TrainerNotificationsScreen()),
+            ),
             child: Container(
               width: 44,
               height: 44,
@@ -548,10 +513,12 @@ class _TrainerDashboardState extends ConsumerState<TrainerDashboard>
             onTap: () {
               if (action['action'] == 'clients') {
                 setState(() => _currentNavIndex = 1);
-              } else if (action['action'] == 'reviews') {
-                setState(() => _currentNavIndex = 2);
+              } else if (action['action'] == 'messages') {
+                Navigator.of(context).push(
+                  MaterialPageRoute(builder: (_) => const TrainerChatThreadsScreen()),
+                );
               } else if (action['action'] == 'analytics') {
-                setState(() => _currentNavIndex = 3);
+                setState(() => _currentNavIndex = 2);
               } else if (action['action'] == 'session') {
                 // Show standard notification snackbar
                 ScaffoldMessenger.of(context).showSnackBar(
@@ -618,25 +585,48 @@ class _TrainerDashboardState extends ConsumerState<TrainerDashboard>
   }
 
   Widget _buildSessionsHorizontalList() {
+    final threads = _dashboard?.recentThreads ?? const [];
+    if (threads.isEmpty) {
+      return Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 20),
+        child: Text(
+          'No recent chats yet. Message a client from their profile.',
+          style: AppTextStyles.bodyMedium.copyWith(color: AppColors.textTertiary),
+        ),
+      );
+    }
     return SizedBox(
       height: 110,
       child: ListView.separated(
         padding: const EdgeInsets.symmetric(horizontal: 20),
         scrollDirection: Axis.horizontal,
         physics: const BouncingScrollPhysics(),
-        itemCount: _todaySessions.length,
+        itemCount: threads.length,
         separatorBuilder: (_, __) => const SizedBox(width: 12),
         itemBuilder: (context, index) {
-          final session = _todaySessions[index];
+          final thread = threads[index];
+          final name = thread.otherUserName ?? 'Member';
           return TrainerScheduleCard(
-            clientName: session['name'] as String,
-            clientInitials: session['initials'] as String,
-            time: session['time'] as String,
-            sessionType: session['type'] as String,
-            gradientColors: session['gradient'] as List<Color>,
+            clientName: name,
+            clientInitials: name.isNotEmpty ? name[0].toUpperCase() : 'M',
+            time: thread.lastMessageAt != null
+                ? '${thread.lastMessageAt!.hour.toString().padLeft(2, '0')}:${thread.lastMessageAt!.minute.toString().padLeft(2, '0')}'
+                : '',
+            sessionType: thread.lastMessagePreview ?? 'Chat',
+            gradientColors: const [AppColors.accentBlue, AppColors.accentCyan],
             onTap: () {
-              // Quick navigate to Clients detail (we'll implement that next)
-              setState(() => _currentNavIndex = 1);
+              final gymId = thread.gymId ?? ref.read(currentGymIdProvider);
+              if (gymId == null) return;
+              Navigator.of(context).push(
+                MaterialPageRoute(
+                  builder: (_) => TrainerChatConversationScreen(
+                    gymId: gymId,
+                    threadId: thread.id,
+                    otherUserId: thread.otherUserId ?? '',
+                    otherUserName: name,
+                  ),
+                ),
+              );
             },
           );
         },
@@ -645,20 +635,30 @@ class _TrainerDashboardState extends ConsumerState<TrainerDashboard>
   }
 
   Widget _buildPendingReviewsList() {
+    final d = _dashboard;
+    final rows = [
+      {
+        'name': 'Workout drafts',
+        'goal': '${d?.pendingWorkoutPlansCount ?? 0} waiting',
+        'type': 'Open a client to assign',
+      },
+      {
+        'name': 'Diet drafts',
+        'goal': '${d?.pendingDietPlansCount ?? 0} waiting',
+        'type': 'Open a client to assign',
+      },
+    ];
     return ListView.separated(
       shrinkWrap: true,
       physics: const NeverScrollableScrollPhysics(),
-      itemCount: _pendingReviews.length,
+      itemCount: rows.length,
       separatorBuilder: (_, __) => const SizedBox(height: 12),
       itemBuilder: (context, index) {
-        final review = _pendingReviews[index];
+        final review = rows[index];
         return DashboardGlassCard(
           padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
           borderRadius: 16,
-          onTap: () {
-            // Navigate to reviews tab
-            setState(() => _currentNavIndex = 2);
-          },
+          onTap: () => setState(() => _currentNavIndex = 1),
           child: Row(
             children: [
               Container(
@@ -669,7 +669,7 @@ class _TrainerDashboardState extends ConsumerState<TrainerDashboard>
                   color: AppColors.accentPurple.withValues(alpha: 0.12),
                 ),
                 child: const Icon(
-                  Icons.psychology_rounded,
+                  Icons.edit_note_rounded,
                   color: AppColors.accentPurple,
                   size: 20,
                 ),
@@ -685,36 +685,14 @@ class _TrainerDashboardState extends ConsumerState<TrainerDashboard>
                     ),
                     const SizedBox(height: 2),
                     Text(
-                      'AI ${review['type']} generated for ${review['goal']}',
-                      style: AppTextStyles.caption.copyWith(color: AppColors.textSecondary, fontSize: 11),
+                      '${review['goal']} · ${review['type']}',
+                      style: AppTextStyles.caption.copyWith(
+                        color: AppColors.textSecondary,
+                        fontSize: 11,
+                      ),
                     ),
                   ],
                 ),
-              ),
-              Column(
-                crossAxisAlignment: CrossAxisAlignment.end,
-                children: [
-                  Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
-                    decoration: BoxDecoration(
-                      color: AppColors.accentOrange.withValues(alpha: 0.1),
-                      borderRadius: BorderRadius.circular(10),
-                    ),
-                    child: Text(
-                      'Review',
-                      style: AppTextStyles.caption.copyWith(
-                        color: AppColors.accentOrange,
-                        fontWeight: FontWeight.w700,
-                        fontSize: 9,
-                      ),
-                    ),
-                  ),
-                  const SizedBox(height: 4),
-                  Text(
-                    review['date'] as String,
-                    style: AppTextStyles.caption.copyWith(fontSize: 9),
-                  ),
-                ],
               ),
             ],
           ),
@@ -727,7 +705,6 @@ class _TrainerDashboardState extends ConsumerState<TrainerDashboard>
     final navItems = [
       {'icon': Icons.dashboard_rounded, 'label': 'Dashboard'},
       {'icon': Icons.people_rounded, 'label': 'Clients'},
-      {'icon': Icons.rate_review_rounded, 'label': 'Reviews'},
       {'icon': Icons.insights_rounded, 'label': 'Analytics'},
       {'icon': Icons.person_rounded, 'label': 'Profile'},
     ];

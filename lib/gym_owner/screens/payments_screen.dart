@@ -1,11 +1,13 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import '../../models/gym_member.dart';
 import '../../models/gym_membership.dart';
 import '../../models/payment.dart';
 import '../../providers/gym_provider.dart';
 import '../../services/gym_owner_service.dart';
 import '../../theme/app_theme.dart';
 import '../../dashboard/widgets/dashboard_glass_card.dart';
+import '../../dashboard/widgets/sheet_chrome.dart';
 import '../../dashboard/widgets/state_views.dart';
 
 /// Payments & billing screen.
@@ -66,13 +68,30 @@ class _PaymentsScreenState extends ConsumerState<PaymentsScreen>
   }
 
   // ── Record payment sheet ────────────────────────────────────────────────────
-  Future<void> _openRecordSheet() async {
+  Future<void> _openRecordSheet({DuesSummary? prefill}) async {
     const methods = ['CASH', 'UPI_MANUAL', 'BANK_TRANSFER', 'CARD_OFFLINE', 'OTHER'];
     const methodLabels = ['Cash', 'UPI', 'Bank Transfer', 'Card', 'Other'];
     String selectedMethod = 'CASH';
-    final amountCtrl = TextEditingController();
+    final amountCtrl = TextEditingController(
+      text: prefill != null && prefill.dueAmountInr > 0
+          ? prefill.dueAmountInr.toStringAsFixed(0)
+          : '',
+    );
     final notesCtrl = TextEditingController();
+    GymMember? selectedMember;
     try {
+      final members = await ref.read(gymOwnerServiceProvider).getMembers(
+            widget.gymId,
+            role: 'MEMBER',
+          );
+      if (prefill?.userId != null) {
+        for (final m in members) {
+          if (m.userId == prefill!.userId) {
+            selectedMember = m;
+            break;
+          }
+        }
+      }
 
     final saved = await showModalBottomSheet<bool>(
       context: context,
@@ -93,8 +112,31 @@ class _PaymentsScreenState extends ConsumerState<PaymentsScreen>
                 mainAxisSize: MainAxisSize.min,
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
+                  const SheetDragHandle(),
+                  const SizedBox(height: 16),
                   Text('Record Payment', style: AppTextStyles.titleLarge.copyWith(fontWeight: FontWeight.w700)),
                   const SizedBox(height: 20),
+                  Text('Member', style: AppTextStyles.labelSmall.copyWith(letterSpacing: 1)),
+                  const SizedBox(height: 8),
+                  DropdownButtonFormField<GymMember>(
+                    value: selectedMember,
+                    isExpanded: true,
+                    dropdownColor: AppColors.bgTertiary,
+                    decoration: InputDecoration(
+                      filled: true,
+                      fillColor: AppColors.bgTertiary,
+                      border: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: BorderSide.none),
+                    ),
+                    hint: const Text('Select member', style: TextStyle(color: AppColors.textTertiary)),
+                    items: members
+                        .map((m) => DropdownMenuItem(
+                              value: m,
+                              child: Text(m.fullName, overflow: TextOverflow.ellipsis),
+                            ))
+                        .toList(),
+                    onChanged: (m) => setS(() => selectedMember = m),
+                  ),
+                  const SizedBox(height: 16),
                   Text('Payment Method', style: AppTextStyles.labelSmall.copyWith(letterSpacing: 1)),
                   const SizedBox(height: 8),
                   Wrap(
@@ -151,11 +193,17 @@ class _PaymentsScreenState extends ConsumerState<PaymentsScreen>
         ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Enter a valid amount')));
         return;
       }
+      if (selectedMember == null) {
+        ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Select a member')));
+        return;
+      }
       try {
         await ref.read(gymOwnerServiceProvider).recordPayment(
           widget.gymId,
+          userId: selectedMember!.userId,
           amountInr: amount,
           method: selectedMethod,
+          enrollmentId: prefill?.enrollmentId,
           notes: notesCtrl.text.trim().isEmpty ? null : notesCtrl.text.trim(),
         );
         if (mounted) {
@@ -173,6 +221,72 @@ class _PaymentsScreenState extends ConsumerState<PaymentsScreen>
       amountCtrl.dispose();
       notesCtrl.dispose();
     }
+  }
+
+  Future<void> _showReceipt(GymPayment payment) async {
+    Map<String, dynamic> raw;
+    try {
+      raw = await ref.read(gymOwnerServiceProvider).getPaymentReceipt(widget.gymId, payment.id);
+    } catch (e) {
+      if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(friendlyApiError(e))));
+      return;
+    }
+    if (!mounted) return;
+    final receipt = GymPayment.fromJson(raw);
+    final gym = raw['gym'] as Map<String, dynamic>?;
+    final gymName = gym?['name'] as String? ?? '';
+    final gymAddress = [gym?['addressLine'], gym?['city']].whereType<String>().where((s) => s.isNotEmpty).join(', ');
+
+    await showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
+      builder: (ctx) => Container(
+        padding: const EdgeInsets.fromLTRB(20, 20, 20, 32),
+        decoration: const BoxDecoration(
+          color: AppColors.bgSecondary,
+          borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
+        ),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            const SheetDragHandle(),
+            const SizedBox(height: 16),
+            if (gymName.isNotEmpty) Text(gymName, style: AppTextStyles.titleMedium.copyWith(fontWeight: FontWeight.w700)),
+            if (gymAddress.isNotEmpty)
+              Text(gymAddress, style: AppTextStyles.caption.copyWith(color: AppColors.textTertiary)),
+            const SizedBox(height: 16),
+            Center(
+              child: Text('₹${receipt.amountInr.toStringAsFixed(0)}',
+                  style: AppTextStyles.headlineMedium.copyWith(fontWeight: FontWeight.w800)),
+            ),
+            if (receipt.isVoided)
+              Center(child: Text('VOIDED', style: AppTextStyles.caption.copyWith(color: AppColors.accentCoral, fontWeight: FontWeight.w700))),
+            const SizedBox(height: 20),
+            _receiptRow('Receipt No.', receipt.receiptNumber),
+            _receiptRow('Paid by', receipt.memberName ?? '—'),
+            _receiptRow('Method', receipt.methodLabel),
+            _receiptRow('Date', receipt.paidAt != null ? '${receipt.paidAt!.day}/${receipt.paidAt!.month}/${receipt.paidAt!.year}' : '—'),
+            if (receipt.notes != null && receipt.notes!.isNotEmpty) _receiptRow('Notes', receipt.notes!),
+            const SizedBox(height: 16),
+            Text('Non-GST manual receipt.', style: AppTextStyles.caption.copyWith(color: AppColors.textDisabled, fontSize: 10)),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _receiptRow(String label, String value) {
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 6),
+      child: Row(
+        children: [
+          SizedBox(width: 100, child: Text(label, style: AppTextStyles.caption.copyWith(color: AppColors.textTertiary))),
+          Expanded(child: Text(value, style: AppTextStyles.bodyMedium.copyWith(color: AppColors.textPrimary))),
+        ],
+      ),
+    );
   }
 
   Future<void> _voidPayment(GymPayment p) async {
@@ -246,6 +360,7 @@ class _PaymentsScreenState extends ConsumerState<PaymentsScreen>
                                 payment: _payments[i],
                                 isOwner: isOwner,
                                 onVoid: isOwner ? () => _voidPayment(_payments[i]) : null,
+                                onTap: () => _showReceipt(_payments[i]),
                               ),
                             ),
                     ),
@@ -297,10 +412,11 @@ class _PaymentsScreenState extends ConsumerState<PaymentsScreen>
 }
 
 class _PaymentTile extends StatelessWidget {
-  const _PaymentTile({required this.payment, required this.isOwner, this.onVoid});
+  const _PaymentTile({required this.payment, required this.isOwner, this.onVoid, this.onTap});
   final GymPayment payment;
   final bool isOwner;
   final VoidCallback? onVoid;
+  final VoidCallback? onTap;
 
   @override
   Widget build(BuildContext context) {
@@ -309,6 +425,7 @@ class _PaymentTile extends StatelessWidget {
       padding: const EdgeInsets.only(bottom: 10),
       child: DashboardGlassCard(
         padding: const EdgeInsets.all(14),
+        onTap: onTap,
         child: Row(
           children: [
             Container(

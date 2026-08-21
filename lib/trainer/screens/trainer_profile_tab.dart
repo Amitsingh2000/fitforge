@@ -7,8 +7,10 @@ import '../../services/trainer_service.dart';
 import '../../theme/app_theme.dart';
 import '../../dashboard/widgets/dashboard_glass_card.dart';
 import '../../dashboard/widgets/state_views.dart';
+import 'trainer_availability_screen.dart';
 import 'trainer_certifications_screen.dart';
 import 'trainer_edit_profile_screen.dart';
+import 'trainer_notification_settings_screen.dart';
 
 class TrainerProfileTab extends ConsumerStatefulWidget {
   const TrainerProfileTab({super.key});
@@ -82,8 +84,18 @@ class _TrainerProfileTabState extends ConsumerState<TrainerProfileTab> {
           MaterialPageRoute(builder: (_) => const TrainerCertificationsScreen()),
         ).then((_) => _load());
       }),
-      _MenuItem(Icons.calendar_month_rounded, 'My Availability Settings', () => _comingSoon('Availability settings')),
-      _MenuItem(Icons.notifications_active_rounded, 'Notification Settings', () => _comingSoon('Notification settings')),
+      _MenuItem(Icons.calendar_month_rounded, 'My Availability Settings', () async {
+        final changed = await Navigator.of(context).push(
+          MaterialPageRoute(builder: (_) => TrainerAvailabilityScreen(initial: profile)),
+        );
+        if (changed == true) _load();
+      }),
+      _MenuItem(Icons.notifications_active_rounded, 'Notification Settings', () async {
+        final changed = await Navigator.of(context).push(
+          MaterialPageRoute(builder: (_) => TrainerNotificationSettingsScreen(initial: profile)),
+        );
+        if (changed == true) _load();
+      }),
       _MenuItem(Icons.security_rounded, 'Security & Privacy', () => _comingSoon('Security & privacy')),
       _MenuItem(Icons.help_outline_rounded, 'Help & Support', () => _comingSoon('Help & support')),
     ];

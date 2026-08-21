@@ -74,6 +74,12 @@ class ChatService {
         return ChatMessage.fromJson(asMap(res.data));
       });
 
+  /// `POST /gyms/:gymId/chat/threads/:id/read` — marks every message in this
+  /// thread not sent by me as read. Call when a thread screen opens.
+  Future<void> markThreadRead(String gymId, String threadId) => apiCall(() async {
+        await dio.post('/gyms/$gymId/chat/threads/$threadId/read');
+      });
+
   /// `POST /gyms/:gymId/chat/broadcast { body }` — fans out to every active
   /// client of this trainer at this gym.
   Future<void> broadcast(

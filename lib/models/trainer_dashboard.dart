@@ -1,19 +1,14 @@
+import 'chat_thread.dart';
+
 /// Cross-gym trainer dashboard from `GET /trainers/me/dashboard`.
 class TrainerDashboard {
-  /// Full list lives at `GET /gyms/:gymId/trainer/clients` (self-scoped).
   final int assignedMembersCount;
-
-  /// DRAFT-status workout plans authored by this trainer.
   final int pendingWorkoutPlansCount;
-
-  /// DRAFT-status diet plans authored by this trainer.
   final int pendingDietPlansCount;
-
-  /// Unread chat messages; full feed at `GET /gyms/:gymId/chat/threads`.
   final int unreadMessagesCount;
-
-  /// Unread in-app alerts; full feed at `GET /trainers/me/notifications`.
   final int unreadNotificationsCount;
+  final int engagedClientsLast7Days;
+  final List<ChatThread> recentThreads;
 
   const TrainerDashboard({
     this.assignedMembersCount = 0,
@@ -21,9 +16,13 @@ class TrainerDashboard {
     this.pendingDietPlansCount = 0,
     this.unreadMessagesCount = 0,
     this.unreadNotificationsCount = 0,
+    this.engagedClientsLast7Days = 0,
+    this.recentThreads = const [],
   });
 
   factory TrainerDashboard.fromJson(Map<String, dynamic> json) {
+    final summary = json['progressSummary'] as Map<String, dynamic>? ?? {};
+    final threads = json['recentThreads'] as List? ?? [];
     return TrainerDashboard(
       assignedMembersCount: _int(json['assignedMembersCount'] ?? json['assignedClients']),
       pendingWorkoutPlansCount: _int(json['pendingWorkoutPlansCount']),
@@ -31,6 +30,11 @@ class TrainerDashboard {
       unreadMessagesCount: _int(json['unreadMessagesCount'] ?? json['unreadMessageCount']),
       unreadNotificationsCount:
           _int(json['unreadNotificationsCount'] ?? json['unreadNotificationCount']),
+      engagedClientsLast7Days: _int(summary['engagedClientsLast7Days']),
+      recentThreads: threads
+          .whereType<Map>()
+          .map((e) => ChatThread.fromJson(Map<String, dynamic>.from(e)))
+          .toList(),
     );
   }
 

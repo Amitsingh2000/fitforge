@@ -1,6 +1,7 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../models/chat_message.dart';
 import '../models/chat_thread.dart';
+import '../models/diet_plan.dart';
 import '../models/exercise.dart';
 import '../models/member_attendance.dart';
 import '../models/member_profile.dart';
@@ -13,8 +14,10 @@ import '../models/trainer_dashboard.dart';
 import '../models/trainer_notification.dart';
 import '../models/trainer_profile.dart';
 import '../models/workout_log.dart';
+import '../models/workout_plan.dart';
 import '../services/api_failure.dart';
 import '../services/chat_service.dart';
+import '../services/diet_plan_service.dart';
 import '../services/member_management_service.dart';
 import '../services/trainer_analytics_service.dart';
 import '../services/trainer_dashboard_service.dart';
@@ -120,6 +123,19 @@ final memberProgressSummaryProvider = FutureProvider.autoDispose
     .family<MemberProgressSummary, ({String gymId, String userId})>((ref, key) {
   return ref.watch(memberManagementServiceProvider)
       .getMemberProgressSummary(key.gymId, key.userId);
+});
+
+/// A member's current (non-archived) workout plans, newest first — used to
+/// decide create-vs-update in the plan editor and to show real targets.
+final memberWorkoutPlansProvider = FutureProvider.autoDispose
+    .family<List<WorkoutPlan>, ({String gymId, String userId})>((ref, key) {
+  return ref.watch(workoutPlanServiceProvider).getWorkoutPlans(key.gymId, memberId: key.userId);
+});
+
+/// A member's current (non-archived) diet plans, newest first.
+final memberDietPlansProvider = FutureProvider.autoDispose
+    .family<List<DietPlan>, ({String gymId, String userId})>((ref, key) {
+  return ref.watch(dietPlanServiceProvider).getDietPlans(key.gymId, memberId: key.userId);
 });
 
 // ── Exercise library ────────────────────────────────────────────────────────

@@ -11,6 +11,7 @@ import '../../dashboard/widgets/radial_progress.dart';
 import '../../dashboard/widgets/state_views.dart';
 import '../widgets/client_gradient.dart';
 import '../widgets/trainer_glass_stat_card.dart';
+import 'trainer_client_detail_screen.dart';
 
 class TrainerAnalyticsTab extends ConsumerStatefulWidget {
   const TrainerAnalyticsTab({super.key});
@@ -30,7 +31,7 @@ class _TrainerAnalyticsTabState extends ConsumerState<TrainerAnalyticsTab> {
           const Center(child: LoadingView(message: 'Loading analytics…')),
       error: (e, _) => Center(
         child: ErrorRetryView(
-          message: e.toString(),
+          message: friendlyApiError(e),
           onRetry: () => ref.invalidate(currentGymTrainerAnalyticsProvider),
         ),
       ),
@@ -40,7 +41,7 @@ class _TrainerAnalyticsTabState extends ConsumerState<TrainerAnalyticsTab> {
               const Center(child: LoadingView(message: 'Loading clients…')),
           error: (e, _) => Center(
             child: ErrorRetryView(
-              message: e.toString(),
+              message: friendlyApiError(e),
               onRetry: () => ref.invalidate(currentGymTrainerClientsProvider),
             ),
           ),
@@ -231,6 +232,11 @@ class _TrainerAnalyticsTabState extends ConsumerState<TrainerAnalyticsTab> {
                         padding: const EdgeInsets.symmetric(
                             horizontal: 16, vertical: 14),
                         borderRadius: 14,
+                        onTap: () => Navigator.of(context).push(
+                          MaterialPageRoute(
+                            builder: (_) => TrainerClientDetailScreen(client: client),
+                          ),
+                        ),
                         child: Column(
                           children: [
                             Row(

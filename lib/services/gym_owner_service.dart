@@ -256,18 +256,48 @@ class GymOwnerService {
 
 
   /// Get trainer roster with active client counts.
+  ///
+  /// `GET /gyms/:gymId/dashboard/trainers` returns the rich stats
+  /// (verification/shift/commission/engagement) but never a `membershipId` —
+  /// the backend deliberately omits it there. Any screen that needs to edit
+  /// a trainer's config needs that id, so it's merged in from the
+  /// members-list fallback (matched by `userId`) whenever the roster call
+  /// succeeds, not just when it fails.
   Future<List<GymTrainer>> getTrainersRoster(String gymId) async {
+    // Both requests are independent — fire them together instead of one
+    // then the other.
+    final results = await Future.wait([
+      _tryGetRosterStats(gymId),
+      getTrainersFromMembers(gymId),
+    ]);
+    final roster = results[0];
+    final members = results[1] as List<GymTrainer>;
+    if (roster == null) {
+      // Roster call failed — fallback already carries a real membershipId,
+      // just none of the richer stats.
+      return members;
+    }
+    final membershipIdByUserId = {
+      for (final m in members)
+        if (m.trainerId.isNotEmpty) m.trainerId: m.membershipId,
+    };
+    return roster
+        .map((t) => t.membershipId.isEmpty && membershipIdByUserId[t.trainerId] != null
+            ? t.copyWith(membershipId: membershipIdByUserId[t.trainerId])
+            : t)
+        .toList();
+  }
+
+  Future<List<GymTrainer>?> _tryGetRosterStats(String gymId) async {
     try {
       final res = await dio.get('/gyms/$gymId/dashboard/trainers');
-      if (res.data is List) {
-        return (res.data as List)
-            .map((e) => GymTrainer.fromJson(Map<String, dynamic>.from(e as Map)))
-            .toList();
-      }
-      return [];
+      return res.data is List
+          ? (res.data as List)
+              .map((e) => GymTrainer.fromJson(Map<String, dynamic>.from(e as Map)))
+              .toList()
+          : <GymTrainer>[];
     } catch (_) {
-      // Fallback to members list filtered by TRAINER
-      return getTrainersFromMembers(gymId);
+      return null;
     }
   }
 
@@ -331,6 +361,22 @@ class GymOwnerService {
       if (phone != null && phone.isNotEmpty) 'phone': phone,
     });
     return GymMember.fromJson(Map<String, dynamic>.from(res.data as Map));
+  }
+
+  /// Add a trainer (`POST /gyms/:gymId/trainers`). Same body as add-member.
+  Future<void> addTrainer(
+    String gymId, {
+    required String firstName,
+    String? lastName,
+    String? email,
+    String? phone,
+  }) async {
+    await dio.post('/gyms/$gymId/trainers', data: {
+      'firstName': firstName,
+      if (lastName != null && lastName.isNotEmpty) 'lastName': lastName,
+      if (email != null && email.isNotEmpty) 'email': email,
+      if (phone != null && phone.isNotEmpty) 'phone': phone,
+    });
   }
 
   /// Staff edits to a member's record: photo/ID-proof/emergency-contact.
@@ -623,6 +669,11 @@ class GymOwnerService {
     });
   }
 
+  /// Send a renewal reminder now (`POST .../memberships/:id/send-reminder`).
+  Future<void> sendEnrollmentReminder(String gymId, String enrollmentId) async {
+    await dio.post('/gyms/$gymId/memberships/$enrollmentId/send-reminder');
+  }
+
   /// Log a PT/class session — decrements sessionsRemaining.
   /// Auto-flips enrollment to EXPIRED when the last session is used.
   Future<void> logSession(
@@ -655,22 +706,22 @@ class GymOwnerService {
   // §2.2 PAYMENTS & BILLING
   // ────────────────────────────────────────────────────────────────────────────
 
-  /// Record a manual payment (cash / UPI / card / bank transfer).
-  /// May be tied to an enrollment (`enrollmentId`) or ad-hoc.
-  /// May be backdated via `paidAt` (ISO 8601 string).
+  /// Record a manual payment. [userId] is required by the API.
   Future<GymPayment> recordPayment(
     String gymId, {
+    required String userId,
     required double amountInr,
     required String method, // CASH | UPI_MANUAL | BANK_TRANSFER | CARD_OFFLINE | OTHER
     String? enrollmentId,
-    String? paidAt,
+    String? paidOn,
     String? notes,
   }) async {
     final res = await dio.post('/gyms/$gymId/payments', data: {
+      'userId': userId,
       'amountInr': amountInr,
       'method': method,
       if (enrollmentId != null && enrollmentId.isNotEmpty) 'enrollmentId': enrollmentId,
-      if (paidAt != null) 'paidAt': paidAt,
+      if (paidOn != null) 'paidOn': paidOn,
       if (notes != null && notes.isNotEmpty) 'notes': notes,
     });
     return GymPayment.fromJson(Map<String, dynamic>.from(res.data as Map));
@@ -824,16 +875,18 @@ class GymOwnerService {
     String? validUntil,
     int? usageLimit,
     List<String>? applicablePlanIds,
+    bool? appliesToPremium,
   }) async {
     final res = await dio.post('/gyms/$gymId/coupons', data: {
       'code': code,
-      'type': type,
-      'value': value,
+      'discountType': type,
+      'discountValue': value,
       if (validFrom != null) 'validFrom': validFrom,
       if (validUntil != null) 'validUntil': validUntil,
-      if (usageLimit != null) 'usageLimit': usageLimit,
+      if (usageLimit != null) 'maxUses': usageLimit,
       if (applicablePlanIds != null && applicablePlanIds.isNotEmpty)
         'applicablePlanIds': applicablePlanIds,
+      if (appliesToPremium != null) 'appliesToPremium': appliesToPremium,
     });
     return GymCoupon.fromJson(Map<String, dynamic>.from(res.data as Map));
   }
@@ -847,7 +900,7 @@ class GymOwnerService {
   }) async {
     final res = await dio.patch('/gyms/$gymId/coupons/$couponId', data: {
       if (isActive != null) 'isActive': isActive,
-      if (usageLimit != null) 'usageLimit': usageLimit,
+      if (usageLimit != null) 'maxUses': usageLimit,
     });
     return GymCoupon.fromJson(Map<String, dynamic>.from(res.data as Map));
   }
@@ -855,6 +908,17 @@ class GymOwnerService {
   /// Soft-deactivate a coupon. Redemption history survives.
   Future<void> deactivateCoupon(String gymId, String couponId) async {
     await dio.delete('/gyms/$gymId/coupons/$couponId');
+  }
+
+  /// Share with every active member when [recipientUserIds] is omitted.
+  Future<void> shareCoupon(
+    String gymId,
+    String couponId, {
+    List<String>? recipientUserIds,
+  }) async {
+    await dio.post('/gyms/$gymId/coupons/$couponId/share', data: {
+      if (recipientUserIds != null) 'recipientUserIds': recipientUserIds,
+    });
   }
 
   /// Get redemption history for a coupon (for campaign analytics).

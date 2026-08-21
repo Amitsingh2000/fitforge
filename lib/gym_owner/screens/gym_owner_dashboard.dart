@@ -96,7 +96,8 @@ class _GymOwnerDashboardState extends ConsumerState<GymOwnerDashboard>
   }
 
   // ── Gym data ──
-  final String _membershipPlan = 'Pro Plan';
+  String get _membershipPlan =>
+      '${_overviewStats.activeMemberships} active memberships';
 
   /// Bottom sheet to switch the active gym. Available to owners with multiple
   /// gym memberships — without it, auto-select would pin them to the first gym.
@@ -725,34 +726,6 @@ class _GymOwnerDashboardState extends ConsumerState<GymOwnerDashboard>
                   ),
                 ),
               ),
-              // Trend indicator
-              Container(
-                padding:
-                    const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
-                decoration: BoxDecoration(
-                  borderRadius: BorderRadius.circular(8),
-                  color: AppColors.accentCyan.withValues(alpha: 0.1),
-                ),
-                child: Row(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    Icon(
-                      Icons.trending_up_rounded,
-                      color: AppColors.accentCyan,
-                      size: 11,
-                    ),
-                    const SizedBox(width: 2),
-                    Text(
-                      '+${(index + 2) * 3}%',
-                      style: AppTextStyles.caption.copyWith(
-                        color: AppColors.accentCyan,
-                        fontWeight: FontWeight.w600,
-                        fontSize: 9,
-                      ),
-                    ),
-                  ],
-                ),
-              ),
             ],
           ),
 
@@ -843,6 +816,12 @@ class _GymOwnerDashboardState extends ConsumerState<GymOwnerDashboard>
               if (gymId == null) return;
               if (action['label'] == 'View Analytics') {
                 setState(() => _currentNavIndex = 3);
+              } else if (action['label'] == 'Add Member') {
+                Navigator.push(context, MaterialPageRoute(
+                  builder: (_) => const AddMemberScreen(),
+                )).then((result) {
+                  if (result != null && mounted) _loadDashboardData();
+                });
               } else if (action['label'] == 'Add Trainer') {
                 Navigator.pushNamed(context, '/gym-owner-trainers');
               } else if (action['label'] == 'Payments') {

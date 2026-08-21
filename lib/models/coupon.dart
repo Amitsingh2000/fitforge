@@ -37,8 +37,8 @@ class GymCoupon {
       value: _toDouble(json['discountValue'] ?? json['value']),
       validFrom: _tryParseDate(json['validFrom']),
       validUntil: _tryParseDate(json['validUntil']),
-      usageLimit: json['usageLimit'] as int?,
-      usageCount: json['usageCount'] as int? ?? 0,
+      usageLimit: json['maxUses'] as int? ?? json['usageLimit'] as int?,
+      usageCount: json['usesCount'] as int? ?? json['usageCount'] as int? ?? 0,
       applicablePlanIds: (json['applicablePlanIds'] as List<dynamic>?)
               ?.map((e) => e.toString())
               .toList() ??

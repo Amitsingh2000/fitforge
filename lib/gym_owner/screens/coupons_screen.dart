@@ -163,6 +163,19 @@ class _CouponsScreenState extends ConsumerState<CouponsScreen> {
     }
   }
 
+  Future<void> _share(GymCoupon c) async {
+    try {
+      await ref.read(gymOwnerServiceProvider).shareCoupon(widget.gymId, c.id);
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('${c.code} shared with active members')),
+        );
+      }
+    } catch (e) {
+      if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('$e')));
+    }
+  }
+
   Future<void> _showRedemptions(GymCoupon c) async {
     List<Map<String, dynamic>> redemptions = [];
     try {
@@ -254,6 +267,7 @@ class _CouponsScreenState extends ConsumerState<CouponsScreen> {
                           itemCount: _coupons.length,
                           itemBuilder: (ctx, i) => _CouponTile(
                             coupon: _coupons[i],
+                            onShare: _coupons[i].isActive ? () => _share(_coupons[i]) : null,
                             onDeactivate: _coupons[i].isActive ? () => _deactivate(_coupons[i]) : null,
                             onViewRedemptions: () => _showRedemptions(_coupons[i]),
                           ),
@@ -290,8 +304,14 @@ class _CouponsScreenState extends ConsumerState<CouponsScreen> {
 }
 
 class _CouponTile extends StatelessWidget {
-  const _CouponTile({required this.coupon, this.onDeactivate, required this.onViewRedemptions});
+  const _CouponTile({
+    required this.coupon,
+    this.onShare,
+    this.onDeactivate,
+    required this.onViewRedemptions,
+  });
   final GymCoupon coupon;
+  final VoidCallback? onShare;
   final VoidCallback? onDeactivate;
   final VoidCallback onViewRedemptions;
 
@@ -338,6 +358,14 @@ class _CouponTile extends StatelessWidget {
                   onTap: onViewRedemptions,
                   child: Text('History', style: AppTextStyles.caption.copyWith(color: AppColors.accentBlue)),
                 ),
+                if (onShare != null)
+                  GestureDetector(
+                    onTap: onShare,
+                    child: Padding(
+                      padding: const EdgeInsets.only(top: 6),
+                      child: Text('Share', style: AppTextStyles.caption.copyWith(color: AppColors.accentCyan)),
+                    ),
+                  ),
                 if (onDeactivate != null)
                   GestureDetector(
                     onTap: onDeactivate,

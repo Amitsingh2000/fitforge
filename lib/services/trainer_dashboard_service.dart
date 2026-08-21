@@ -27,6 +27,11 @@ class TrainerDashboardService {
             .toList();
       });
 
+  /// `POST /trainers/me/notifications/:logId/read` — marks one alert read.
+  Future<void> markNotificationRead(String logId) => apiCall(() async {
+        await dio.post('/trainers/me/notifications/$logId/read');
+      });
+
   /// `GET /gyms/:gymId/trainer/clients` — self-scoped assigned members, each
   /// entry embedding a `progressSummary`. Server derives "mine"; the client
   /// does no filtering (a 403 means the member isn't yours).

@@ -12,6 +12,15 @@ class GymTrainer {
   final int sessionsLoggedLast30Days;
   final double? clientCheckInRate7dPercent;
 
+  /// `trainerProfile.verificationStatus` — real cert-review status
+  /// (UNVERIFIED/PENDING/VERIFIED/REJECTED), not a cosmetic badge.
+  final String verificationStatus;
+
+  /// Real values from `GymMembership.shiftSchedule`/`commissionPercent` —
+  /// only present via the roster endpoint, not the members-list fallback.
+  final String? shiftSchedule;
+  final double? commissionPercent;
+
   const GymTrainer({
     required this.trainerId,
     required this.membershipId,
@@ -24,7 +33,29 @@ class GymTrainer {
     this.status = 'ACTIVE',
     this.sessionsLoggedLast30Days = 0,
     this.clientCheckInRate7dPercent,
+    this.verificationStatus = 'UNVERIFIED',
+    this.shiftSchedule,
+    this.commissionPercent,
   });
+
+  bool get isVerified => verificationStatus == 'VERIFIED';
+
+  GymTrainer copyWith({String? membershipId}) => GymTrainer(
+        trainerId: trainerId,
+        membershipId: membershipId ?? this.membershipId,
+        name: name,
+        email: email,
+        phone: phone,
+        avatarUrl: avatarUrl,
+        specialization: specialization,
+        activeClientsCount: activeClientsCount,
+        status: status,
+        sessionsLoggedLast30Days: sessionsLoggedLast30Days,
+        clientCheckInRate7dPercent: clientCheckInRate7dPercent,
+        verificationStatus: verificationStatus,
+        shiftSchedule: shiftSchedule,
+        commissionPercent: commissionPercent,
+      );
 
   factory GymTrainer.fromJson(Map<String, dynamic> json) {
     final userMap = json['user'] as Map<String, dynamic>? ?? {};
@@ -33,7 +64,10 @@ class GymTrainer {
     final full = '$fName $lName'.trim();
     final displayName = full.isNotEmpty
         ? full
-        : (json['name'] as String? ?? userMap['fullName'] as String? ?? 'Trainer');
+        : (json['fullName'] as String? ??
+            json['name'] as String? ??
+            userMap['fullName'] as String? ??
+            'Trainer');
 
     return GymTrainer(
       trainerId: json['trainerId'] as String? ?? json['userId'] as String? ?? userMap['id'] as String? ?? '',
@@ -47,6 +81,11 @@ class GymTrainer {
       status: json['status'] as String? ?? 'ACTIVE',
       sessionsLoggedLast30Days: json['sessionsLoggedLast30Days'] as int? ?? 0,
       clientCheckInRate7dPercent: (json['clientCheckInRate7dPercent'] as num?)?.toDouble(),
+      verificationStatus: json['verificationStatus'] as String? ?? 'UNVERIFIED',
+      shiftSchedule: json['shiftSchedule'] as String?,
+      commissionPercent: json['commissionPercent'] is String
+          ? double.tryParse(json['commissionPercent'] as String)
+          : (json['commissionPercent'] as num?)?.toDouble(),
     );
   }
 }

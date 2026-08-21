@@ -40,6 +40,25 @@ class WorkoutPlanService {
         return WorkoutPlan.fromJson(asMap(res.data));
       });
 
+  /// `GET /gyms/:gymId/workout-plans` — filterable by [memberId]/[status];
+  /// used to find a member's current plan before deciding create vs. update.
+  Future<List<WorkoutPlan>> getWorkoutPlans(
+    String gymId, {
+    String? memberId,
+    String? status,
+  }) =>
+      apiCall(() async {
+        final query = <String, dynamic>{
+          if (memberId != null) 'memberId': memberId,
+          if (status != null) 'status': status,
+        };
+        final res = await dio.get('/gyms/$gymId/workout-plans', queryParameters: query);
+        return extractList(res.data)
+            .whereType<Map>()
+            .map((e) => WorkoutPlan.fromJson(Map<String, dynamic>.from(e)))
+            .toList();
+      });
+
   /// `PATCH /gyms/:gymId/workout-plans/:id` — sends the complete [days] tree,
   /// replacing the previous day/exercise structure wholesale (no diffing).
   Future<WorkoutPlan> updateWorkoutPlan(

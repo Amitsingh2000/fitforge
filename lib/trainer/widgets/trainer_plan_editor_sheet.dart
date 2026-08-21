@@ -1,9 +1,11 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import '../../models/exercise.dart';
 import '../../models/diet_plan.dart';
 import '../../models/trainer_client.dart';
 import '../../models/workout_plan.dart';
 import '../../providers/gym_provider.dart';
+import '../../providers/trainer_flow_providers.dart';
 import '../../services/api_failure.dart';
 import '../../services/diet_plan_service.dart';
 import '../../services/workout_plan_service.dart';
@@ -11,6 +13,12 @@ import '../../theme/app_theme.dart';
 import '../../onboarding/widgets/primary_button.dart';
 import '../../dashboard/widgets/state_views.dart';
 
+/// Create-or-update editor for a client's workout/diet plan.
+///
+/// Loads the client's current (non-archived) plan of each type on open, so
+/// the trainer edits real data instead of a blank/fake slate, and "Save"
+/// PATCHes that plan's id when one exists instead of always POSTing a new
+/// duplicate draft.
 class TrainerPlanEditorSheet extends ConsumerStatefulWidget {
   final TrainerClient client;
 
@@ -24,22 +32,19 @@ class TrainerPlanEditorSheet extends ConsumerStatefulWidget {
 class _TrainerPlanEditorSheetState extends ConsumerState<TrainerPlanEditorSheet> {
   bool _isWorkoutSelected = true;
   bool _saving = false;
+  bool _loadingExisting = true;
+  String? _loadError;
 
-  // Controllers for Workout Plan
-  final List<Map<String, String>> _exercises = [
-    {'name': 'Barbell Squats', 'sets': '4', 'reps': '8-10'},
-    {'name': 'Incline Bench Press', 'sets': '3', 'reps': '10-12'},
-    {'name': 'Lat Pulldowns', 'sets': '4', 'reps': '10'},
-    {'name': 'Plank Hold', 'sets': '3', 'reps': '60s'},
-  ];
+  WorkoutPlan? _existingWorkoutPlan;
+  DietPlan? _existingDietPlan;
 
-  // Controllers for Meal Plan
-  final List<Map<String, String>> _meals = [
-    {'name': 'Oats & Whey Protein', 'time': '8:00 AM', 'calories': '520 kcal'},
-    {'name': 'Grilled Chicken & Rice', 'time': '1:00 PM', 'calories': '680 kcal'},
-    {'name': 'Greek Yogurt & Almonds', 'time': '4:30 PM', 'calories': '250 kcal'},
-    {'name': 'Baked Salmon & Broccoli', 'time': '8:00 PM', 'calories': '650 kcal'},
-  ];
+  final List<Map<String, String>> _exercises = [];
+  final List<Map<String, String>> _meals = [];
+
+  final _calorieTarget = TextEditingController();
+  final _proteinTarget = TextEditingController();
+  final _carbsTarget = TextEditingController();
+  final _fatTarget = TextEditingController();
 
   final _newExerciseName = TextEditingController();
   final _newExerciseSets = TextEditingController();
@@ -50,7 +55,17 @@ class _TrainerPlanEditorSheetState extends ConsumerState<TrainerPlanEditorSheet>
   final _newMealCalories = TextEditingController();
 
   @override
+  void initState() {
+    super.initState();
+    WidgetsBinding.instance.addPostFrameCallback((_) => _loadExisting());
+  }
+
+  @override
   void dispose() {
+    _calorieTarget.dispose();
+    _proteinTarget.dispose();
+    _carbsTarget.dispose();
+    _fatTarget.dispose();
     _newExerciseName.dispose();
     _newExerciseSets.dispose();
     _newExerciseReps.dispose();
@@ -58,6 +73,69 @@ class _TrainerPlanEditorSheetState extends ConsumerState<TrainerPlanEditorSheet>
     _newMealTime.dispose();
     _newMealCalories.dispose();
     super.dispose();
+  }
+
+  /// A member can have at most one active editing target per type — pick the
+  /// most recently created plan that isn't archived/completed.
+  T? _pickCurrent<T>(List<T> plans, String Function(T) statusOf) {
+    for (final p in plans) {
+      final s = statusOf(p).toUpperCase();
+      if (s != 'ARCHIVED' && s != 'COMPLETED') return p;
+    }
+    return null;
+  }
+
+  Future<void> _loadExisting() async {
+    final gymId = ref.read(currentGymIdProvider);
+    if (gymId == null) {
+      setState(() {
+        _loadingExisting = false;
+        _loadError = 'No gym selected.';
+      });
+      return;
+    }
+    try {
+      final results = await Future.wait([
+        ref.read(workoutPlanServiceProvider).getWorkoutPlans(gymId, memberId: widget.client.userId),
+        ref.read(dietPlanServiceProvider).getDietPlans(gymId, memberId: widget.client.userId),
+      ]);
+      final workoutPlans = results[0] as List<WorkoutPlan>;
+      final dietPlans = results[1] as List<DietPlan>;
+      final workout = _pickCurrent<WorkoutPlan>(workoutPlans, (p) => p.status);
+      final diet = _pickCurrent<DietPlan>(dietPlans, (p) => p.status);
+
+      if (!mounted) return;
+      setState(() {
+        _existingWorkoutPlan = workout;
+        _existingDietPlan = diet;
+        _exercises.addAll((workout?.days.isNotEmpty ?? false)
+            ? workout!.days.first.exercises.map((e) => {
+                  'name': e.name,
+                  'sets': '${e.sets ?? 3}',
+                  'reps': e.reps ?? '8-12',
+                })
+            : const []);
+        _meals.addAll((diet?.meals ?? const []).map((m) {
+          final item = m.items.isNotEmpty ? m.items.first : null;
+          return {
+            'name': item?.foodName ?? m.name,
+            'time': item?.unit ?? '',
+            'calories': item?.calories != null ? '${item!.calories!.round()} kcal' : '',
+          };
+        }));
+        _calorieTarget.text = diet?.dailyCalorieTarget?.round().toString() ?? '';
+        _proteinTarget.text = diet?.dailyProteinTargetG?.round().toString() ?? '';
+        _carbsTarget.text = diet?.dailyCarbsTargetG?.round().toString() ?? '';
+        _fatTarget.text = diet?.dailyFatTargetG?.round().toString() ?? '';
+        _loadingExisting = false;
+      });
+    } catch (e) {
+      if (!mounted) return;
+      setState(() {
+        _loadingExisting = false;
+        _loadError = friendlyApiError(e);
+      });
+    }
   }
 
   double _parseCalories(String raw) {
@@ -86,56 +164,108 @@ class _TrainerPlanEditorSheetState extends ConsumerState<TrainerPlanEditorSheet>
 
     try {
       if (_isWorkoutSelected) {
-        final days = [
-          WorkoutDay(
-            dayNumber: 1,
-            label: 'Day 1',
-            exercises: _exercises
-                .map((e) => WorkoutPlanExercise(
-                      name: e['name']!,
-                      sets: int.tryParse(e['sets'] ?? ''),
-                      reps: int.tryParse((e['reps'] ?? '').split('-').first),
-                    ))
-                .toList(),
-          ),
-        ];
-        final plan = await ref
-            .read(workoutPlanServiceProvider)
-            .createWorkoutPlan(
-              gymId,
-              title: 'Custom Workout Plan',
-              status: 'ACTIVE',
-              memberId: widget.client.userId,
-              days: days,
-            );
-        await ref
-            .read(workoutPlanServiceProvider)
-            .assignWorkoutPlan(gymId, plan.id, memberId: widget.client.userId);
+        final svc = ref.read(workoutPlanServiceProvider);
+        final resolved = <WorkoutPlanExercise>[];
+        for (var i = 0; i < _exercises.length; i++) {
+          final row = _exercises[i];
+          final name = row['name']!.trim();
+          if (name.isEmpty) continue;
+          final matches = await svc.getExercises(search: name);
+          Exercise? existing;
+          for (final e in matches) {
+            if (e.name.toLowerCase() == name.toLowerCase()) {
+              existing = e;
+              break;
+            }
+          }
+          final exercise = existing ??
+              await svc.createExercise(name: name, category: 'General');
+          resolved.add(WorkoutPlanExercise(
+            exerciseId: exercise.id,
+            name: name,
+            order: resolved.length,
+            sets: int.tryParse(row['sets'] ?? '') ?? 3,
+            reps: row['reps'] ?? '8-12',
+          ));
+        }
+        if (resolved.isEmpty) {
+          throw const ApiFailure(
+            kind: ApiFailureKind.validation,
+            message: 'Add at least one exercise.',
+          );
+        }
+        final days = [WorkoutDay(dayNumber: 1, label: 'Day 1', exercises: resolved)];
+        final existing = _existingWorkoutPlan;
+        if (existing != null && existing.id.isNotEmpty) {
+          await svc.updateWorkoutPlan(gymId, existing.id, title: existing.title, days: days);
+        } else {
+          await svc.createWorkoutPlan(
+            gymId,
+            title: 'Plan for ${widget.client.fullName}',
+            memberId: widget.client.userId,
+            days: days,
+          );
+        }
       } else {
-        final meals = _meals
-            .map((m) => Meal(
-                  name: m['name']!,
-                  time: m['time'],
-                  targetCalories: _parseCalories(m['calories'] ?? ''),
-                  items: [
-                    FoodItem(
-                      foodName: m['name']!,
-                      calories: _parseCalories(m['calories'] ?? ''),
-                    ),
-                  ],
-                ))
-            .toList();
-        final plan = await ref.read(dietPlanServiceProvider).createDietPlan(
-              gymId,
-              title: 'Custom Diet Plan',
-              status: 'ACTIVE',
-              memberId: widget.client.userId,
-              meals: meals,
-            );
-        await ref
-            .read(dietPlanServiceProvider)
-            .assignDietPlan(gymId, plan.id, memberId: widget.client.userId);
+        final meals = <Meal>[];
+        for (var i = 0; i < _meals.length; i++) {
+          final row = _meals[i];
+          final name = row['name']!.trim();
+          if (name.isEmpty) continue;
+          meals.add(Meal(
+            name: name,
+            order: meals.length,
+            items: [
+              FoodItem(
+                foodName: name,
+                calories: _parseCalories(row['calories'] ?? ''),
+                unit: row['time'],
+              ),
+            ],
+          ));
+        }
+        if (meals.isEmpty) {
+          throw const ApiFailure(
+            kind: ApiFailureKind.validation,
+            message: 'Add at least one meal.',
+          );
+        }
+        final svc = ref.read(dietPlanServiceProvider);
+        final calorieTarget = double.tryParse(_calorieTarget.text.trim());
+        final proteinTarget = double.tryParse(_proteinTarget.text.trim());
+        final carbsTarget = double.tryParse(_carbsTarget.text.trim());
+        final fatTarget = double.tryParse(_fatTarget.text.trim());
+        final existing = _existingDietPlan;
+        if (existing != null && existing.id.isNotEmpty) {
+          await svc.updateDietPlan(
+            gymId,
+            existing.id,
+            title: existing.title,
+            meals: meals,
+            dailyCalorieTarget: calorieTarget,
+            dailyProteinTargetG: proteinTarget,
+            dailyCarbsTargetG: carbsTarget,
+            dailyFatTargetG: fatTarget,
+          );
+        } else {
+          await svc.createDietPlan(
+            gymId,
+            title: 'Plan for ${widget.client.fullName}',
+            memberId: widget.client.userId,
+            meals: meals,
+            dailyCalorieTarget: calorieTarget,
+            dailyProteinTargetG: proteinTarget,
+            dailyCarbsTargetG: carbsTarget,
+            dailyFatTargetG: fatTarget,
+          );
+        }
       }
+
+      // The member-scoped plan/target providers this sheet just wrote to are
+      // read elsewhere (client detail's nutrition tab) — invalidate so they
+      // refetch instead of showing stale pre-save data.
+      ref.invalidate(memberWorkoutPlansProvider((gymId: gymId, userId: widget.client.userId)));
+      ref.invalidate(memberDietPlansProvider((gymId: gymId, userId: widget.client.userId)));
 
       if (mounted) Navigator.of(context).pop(true);
     } on ApiFailure catch (e) {
@@ -144,6 +274,9 @@ class _TrainerPlanEditorSheetState extends ConsumerState<TrainerPlanEditorSheet>
       showError(e);
     }
   }
+
+  bool get _hasExistingForSelected =>
+      _isWorkoutSelected ? _existingWorkoutPlan != null : _existingDietPlan != null;
 
   @override
   Widget build(BuildContext context) {
@@ -178,7 +311,7 @@ class _TrainerPlanEditorSheetState extends ConsumerState<TrainerPlanEditorSheet>
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
               Text(
-                'Update Plan',
+                _hasExistingForSelected ? 'Update Plan' : 'Create Plan',
                 style: AppTextStyles.titleLarge.copyWith(fontWeight: FontWeight.bold),
               ),
               Text(
@@ -189,91 +322,104 @@ class _TrainerPlanEditorSheetState extends ConsumerState<TrainerPlanEditorSheet>
           ),
           const SizedBox(height: 20),
 
-          // Segmented Toggle
-          Container(
-            padding: const EdgeInsets.all(4),
-            decoration: BoxDecoration(
-              color: AppColors.bgPrimary,
-              borderRadius: BorderRadius.circular(12),
-              border: Border.all(color: AppColors.glassBorder),
-            ),
-            child: Row(
-              children: [
-                Expanded(
-                  child: GestureDetector(
-                    onTap: () => setState(() => _isWorkoutSelected = true),
-                    child: Container(
-                      padding: const EdgeInsets.symmetric(vertical: 10),
-                      decoration: BoxDecoration(
-                        color: _isWorkoutSelected
-                            ? AppColors.accentCyan.withValues(alpha: 0.15)
-                            : Colors.transparent,
-                        borderRadius: BorderRadius.circular(10),
-                        border: _isWorkoutSelected
-                            ? Border.all(color: AppColors.accentCyan.withValues(alpha: 0.4))
-                            : null,
-                      ),
-                      child: Center(
-                        child: Text(
-                          'Workout Plan',
-                          style: AppTextStyles.labelLarge.copyWith(
-                            color: _isWorkoutSelected ? AppColors.accentCyan : AppColors.textSecondary,
-                            fontSize: 13,
+          if (_loadingExisting)
+            const Expanded(child: LoadingView(message: 'Loading current plan…'))
+          else if (_loadError != null)
+            Expanded(
+              child: ErrorRetryView(message: _loadError!, onRetry: () {
+                setState(() => _loadingExisting = true);
+                _loadExisting();
+              }),
+            )
+          else ...[
+            // Segmented Toggle
+            Container(
+              padding: const EdgeInsets.all(4),
+              decoration: BoxDecoration(
+                color: AppColors.bgPrimary,
+                borderRadius: BorderRadius.circular(12),
+                border: Border.all(color: AppColors.glassBorder),
+              ),
+              child: Row(
+                children: [
+                  Expanded(
+                    child: GestureDetector(
+                      onTap: () => setState(() => _isWorkoutSelected = true),
+                      child: Container(
+                        padding: const EdgeInsets.symmetric(vertical: 10),
+                        decoration: BoxDecoration(
+                          color: _isWorkoutSelected
+                              ? AppColors.accentCyan.withValues(alpha: 0.15)
+                              : Colors.transparent,
+                          borderRadius: BorderRadius.circular(10),
+                          border: _isWorkoutSelected
+                              ? Border.all(color: AppColors.accentCyan.withValues(alpha: 0.4))
+                              : null,
+                        ),
+                        child: Center(
+                          child: Text(
+                            'Workout Plan',
+                            style: AppTextStyles.labelLarge.copyWith(
+                              color: _isWorkoutSelected ? AppColors.accentCyan : AppColors.textSecondary,
+                              fontSize: 13,
+                            ),
                           ),
                         ),
                       ),
                     ),
                   ),
-                ),
-                Expanded(
-                  child: GestureDetector(
-                    onTap: () => setState(() => _isWorkoutSelected = false),
-                    child: Container(
-                      padding: const EdgeInsets.symmetric(vertical: 10),
-                      decoration: BoxDecoration(
-                        color: !_isWorkoutSelected
-                            ? AppColors.accentCyan.withValues(alpha: 0.15)
-                            : Colors.transparent,
-                        borderRadius: BorderRadius.circular(10),
-                        border: !_isWorkoutSelected
-                            ? Border.all(color: AppColors.accentCyan.withValues(alpha: 0.4))
-                            : null,
-                      ),
-                      child: Center(
-                        child: Text(
-                          'Meal Plan',
-                          style: AppTextStyles.labelLarge.copyWith(
-                            color: !_isWorkoutSelected ? AppColors.accentCyan : AppColors.textSecondary,
-                            fontSize: 13,
+                  Expanded(
+                    child: GestureDetector(
+                      onTap: () => setState(() => _isWorkoutSelected = false),
+                      child: Container(
+                        padding: const EdgeInsets.symmetric(vertical: 10),
+                        decoration: BoxDecoration(
+                          color: !_isWorkoutSelected
+                              ? AppColors.accentCyan.withValues(alpha: 0.15)
+                              : Colors.transparent,
+                          borderRadius: BorderRadius.circular(10),
+                          border: !_isWorkoutSelected
+                              ? Border.all(color: AppColors.accentCyan.withValues(alpha: 0.4))
+                              : null,
+                        ),
+                        child: Center(
+                          child: Text(
+                            'Meal Plan',
+                            style: AppTextStyles.labelLarge.copyWith(
+                              color: !_isWorkoutSelected ? AppColors.accentCyan : AppColors.textSecondary,
+                              fontSize: 13,
+                            ),
                           ),
                         ),
                       ),
                     ),
                   ),
-                ),
-              ],
-            ),
-          ),
-          const SizedBox(height: 18),
-
-          // Main list content
-          Expanded(
-            child: SingleChildScrollView(
-              physics: const BouncingScrollPhysics(),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.stretch,
-                children: _isWorkoutSelected ? _buildWorkoutFields() : _buildMealFields(),
+                ],
               ),
             ),
-          ),
-          const SizedBox(height: 16),
+            const SizedBox(height: 18),
 
-          // Action Button
-          PrimaryButton(
-            label: _saving ? 'Saving plan…' : 'Save & Update Plan',
-            isEnabled: !_saving,
-            onTap: _save,
-          ),
+            // Main list content
+            Expanded(
+              child: SingleChildScrollView(
+                physics: const BouncingScrollPhysics(),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: _isWorkoutSelected ? _buildWorkoutFields() : _buildMealFields(),
+                ),
+              ),
+            ),
+            const SizedBox(height: 16),
+
+            // Action Button
+            PrimaryButton(
+              label: _saving
+                  ? 'Saving plan…'
+                  : (_hasExistingForSelected ? 'Save & Update Plan' : 'Create & Assign Plan'),
+              isEnabled: !_saving,
+              onTap: _save,
+            ),
+          ],
         ],
       ),
     );
@@ -281,7 +427,10 @@ class _TrainerPlanEditorSheetState extends ConsumerState<TrainerPlanEditorSheet>
 
   List<Widget> _buildWorkoutFields() {
     return [
-      Text('Current Exercises', style: AppTextStyles.caption.copyWith(fontWeight: FontWeight.bold)),
+      Text(
+        _exercises.isEmpty ? 'No exercises yet' : 'Current Exercises',
+        style: AppTextStyles.caption.copyWith(fontWeight: FontWeight.bold),
+      ),
       const SizedBox(height: 8),
       ...List.generate(_exercises.length, (index) {
         final exercise = _exercises[index];
@@ -383,7 +532,56 @@ class _TrainerPlanEditorSheetState extends ConsumerState<TrainerPlanEditorSheet>
 
   List<Widget> _buildMealFields() {
     return [
-      Text('Current Meal Plan', style: AppTextStyles.caption.copyWith(fontWeight: FontWeight.bold)),
+      Text('Daily Macro Targets', style: AppTextStyles.caption.copyWith(fontWeight: FontWeight.bold)),
+      const SizedBox(height: 10),
+      Row(
+        children: [
+          Expanded(
+            child: TextField(
+              controller: _calorieTarget,
+              keyboardType: TextInputType.number,
+              style: AppTextStyles.bodyMedium.copyWith(color: AppColors.textPrimary),
+              decoration: _getInputDecoration('Calories (kcal)'),
+            ),
+          ),
+          const SizedBox(width: 12),
+          Expanded(
+            child: TextField(
+              controller: _proteinTarget,
+              keyboardType: TextInputType.number,
+              style: AppTextStyles.bodyMedium.copyWith(color: AppColors.textPrimary),
+              decoration: _getInputDecoration('Protein (g)'),
+            ),
+          ),
+        ],
+      ),
+      const SizedBox(height: 10),
+      Row(
+        children: [
+          Expanded(
+            child: TextField(
+              controller: _carbsTarget,
+              keyboardType: TextInputType.number,
+              style: AppTextStyles.bodyMedium.copyWith(color: AppColors.textPrimary),
+              decoration: _getInputDecoration('Carbs (g)'),
+            ),
+          ),
+          const SizedBox(width: 12),
+          Expanded(
+            child: TextField(
+              controller: _fatTarget,
+              keyboardType: TextInputType.number,
+              style: AppTextStyles.bodyMedium.copyWith(color: AppColors.textPrimary),
+              decoration: _getInputDecoration('Fat (g)'),
+            ),
+          ),
+        ],
+      ),
+      const SizedBox(height: 20),
+      Text(
+        _meals.isEmpty ? 'No meals yet' : 'Current Meal Plan',
+        style: AppTextStyles.caption.copyWith(fontWeight: FontWeight.bold),
+      ),
       const SizedBox(height: 8),
       ...List.generate(_meals.length, (index) {
         final meal = _meals[index];

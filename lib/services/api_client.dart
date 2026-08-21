@@ -28,9 +28,15 @@ void _log(String message) {
 // Dio provider with full interceptor chain
 // ─────────────────────────────────────────────
 
+/// Override with `--dart-define=API_BASE=http://127.0.0.1:3000/api/v1` for local GymOS.
+const kApiBase = String.fromEnvironment(
+  'API_BASE',
+  defaultValue: 'https://fitos-backend-55g6.onrender.com/api/v1',
+);
+
 final dioProvider = Provider<Dio>((ref) {
   final dio = Dio(BaseOptions(
-    baseUrl: 'https://fitos-backend-55g6.onrender.com/api/v1',
+    baseUrl: kApiBase,
     connectTimeout: const Duration(seconds: 60),
     receiveTimeout: const Duration(seconds: 60),
     headers: {

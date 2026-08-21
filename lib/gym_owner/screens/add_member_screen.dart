@@ -4,9 +4,11 @@ import '../../providers/gym_provider.dart';
 import '../../services/gym_owner_service.dart';
 import '../../theme/app_theme.dart';
 
-/// `POST /gyms/:gymId/members` — single walk-in member add.
+/// `POST /gyms/:gymId/members` or `POST /gyms/:gymId/trainers`.
 class AddMemberScreen extends ConsumerStatefulWidget {
-  const AddMemberScreen({super.key});
+  const AddMemberScreen({super.key, this.asTrainer = false});
+
+  final bool asTrainer;
 
   @override
   ConsumerState<AddMemberScreen> createState() => _AddMemberScreenState();
@@ -42,14 +44,29 @@ class _AddMemberScreenState extends ConsumerState<AddMemberScreen> {
 
     try {
       final service = ref.read(gymOwnerServiceProvider);
-      final member = await service.addMember(
-        gymId,
-        firstName: _firstNameController.text.trim(),
-        lastName: _lastNameController.text.trim(),
-        email: _emailController.text.trim(),
-        phone: _phoneController.text.trim(),
-      );
-      if (mounted) Navigator.of(context).pop(member);
+      final first = _firstNameController.text.trim();
+      final last = _lastNameController.text.trim();
+      final email = _emailController.text.trim();
+      final phone = _phoneController.text.trim();
+      if (widget.asTrainer) {
+        await service.addTrainer(
+          gymId,
+          firstName: first,
+          lastName: last,
+          email: email,
+          phone: phone,
+        );
+        if (mounted) Navigator.of(context).pop(true);
+      } else {
+        final member = await service.addMember(
+          gymId,
+          firstName: first,
+          lastName: last,
+          email: email,
+          phone: phone,
+        );
+        if (mounted) Navigator.of(context).pop(member);
+      }
     } catch (e) {
       if (mounted) {
         setState(() {
@@ -75,7 +92,7 @@ class _AddMemberScreenState extends ConsumerState<AddMemberScreen> {
       appBar: AppBar(
         backgroundColor: Colors.transparent,
         elevation: 0,
-        title: const Text('Add Member', style: TextStyle(color: AppColors.textPrimary)),
+        title: Text(widget.asTrainer ? 'Add Trainer' : 'Add Member', style: const TextStyle(color: AppColors.textPrimary)),
       ),
       body: SafeArea(
         child: Form(
@@ -84,7 +101,9 @@ class _AddMemberScreenState extends ConsumerState<AddMemberScreen> {
             padding: const EdgeInsets.all(20),
             children: [
               Text(
-                'Add a walk-in member directly. They can claim their account later with an invite code.',
+                widget.asTrainer
+                    ? 'Adds a trainer to this gym. They can sign in with the invite they receive.'
+                    : 'Add a walk-in member directly. They can claim their account later with an invite code.',
                 style: AppTextStyles.bodyMedium.copyWith(color: AppColors.textSecondary),
               ),
               const SizedBox(height: 24),
@@ -120,7 +139,7 @@ class _AddMemberScreenState extends ConsumerState<AddMemberScreen> {
               ),
               const SizedBox(height: 8),
               Text(
-                'At least one of email or phone is recommended so the member can claim their account.',
+                'At least one of email or phone is recommended so they can claim their account.',
                 style: AppTextStyles.caption.copyWith(color: AppColors.textTertiary, fontSize: 11),
               ),
               const SizedBox(height: 24),
@@ -152,7 +171,10 @@ class _AddMemberScreenState extends ConsumerState<AddMemberScreen> {
                           height: 22,
                           child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white),
                         )
-                      : const Text('Add Member', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16)),
+                      : Text(
+                          widget.asTrainer ? 'Add Trainer' : 'Add Member',
+                          style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
+                        ),
                 ),
               ),
             ],

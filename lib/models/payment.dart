@@ -34,10 +34,11 @@ class GymPayment {
       receiptNumber: json['receiptNumber'] as String? ?? '—',
       enrollmentId: json['enrollmentId'] as String?,
       memberName: json['memberName'] as String? ??
+          (json['user'] as Map<String, dynamic>?)?['fullName'] as String? ??
           (json['member'] as Map<String, dynamic>?)?['name'] as String?,
       amountInr: _toDouble(json['amountInr']),
       method: json['method'] as String? ?? 'CASH',
-      paidAt: _tryParseDate(json['paidAt']),
+      paidAt: _tryParseDate(json['paidOn'] ?? json['paidAt']),
       voidedAt: _tryParseDate(json['voidedAt']),
       notes: json['notes'] as String?,
       isVoided: json['voidedAt'] != null || json['isVoided'] == true,
@@ -68,6 +69,7 @@ class GymPayment {
 /// Summary row from `GET /gyms/:gymId/payments/dues`.
 class DuesSummary {
   final String membershipId;
+  final String? userId;
   final String memberName;
   final String? enrollmentId;
   final String? planName;
@@ -75,6 +77,7 @@ class DuesSummary {
 
   const DuesSummary({
     required this.membershipId,
+    this.userId,
     required this.memberName,
     this.enrollmentId,
     this.planName,
@@ -82,12 +85,22 @@ class DuesSummary {
   });
 
   factory DuesSummary.fromJson(Map<String, dynamic> json) {
+    final user = json['user'] as Map<String, dynamic>?;
+    final plan = json['plan'] as Map<String, dynamic>?;
     return DuesSummary(
-      membershipId: json['membershipId'] as String? ?? json['userId'] as String? ?? '',
-      memberName: json['memberName'] as String? ?? 'Unknown',
-      enrollmentId: json['enrollmentId'] as String?,
-      planName: json['planName'] as String?,
-      dueAmountInr: _toDouble(json['dueAmountInr'] ?? json['dues']),
+      membershipId: json['membershipId'] as String? ??
+          json['id'] as String? ??
+          json['userId'] as String? ??
+          '',
+      userId: json['userId'] as String? ?? user?['id'] as String?,
+      memberName: json['memberName'] as String? ??
+          user?['fullName'] as String? ??
+          'Unknown',
+      enrollmentId: json['enrollmentId'] as String? ?? json['id'] as String?,
+      planName: json['planName'] as String? ?? plan?['name'] as String?,
+      dueAmountInr: _toDouble(
+        json['dueAmountInr'] ?? json['duesInr'] ?? json['dues'],
+      ),
     );
   }
 

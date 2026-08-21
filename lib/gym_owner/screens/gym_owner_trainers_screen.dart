@@ -7,7 +7,9 @@ import '../../providers/gym_provider.dart';
 import '../../services/gym_owner_service.dart';
 import '../../theme/app_theme.dart';
 import '../../dashboard/widgets/dashboard_glass_card.dart';
-import '../../dashboard/widgets/linear_progress_bar.dart';
+import '../../dashboard/widgets/sheet_chrome.dart';
+import '../../dashboard/widgets/state_views.dart';
+import 'add_member_screen.dart';
 
 class GymOwnerTrainersScreen extends ConsumerStatefulWidget {
   const GymOwnerTrainersScreen({super.key});
@@ -54,37 +56,32 @@ class _GymOwnerTrainersScreenState extends ConsumerState<GymOwnerTrainersScreen>
     }
   }
 
-  List<Map<String, dynamic>> get _filteredTrainers {
-    var trainers = _liveTrainers.map((lt) {
-      final name = lt.name.isNotEmpty ? lt.name : 'Trainer';
-      final initials = name.split(' ').map((e) => e.isNotEmpty ? e[0] : '').take(2).join('').toUpperCase();
-      return {
-        'trainerId': lt.trainerId,
-        'name': name,
-        'initials': initials.isNotEmpty ? initials : 'T',
-        'specialization': lt.specialization.isNotEmpty ? lt.specialization : 'General Fitness',
-        'experience': '5+ years',
-        'certification': 'Certified Coach',
-        'isCertified': true,
-        'clients': lt.activeClientsCount,
-        'retentionRate': 0.92,
-        'avgRating': 4.8,
-        'isOnline': lt.status == 'ACTIVE',
-        'phone': lt.phone ?? 'No phone',
-        'joinDate': 'Recent',
-        'gradientColors': [AppColors.accentPurple, AppColors.accentCoral],
-        'sessionsLoggedLast30Days': lt.sessionsLoggedLast30Days,
-        'clientCheckInRate7dPercent': lt.clientCheckInRate7dPercent,
-      };
+  List<GymTrainer> get _filteredTrainers {
+    if (_searchQuery.isEmpty) return _liveTrainers;
+    final query = _searchQuery.toLowerCase();
+    return _liveTrainers.where((t) {
+      return t.name.toLowerCase().contains(query) ||
+          t.specialization.toLowerCase().contains(query);
     }).toList();
+  }
 
-    if (_searchQuery.isEmpty) return trainers;
-    return trainers.where((t) {
-      final name = (t['name'] as String).toLowerCase();
-      final spec = (t['specialization'] as String).toLowerCase();
-      final query = _searchQuery.toLowerCase();
-      return name.contains(query) || spec.contains(query);
-    }).toList();
+  String _initialsFor(String name) {
+    final initials = name
+        .split(' ')
+        .map((e) => e.isNotEmpty ? e[0] : '')
+        .take(2)
+        .join('')
+        .toUpperCase();
+    return initials.isNotEmpty ? initials : 'T';
+  }
+
+  List<Color> _gradientFor(String seed) {
+    const palettes = [
+      [AppColors.accentPurple, AppColors.accentCoral],
+      [AppColors.accentBlue, AppColors.accentCyan],
+      [AppColors.accentOrange, AppColors.accentPurple],
+    ];
+    return palettes[seed.hashCode.abs() % palettes.length];
   }
 
   @override
@@ -281,8 +278,19 @@ class _GymOwnerTrainersScreenState extends ConsumerState<GymOwnerTrainersScreen>
                       .fadeIn(duration: 400.ms, delay: 250.ms),
                 ),
 
+                // ── Loading State ──
+                if (_trainersLoading)
+                  const SliverToBoxAdapter(
+                    child: Padding(
+                      padding: EdgeInsets.symmetric(vertical: 80),
+                      child: Center(
+                        child: CircularProgressIndicator(color: AppColors.accentPurple),
+                      ),
+                    ),
+                  ),
+
                 // ── Empty State ──
-                if (filtered.isEmpty)
+                if (!_trainersLoading && filtered.isEmpty)
                   SliverToBoxAdapter(
                     child: Padding(
                       padding: const EdgeInsets.symmetric(vertical: 60),
@@ -319,7 +327,7 @@ class _GymOwnerTrainersScreenState extends ConsumerState<GymOwnerTrainersScreen>
                   ),
 
                 // ── Trainer Cards ──
-                if (filtered.isNotEmpty)
+                if (!_trainersLoading && filtered.isNotEmpty)
                   SliverPadding(
                     padding: const EdgeInsets.fromLTRB(20, 4, 20, 100),
                     sliver: SliverList(
@@ -432,15 +440,12 @@ class _GymOwnerTrainersScreenState extends ConsumerState<GymOwnerTrainersScreen>
 
   Widget _buildSummaryStats() {
     final trainers = _filteredTrainers;
-    final totalClients = trainers.fold<int>(
-        0, (sum, t) => sum + (t['clients'] as int));
-    final onlineCount =
-        trainers.where((t) => t['isOnline'] == true).length;
-    final avgRating = trainers.isEmpty
-        ? 0.0
-        : trainers.fold<double>(
-                0, (sum, t) => sum + (t['avgRating'] as double)) /
-            trainers.length;
+    final totalClients = trainers.fold<int>(0, (sum, t) => sum + t.activeClientsCount);
+    final activeCount = trainers.where((t) => t.status == 'ACTIVE').length;
+    final rated = trainers.where((t) => t.clientCheckInRate7dPercent != null).toList();
+    final avgCheckIn = rated.isEmpty
+        ? null
+        : rated.fold<double>(0, (sum, t) => sum + t.clientCheckInRate7dPercent!) / rated.length;
 
     return Row(
       children: [
@@ -453,16 +458,16 @@ class _GymOwnerTrainersScreenState extends ConsumerState<GymOwnerTrainersScreen>
         const SizedBox(width: 10),
         _buildMiniStat(
           icon: Icons.circle,
-          value: '$onlineCount',
-          label: 'Online Now',
+          value: '$activeCount',
+          label: 'Active',
           color: AppColors.accentCyan,
           iconSize: 10,
         ),
         const SizedBox(width: 10),
         _buildMiniStat(
-          icon: Icons.star_rounded,
-          value: avgRating.toStringAsFixed(1),
-          label: 'Avg Rating',
+          icon: Icons.check_circle_outline_rounded,
+          value: avgCheckIn == null ? '—' : '${avgCheckIn.toStringAsFixed(0)}%',
+          label: 'Avg 7d Check-in',
           color: AppColors.accentOrange,
         ),
       ],
@@ -527,10 +532,11 @@ class _GymOwnerTrainersScreenState extends ConsumerState<GymOwnerTrainersScreen>
   //  TRAINER CARD
   // ═══════════════════════════════════════════════
 
-  Widget _buildTrainerCard(Map<String, dynamic> trainer) {
-    final gradientColors = trainer['gradientColors'] as List<Color>;
-    final isOnline = trainer['isOnline'] as bool;
-    final isCertified = trainer['isCertified'] as bool;
+  Widget _buildTrainerCard(GymTrainer trainer) {
+    final gradientColors = _gradientFor(trainer.trainerId);
+    final isActive = trainer.status == 'ACTIVE';
+    final isVerified = trainer.isVerified;
+    final name = trainer.name.isNotEmpty ? trainer.name : 'Trainer';
 
     return DashboardGlassCard(
       padding: const EdgeInsets.all(16),
@@ -564,7 +570,7 @@ class _GymOwnerTrainersScreenState extends ConsumerState<GymOwnerTrainersScreen>
                     ),
                     child: Center(
                       child: Text(
-                        trainer['initials'] as String,
+                        _initialsFor(name),
                         style: AppTextStyles.labelLarge.copyWith(
                           color: Colors.white,
                           fontWeight: FontWeight.w700,
@@ -573,7 +579,7 @@ class _GymOwnerTrainersScreenState extends ConsumerState<GymOwnerTrainersScreen>
                       ),
                     ),
                   ),
-                  // Online dot
+                  // Active status dot
                   Positioned(
                     right: 0,
                     bottom: 0,
@@ -581,7 +587,7 @@ class _GymOwnerTrainersScreenState extends ConsumerState<GymOwnerTrainersScreen>
                       width: 14,
                       height: 14,
                       decoration: BoxDecoration(
-                        color: isOnline
+                        color: isActive
                             ? AppColors.accentCyan
                             : AppColors.textDisabled,
                         shape: BoxShape.circle,
@@ -589,7 +595,7 @@ class _GymOwnerTrainersScreenState extends ConsumerState<GymOwnerTrainersScreen>
                           color: AppColors.bgPrimary,
                           width: 2.5,
                         ),
-                        boxShadow: isOnline
+                        boxShadow: isActive
                             ? [
                                 BoxShadow(
                                   color: AppColors.accentCyan
@@ -605,17 +611,17 @@ class _GymOwnerTrainersScreenState extends ConsumerState<GymOwnerTrainersScreen>
               ),
               const SizedBox(width: 14),
 
-              // Name + Specialization + Experience
+              // Name + Specialization + Shift schedule
               Expanded(
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    // Name row with certification badge
+                    // Name row with real verification badge
                     Row(
                       children: [
                         Expanded(
                           child: Text(
-                            trainer['name'] as String,
+                            name,
                             style: AppTextStyles.labelLarge.copyWith(
                               fontSize: 15,
                               fontWeight: FontWeight.w600,
@@ -624,7 +630,7 @@ class _GymOwnerTrainersScreenState extends ConsumerState<GymOwnerTrainersScreen>
                             overflow: TextOverflow.ellipsis,
                           ),
                         ),
-                        if (isCertified) ...[
+                        if (isVerified) ...[
                           const SizedBox(width: 6),
                           Container(
                             padding: const EdgeInsets.symmetric(
@@ -654,7 +660,7 @@ class _GymOwnerTrainersScreenState extends ConsumerState<GymOwnerTrainersScreen>
                                 ),
                                 const SizedBox(width: 2),
                                 Text(
-                                  trainer['certification'] as String,
+                                  'Verified',
                                   style: AppTextStyles.caption.copyWith(
                                     color: AppColors.accentOrange,
                                     fontWeight: FontWeight.w700,
@@ -680,7 +686,7 @@ class _GymOwnerTrainersScreenState extends ConsumerState<GymOwnerTrainersScreen>
                         const SizedBox(width: 4),
                         Expanded(
                           child: Text(
-                            trainer['specialization'] as String,
+                            trainer.specialization,
                             style: AppTextStyles.caption.copyWith(
                               color: AppColors.textSecondary,
                               fontSize: 11,
@@ -693,7 +699,7 @@ class _GymOwnerTrainersScreenState extends ConsumerState<GymOwnerTrainersScreen>
                     ),
                     const SizedBox(height: 3),
 
-                    // Experience
+                    // Real shift schedule (no fake "experience"/"join date")
                     Row(
                       children: [
                         Icon(
@@ -702,31 +708,15 @@ class _GymOwnerTrainersScreenState extends ConsumerState<GymOwnerTrainersScreen>
                           size: 12,
                         ),
                         const SizedBox(width: 4),
-                        Text(
-                          '${trainer['experience']} experience',
-                          style: AppTextStyles.caption.copyWith(
-                            color: AppColors.textTertiary,
-                            fontSize: 10,
-                          ),
-                        ),
-                        const SizedBox(width: 8),
-                        Container(
-                          width: 1,
-                          height: 10,
-                          color: AppColors.glassBorder,
-                        ),
-                        const SizedBox(width: 8),
-                        Icon(
-                          Icons.calendar_today_rounded,
-                          color: AppColors.textTertiary,
-                          size: 10,
-                        ),
-                        const SizedBox(width: 4),
-                        Text(
-                          'Since ${trainer['joinDate']}',
-                          style: AppTextStyles.caption.copyWith(
-                            color: AppColors.textTertiary,
-                            fontSize: 10,
+                        Expanded(
+                          child: Text(
+                            trainer.shiftSchedule ?? 'No shift schedule set',
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                            style: AppTextStyles.caption.copyWith(
+                              color: AppColors.textTertiary,
+                              fontSize: 10,
+                            ),
                           ),
                         ),
                       ],
@@ -739,86 +729,47 @@ class _GymOwnerTrainersScreenState extends ConsumerState<GymOwnerTrainersScreen>
 
           const SizedBox(height: 14),
 
-          // ── Statistics Row ──
+          // ── Statistics Row (all real, backend-sourced values) ──
           Row(
             children: [
               _buildStatItem(
                 icon: Icons.people_outline_rounded,
-                value: '${trainer['clients']}',
+                value: '${trainer.activeClientsCount}',
                 label: 'Clients',
                 color: AppColors.accentBlue,
               ),
               const SizedBox(width: 8),
               _buildStatItem(
-                icon: Icons.replay_rounded,
-                value:
-                    '${((trainer['retentionRate'] as double) * 100).toInt()}%',
-                label: 'Retention',
+                icon: Icons.check_circle_outline_rounded,
+                value: trainer.clientCheckInRate7dPercent != null
+                    ? '${trainer.clientCheckInRate7dPercent!.toStringAsFixed(0)}%'
+                    : '—',
+                label: '7d Check-in',
                 color: AppColors.accentCyan,
               ),
               const SizedBox(width: 8),
               _buildStatItem(
-                icon: Icons.check_circle_outline_rounded,
-                value: trainer['clientCheckInRate7dPercent'] != null
-                    ? '${(trainer['clientCheckInRate7dPercent'] as num).toStringAsFixed(0)}%'
+                icon: Icons.payments_outlined,
+                value: trainer.commissionPercent != null
+                    ? '${trainer.commissionPercent!.toStringAsFixed(0)}%'
                     : '—',
-                label: '7d Check-in',
+                label: 'Commission',
                 color: AppColors.accentOrange,
               ),
               const SizedBox(width: 8),
               _buildStatItem(
                 icon: Icons.circle,
-                value: isOnline ? 'Online' : 'Offline',
+                value: isActive ? 'Active' : 'Inactive',
                 label: 'Status',
-                color: isOnline ? AppColors.accentCyan : AppColors.textDisabled,
+                color: isActive ? AppColors.accentCyan : AppColors.textDisabled,
                 iconSize: 8,
               ),
             ],
           ),
-          if (trainer['sessionsLoggedLast30Days'] != null) ...[
-            const SizedBox(height: 8),
-            Text(
-              '${trainer['sessionsLoggedLast30Days']} sessions logged in the last 30 days',
-              style: AppTextStyles.caption.copyWith(color: AppColors.textTertiary, fontSize: 10),
-            ),
-          ],
-
-          const SizedBox(height: 12),
-
-          // ── Retention Progress Bar ──
-          Row(
-            children: [
-              SizedBox(
-                width: 62,
-                child: Text(
-                  'Retention',
-                  style: AppTextStyles.caption.copyWith(
-                    color: AppColors.textTertiary,
-                    fontSize: 10,
-                  ),
-                ),
-              ),
-              Expanded(
-                child: LinearProgressBar(
-                  progress: trainer['retentionRate'] as double,
-                  color: gradientColors[0],
-                  height: 4,
-                ),
-              ),
-              const SizedBox(width: 8),
-              SizedBox(
-                width: 32,
-                child: Text(
-                  '${((trainer['retentionRate'] as double) * 100).toInt()}%',
-                  textAlign: TextAlign.right,
-                  style: AppTextStyles.caption.copyWith(
-                    color: AppColors.textSecondary,
-                    fontWeight: FontWeight.w600,
-                    fontSize: 10,
-                  ),
-                ),
-              ),
-            ],
+          const SizedBox(height: 8),
+          Text(
+            '${trainer.sessionsLoggedLast30Days} sessions logged in the last 30 days',
+            style: AppTextStyles.caption.copyWith(color: AppColors.textTertiary, fontSize: 10),
           ),
 
           const SizedBox(height: 14),
@@ -831,39 +782,23 @@ class _GymOwnerTrainersScreenState extends ConsumerState<GymOwnerTrainersScreen>
 
           const SizedBox(height: 12),
 
-          // ── Action Buttons ──
+          // ── Action Buttons — both open real, working flows ──
           Row(
             children: [
               _buildActionButton(
                 icon: Icons.visibility_rounded,
-                label: 'View',
+                label: 'View Details',
                 color: AppColors.accentBlue,
-                onTap: () => _showSnackBar(
-                    'Viewing profile of ${trainer['name']}'),
+                onTap: () => _showTrainerDetail(trainer),
               ),
               const SizedBox(width: 8),
               _buildActionButton(
-                icon: Icons.group_add_rounded,
-                label: 'Assign',
+                icon: Icons.tune_rounded,
+                label: 'Shift & Commission',
                 color: AppColors.accentPurple,
-                onTap: () => _showSnackBar(
-                    'Assigning members to ${trainer['name']}'),
-              ),
-              const SizedBox(width: 8),
-              _buildActionButton(
-                icon: Icons.insights_rounded,
-                label: 'Performance',
-                color: AppColors.accentCyan,
-                onTap: () => _showSnackBar(
-                    'Viewing performance of ${trainer['name']}'),
-              ),
-              const SizedBox(width: 8),
-              _buildActionButton(
-                icon: Icons.chat_bubble_outline_rounded,
-                label: 'Message',
-                color: AppColors.accentOrange,
-                onTap: () =>
-                    _showSnackBar('Messaging ${trainer['name']}'),
+                onTap: trainer.membershipId.isEmpty
+                    ? null
+                    : () => _configureTrainer(trainer),
               ),
             ],
           ),
@@ -926,8 +861,10 @@ class _GymOwnerTrainersScreenState extends ConsumerState<GymOwnerTrainersScreen>
     required IconData icon,
     required String label,
     required Color color,
-    required VoidCallback onTap,
+    required VoidCallback? onTap,
   }) {
+    final enabled = onTap != null;
+    final effectiveColor = enabled ? color : AppColors.textDisabled;
     return Expanded(
       child: GestureDetector(
         onTap: onTap,
@@ -935,22 +872,22 @@ class _GymOwnerTrainersScreenState extends ConsumerState<GymOwnerTrainersScreen>
           padding: const EdgeInsets.symmetric(vertical: 8),
           decoration: BoxDecoration(
             borderRadius: BorderRadius.circular(10),
-            color: color.withValues(alpha: 0.08),
+            color: effectiveColor.withValues(alpha: 0.08),
             border: Border.all(
-              color: color.withValues(alpha: 0.2),
+              color: effectiveColor.withValues(alpha: 0.2),
               width: 1,
             ),
           ),
           child: Column(
             children: [
-              Icon(icon, color: color, size: 16),
+              Icon(icon, color: effectiveColor, size: 16),
               const SizedBox(height: 3),
               Text(
                 label,
                 maxLines: 1,
                 overflow: TextOverflow.ellipsis,
                 style: AppTextStyles.caption.copyWith(
-                  color: color,
+                  color: effectiveColor,
                   fontWeight: FontWeight.w600,
                   fontSize: 8,
                 ),
@@ -968,7 +905,12 @@ class _GymOwnerTrainersScreenState extends ConsumerState<GymOwnerTrainersScreen>
 
   Widget _buildFAB() {
     return GestureDetector(
-      onTap: () => _showSnackBar('Add Trainer form coming soon'),
+      onTap: () async {
+        final added = await Navigator.of(context).push<Object?>(
+          MaterialPageRoute(builder: (_) => const AddMemberScreen(asTrainer: true)),
+        );
+        if (added != null && mounted) _loadTrainers();
+      },
       child: Container(
         width: 56,
         height: 56,
@@ -1001,6 +943,172 @@ class _GymOwnerTrainersScreenState extends ConsumerState<GymOwnerTrainersScreen>
         ),
       ),
     );
+  }
+
+  // ═══════════════════════════════════════════════
+  //  TRAINER DETAIL SHEET (real data only)
+  // ═══════════════════════════════════════════════
+
+  void _showTrainerDetail(GymTrainer trainer) {
+    showModalBottomSheet(
+      context: context,
+      backgroundColor: Colors.transparent,
+      isScrollControlled: true,
+      builder: (ctx) => Container(
+        padding: const EdgeInsets.fromLTRB(20, 20, 20, 32),
+        decoration: const BoxDecoration(
+          color: AppColors.bgSecondary,
+          borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
+        ),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            const SheetDragHandle(),
+            const SizedBox(height: 16),
+            Text(
+              trainer.name.isNotEmpty ? trainer.name : 'Trainer',
+              style: AppTextStyles.titleMedium.copyWith(fontWeight: FontWeight.w700),
+            ),
+            const SizedBox(height: 4),
+            Text(trainer.specialization, style: AppTextStyles.caption.copyWith(color: AppColors.textSecondary)),
+            const SizedBox(height: 16),
+            _detailRow('Verification', trainer.isVerified ? 'Verified' : trainer.verificationStatus),
+            _detailRow('Email', trainer.email ?? '—'),
+            _detailRow('Phone', trainer.phone ?? '—'),
+            _detailRow('Shift schedule', trainer.shiftSchedule ?? 'Not set'),
+            _detailRow('Commission',
+                trainer.commissionPercent != null ? '${trainer.commissionPercent!.toStringAsFixed(0)}%' : 'Not set'),
+            _detailRow('Active clients', '${trainer.activeClientsCount}'),
+            _detailRow('Sessions logged (30d)', '${trainer.sessionsLoggedLast30Days}'),
+            _detailRow('Client check-in rate (7d)',
+                trainer.clientCheckInRate7dPercent != null
+                    ? '${trainer.clientCheckInRate7dPercent!.toStringAsFixed(0)}%'
+                    : '—'),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _detailRow(String label, String value) {
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 6),
+      child: Row(
+        children: [
+          SizedBox(
+            width: 150,
+            child: Text(label, style: AppTextStyles.caption.copyWith(color: AppColors.textTertiary)),
+          ),
+          Expanded(
+            child: Text(
+              value,
+              style: AppTextStyles.labelLarge.copyWith(fontSize: 13),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  // ═══════════════════════════════════════════════
+  //  SHIFT & COMMISSION EDIT (real PATCH)
+  // ═══════════════════════════════════════════════
+
+  Future<void> _configureTrainer(GymTrainer trainer) async {
+    final shiftController = TextEditingController(text: trainer.shiftSchedule ?? '');
+    final commissionController =
+        TextEditingController(text: trainer.commissionPercent?.toStringAsFixed(0) ?? '');
+    try {
+      final saved = await showModalBottomSheet<bool>(
+        context: context,
+        backgroundColor: Colors.transparent,
+        isScrollControlled: true,
+        builder: (ctx) => Padding(
+          padding: EdgeInsets.only(bottom: MediaQuery.of(ctx).viewInsets.bottom),
+          child: Container(
+            decoration: const BoxDecoration(
+              color: AppColors.bgSecondary,
+              borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
+            ),
+            padding: const EdgeInsets.fromLTRB(20, 20, 20, 24),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                const SheetDragHandle(),
+                const SizedBox(height: 16),
+                Text('${trainer.name} — Shift & Commission',
+                    style: AppTextStyles.titleMedium.copyWith(fontWeight: FontWeight.w700)),
+                const SizedBox(height: 16),
+                TextField(
+                  controller: shiftController,
+                  style: const TextStyle(color: AppColors.textPrimary),
+                  decoration: InputDecoration(
+                    labelText: 'Shift schedule',
+                    hintText: 'e.g. Mon-Sat 6am-2pm',
+                    labelStyle: const TextStyle(color: AppColors.textSecondary),
+                    hintStyle: const TextStyle(color: AppColors.textTertiary),
+                    filled: true,
+                    fillColor: AppColors.bgTertiary,
+                    border: OutlineInputBorder(borderRadius: BorderRadius.circular(14), borderSide: BorderSide.none),
+                  ),
+                ),
+                const SizedBox(height: 12),
+                TextField(
+                  controller: commissionController,
+                  keyboardType: const TextInputType.numberWithOptions(decimal: true),
+                  style: const TextStyle(color: AppColors.textPrimary),
+                  decoration: InputDecoration(
+                    labelText: 'Commission %',
+                    hintText: '0-100',
+                    labelStyle: const TextStyle(color: AppColors.textSecondary),
+                    hintStyle: const TextStyle(color: AppColors.textTertiary),
+                    filled: true,
+                    fillColor: AppColors.bgTertiary,
+                    border: OutlineInputBorder(borderRadius: BorderRadius.circular(14), borderSide: BorderSide.none),
+                  ),
+                ),
+                const SizedBox(height: 16),
+                SizedBox(
+                  width: double.infinity,
+                  child: ElevatedButton(
+                    onPressed: () => Navigator.pop(ctx, true),
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: AppColors.accentBlue,
+                      padding: const EdgeInsets.symmetric(vertical: 14),
+                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+                    ),
+                    child: const Text('Save', style: TextStyle(fontWeight: FontWeight.w700)),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
+      );
+
+      if (saved != true) return;
+      final gymId = ref.read(currentGymIdProvider);
+      if (gymId == null) return;
+      try {
+        await ref.read(gymOwnerServiceProvider).updateTrainerConfig(
+              gymId: gymId,
+              membershipId: trainer.membershipId,
+              shiftSchedule: shiftController.text.trim().isEmpty ? null : shiftController.text.trim(),
+              commissionPercent: double.tryParse(commissionController.text.trim()),
+            );
+        if (mounted) {
+          _showSnackBar('Updated ${trainer.name}\'s shift & commission.');
+          _loadTrainers();
+        }
+      } catch (e) {
+        if (mounted) _showSnackBar('Failed to update: ${friendlyApiError(e)}');
+      }
+    } finally {
+      shiftController.dispose();
+      commissionController.dispose();
+    }
   }
 
   // ═══════════════════════════════════════════════

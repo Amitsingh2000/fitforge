@@ -3,10 +3,12 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../models/enrollment.dart';
 import '../../models/gym_member.dart';
 import '../../models/gym_membership.dart';
+import '../../models/gym_trainer.dart';
 import '../../providers/gym_provider.dart';
 import '../../services/gym_owner_service.dart';
 import '../../theme/app_theme.dart';
 import '../../dashboard/widgets/dashboard_glass_card.dart';
+import '../../dashboard/widgets/sheet_chrome.dart';
 import '../../dashboard/widgets/state_views.dart';
 
 /// Membership lifecycle screen — launched from [MemberDetailScreen].
@@ -94,6 +96,8 @@ class _EnrollmentScreenState extends ConsumerState<EnrollmentScreen> {
                 mainAxisSize: MainAxisSize.min,
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
+                  const SheetDragHandle(),
+                  const SizedBox(height: 16),
                   Text('Enroll Member', style: AppTextStyles.titleLarge.copyWith(fontWeight: FontWeight.w700)),
                   const SizedBox(height: 4),
                   Text('Enroll ${widget.member.fullName} in a plan.',
@@ -222,6 +226,271 @@ class _EnrollmentScreenState extends ConsumerState<EnrollmentScreen> {
     }
   }
 
+  Future<void> _remind(Enrollment e) async {
+    try {
+      await ref.read(gymOwnerServiceProvider).sendEnrollmentReminder(widget.gymId, e.id);
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Reminder sent ✓')),
+        );
+      }
+    } catch (err) {
+      if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('$err')));
+    }
+  }
+
+  Future<void> _changePlan(Enrollment e) async {
+    final service = ref.read(gymOwnerServiceProvider);
+    List<Map<String, dynamic>> plans = [];
+    try {
+      plans = await service.getPlans(widget.gymId);
+    } catch (_) {}
+    plans = plans.where((p) => p['id'] != e.planId).toList();
+    if (!mounted) return;
+    if (plans.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('No other active plans to switch to.')),
+      );
+      return;
+    }
+    final newPlanId = await _pickFromList(
+      title: 'Change plan for ${widget.member.firstName}',
+      items: plans
+          .map((p) => MapEntry(
+                p['id'] as String? ?? '',
+                '${p['name'] ?? ''} · ₹${p['priceInr']}',
+              ))
+          .toList(),
+    );
+    if (newPlanId == null || !mounted) return;
+    try {
+      await service.changePlan(widget.gymId, e.id, newPlanId: newPlanId);
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Plan changed — unused value prorated ✓')),
+        );
+        _load();
+      }
+    } catch (err) {
+      if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(friendlyApiError(err))));
+    }
+  }
+
+  Future<void> _transfer(Enrollment e) async {
+    final service = ref.read(gymOwnerServiceProvider);
+    List<GymMember> members = [];
+    try {
+      members = await service.getMembers(widget.gymId, role: 'MEMBER');
+    } catch (_) {}
+    members = members.where((m) => m.userId != e.userId).toList();
+    if (!mounted) return;
+    if (members.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('No other members to transfer to.')),
+      );
+      return;
+    }
+    final toUserId = await _pickFromList(
+      title: 'Transfer enrollment to',
+      searchable: true,
+      items: members.map((m) => MapEntry(m.userId, '${m.fullName} · ${m.email}')).toList(),
+    );
+    if (toUserId == null || !mounted) return;
+    try {
+      await service.transferEnrollment(widget.gymId, e.id, toUserId: toUserId);
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Enrollment transferred ✓')),
+        );
+        _load();
+      }
+    } catch (err) {
+      if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(friendlyApiError(err))));
+    }
+  }
+
+  Future<void> _assignTrainer(Enrollment e) async {
+    final service = ref.read(gymOwnerServiceProvider);
+    List<GymTrainer> trainers = [];
+    try {
+      trainers = await service.getTrainersRoster(widget.gymId);
+    } catch (_) {}
+    if (!mounted) return;
+    if (trainers.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('No trainers in this gym yet.')),
+      );
+      return;
+    }
+    final trainerId = await _pickFromList(
+      title: 'Assign trainer',
+      items: trainers.map((t) => MapEntry(t.trainerId, t.name)).toList(),
+    );
+    if (trainerId == null || !mounted) return;
+    try {
+      await service.assignTrainerToEnrollment(widget.gymId, e.id, trainerId: trainerId);
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Trainer assigned ✓')),
+        );
+        _load();
+      }
+    } catch (err) {
+      if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(friendlyApiError(err))));
+    }
+  }
+
+  Future<void> _logSession(Enrollment e) async {
+    final notesCtrl = TextEditingController();
+    try {
+      final confirmed = await showModalBottomSheet<bool>(
+        context: context,
+        isScrollControlled: true,
+        backgroundColor: Colors.transparent,
+        builder: (ctx) => Padding(
+          padding: EdgeInsets.only(bottom: MediaQuery.of(ctx).viewInsets.bottom),
+          child: Container(
+            decoration: const BoxDecoration(
+              color: AppColors.bgSecondary,
+              borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
+            ),
+            padding: const EdgeInsets.fromLTRB(20, 20, 20, 24),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                const SheetDragHandle(),
+                const SizedBox(height: 16),
+                Text('Log a session', style: AppTextStyles.titleLarge.copyWith(fontWeight: FontWeight.w700)),
+                const SizedBox(height: 4),
+                Text('${e.sessionsRemaining ?? 0} of ${e.sessionsTotal ?? 0} sessions remaining',
+                    style: AppTextStyles.caption.copyWith(color: AppColors.textSecondary)),
+                const SizedBox(height: 16),
+                _inputField(notesCtrl, 'Notes (optional)', hint: 'e.g. Upper body strength'),
+                const SizedBox(height: 20),
+                SizedBox(
+                  width: double.infinity,
+                  child: ElevatedButton(
+                    onPressed: () => Navigator.pop(ctx, true),
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: AppColors.accentBlue,
+                      padding: const EdgeInsets.symmetric(vertical: 14),
+                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+                    ),
+                    child: const Text('Log Session', style: TextStyle(fontWeight: FontWeight.w700)),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
+      );
+      if (confirmed != true || !mounted) return;
+      try {
+        await ref.read(gymOwnerServiceProvider).logSession(
+              widget.gymId,
+              e.id,
+              notes: notesCtrl.text.trim().isEmpty ? null : notesCtrl.text.trim(),
+            );
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(content: Text('Session logged ✓')),
+          );
+          _load();
+        }
+      } catch (err) {
+        if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(friendlyApiError(err))));
+      }
+    } finally {
+      notesCtrl.dispose();
+    }
+  }
+
+  /// Shared list-picker bottom sheet — used for change-plan/transfer/assign
+  /// pickers so they don't each hand-roll the same sheet chrome.
+  Future<String?> _pickFromList({
+    required String title,
+    required List<MapEntry<String, String>> items,
+    bool searchable = false,
+  }) {
+    var query = '';
+    return showModalBottomSheet<String>(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
+      builder: (ctx) => StatefulBuilder(
+        builder: (ctx, setSheetState) {
+          final filtered = query.isEmpty
+              ? items
+              : items.where((e) => e.value.toLowerCase().contains(query.toLowerCase())).toList();
+          return Padding(
+            padding: EdgeInsets.only(bottom: MediaQuery.of(ctx).viewInsets.bottom),
+            child: Container(
+              constraints: BoxConstraints(maxHeight: MediaQuery.of(ctx).size.height * 0.75),
+              decoration: const BoxDecoration(
+                color: AppColors.bgSecondary,
+                borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
+              ),
+              padding: const EdgeInsets.fromLTRB(20, 20, 20, 24),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  const SheetDragHandle(),
+                  const SizedBox(height: 16),
+                  Text(title, style: AppTextStyles.titleLarge.copyWith(fontWeight: FontWeight.w700)),
+                  if (searchable) ...[
+                    const SizedBox(height: 12),
+                    TextField(
+                      onChanged: (v) => setSheetState(() => query = v),
+                      style: const TextStyle(color: AppColors.textPrimary),
+                      decoration: InputDecoration(
+                        hintText: 'Search by name or email...',
+                        hintStyle: const TextStyle(color: AppColors.textTertiary),
+                        prefixIcon: const Icon(Icons.search_rounded, color: AppColors.textTertiary),
+                        filled: true,
+                        fillColor: AppColors.bgTertiary,
+                        border: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: BorderSide.none),
+                      ),
+                    ),
+                  ],
+                  const SizedBox(height: 12),
+                  Flexible(
+                    child: filtered.isEmpty
+                        ? Padding(
+                            padding: const EdgeInsets.symmetric(vertical: 24),
+                            child: Text('No matches.', style: AppTextStyles.caption.copyWith(color: AppColors.textTertiary)),
+                          )
+                        : ListView.separated(
+                            shrinkWrap: true,
+                            itemCount: filtered.length,
+                            separatorBuilder: (_, __) => const SizedBox(height: 8),
+                            itemBuilder: (ctx, i) {
+                              final entry = filtered[i];
+                              return GestureDetector(
+                                onTap: () => Navigator.pop(ctx, entry.key),
+                                child: Container(
+                                  padding: const EdgeInsets.all(14),
+                                  decoration: BoxDecoration(
+                                    color: AppColors.bgTertiary,
+                                    borderRadius: BorderRadius.circular(12),
+                                  ),
+                                  child: Text(entry.value,
+                                      style: AppTextStyles.bodyMedium.copyWith(color: AppColors.textPrimary)),
+                                ),
+                              );
+                            },
+                          ),
+                  ),
+                ],
+              ),
+            ),
+          );
+        },
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     final isOwner = ref.watch(currentGymRoleProvider)?.isOwnerOrManager ?? false;
@@ -266,6 +535,11 @@ class _EnrollmentScreenState extends ConsumerState<EnrollmentScreen> {
                               onFreeze: () => _freeze(_enrollments[i]),
                               onUnfreeze: () => _unfreeze(_enrollments[i]),
                               onRenew: () => _renew(_enrollments[i]),
+                              onRemind: () => _remind(_enrollments[i]),
+                              onChangePlan: () => _changePlan(_enrollments[i]),
+                              onTransfer: () => _transfer(_enrollments[i]),
+                              onAssignTrainer: () => _assignTrainer(_enrollments[i]),
+                              onLogSession: () => _logSession(_enrollments[i]),
                             ),
                           ),
                   ),
@@ -309,6 +583,11 @@ class _EnrollmentCard extends StatelessWidget {
     required this.onFreeze,
     required this.onUnfreeze,
     required this.onRenew,
+    required this.onRemind,
+    required this.onChangePlan,
+    required this.onTransfer,
+    required this.onAssignTrainer,
+    required this.onLogSession,
   });
 
   final Enrollment enrollment;
@@ -316,6 +595,11 @@ class _EnrollmentCard extends StatelessWidget {
   final VoidCallback onFreeze;
   final VoidCallback onUnfreeze;
   final VoidCallback onRenew;
+  final VoidCallback onRemind;
+  final VoidCallback onChangePlan;
+  final VoidCallback onTransfer;
+  final VoidCallback onAssignTrainer;
+  final VoidCallback onLogSession;
 
   @override
   Widget build(BuildContext context) {
@@ -364,6 +648,14 @@ class _EnrollmentCard extends StatelessWidget {
               child: Text('${e.sessionsRemaining}/${e.sessionsTotal} sessions remaining',
                   style: AppTextStyles.caption.copyWith(color: AppColors.accentCyan)),
             ),
+          if (e.isSessionBased)
+            Padding(
+              padding: const EdgeInsets.only(top: 4),
+              child: Text(
+                e.assignedTrainerName != null ? 'Trainer: ${e.assignedTrainerName}' : 'No trainer assigned',
+                style: AppTextStyles.caption.copyWith(color: AppColors.textSecondary),
+              ),
+            ),
           if (e.dueAmountInr != null && e.dueAmountInr! > 0)
             Padding(
               padding: const EdgeInsets.only(top: 4),
@@ -375,6 +667,7 @@ class _EnrollmentCard extends StatelessWidget {
           if (isOwner && (e.isActive || e.isFrozen || e.isExpired))
             Wrap(
               spacing: 8,
+              runSpacing: 8,
               children: [
                 if (e.isActive)
                   _ActionChip(label: 'Freeze', icon: Icons.ac_unit_rounded, onTap: onFreeze),
@@ -382,6 +675,16 @@ class _EnrollmentCard extends StatelessWidget {
                   _ActionChip(label: 'Unfreeze', icon: Icons.play_circle_outline_rounded, onTap: onUnfreeze),
                 if (e.isActive || e.isExpired)
                   _ActionChip(label: 'Renew', icon: Icons.refresh_rounded, onTap: onRenew),
+                if (e.isActive)
+                  _ActionChip(label: 'Remind', icon: Icons.notifications_outlined, onTap: onRemind),
+                if (e.isActive)
+                  _ActionChip(label: 'Change Plan', icon: Icons.swap_horiz_rounded, onTap: onChangePlan),
+                if (e.isActive)
+                  _ActionChip(label: 'Transfer', icon: Icons.person_search_rounded, onTap: onTransfer),
+                if (e.isActive && e.isSessionBased)
+                  _ActionChip(label: 'Assign Trainer', icon: Icons.badge_outlined, onTap: onAssignTrainer),
+                if (e.isActive && e.isSessionBased && (e.sessionsRemaining ?? 0) > 0)
+                  _ActionChip(label: 'Log Session', icon: Icons.event_available_rounded, onTap: onLogSession),
               ],
             ),
         ],

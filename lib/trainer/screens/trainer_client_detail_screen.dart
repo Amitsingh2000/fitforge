@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_animate/flutter_animate.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'dart:math' as math;
+import '../../models/diet_plan.dart';
 import '../../models/member_attendance.dart';
 import '../../models/member_progress_summary.dart';
 import '../../models/nutrition_log.dart';
@@ -19,6 +20,7 @@ import '../../dashboard/widgets/state_views.dart';
 import '../widgets/client_gradient.dart';
 import '../widgets/trainer_plan_editor_sheet.dart';
 import '../widgets/trainer_feedback_sheet.dart';
+import 'trainer_chat_conversation_screen.dart';
 
 class TrainerClientDetailScreen extends ConsumerStatefulWidget {
   final TrainerClient client;
@@ -109,6 +111,7 @@ class _TrainerClientDetailScreenState
     final attendanceAsync = ref.watch(memberAttendanceProvider(key));
     final nutritionAsync = ref.watch(memberNutritionLogsProvider(key));
     final workoutsAsync = ref.watch(memberWorkoutLogsProvider(key));
+    final dietPlansAsync = ref.watch(memberDietPlansProvider(key));
 
     return Scaffold(
       backgroundColor: AppColors.bgPrimary,
@@ -148,6 +151,25 @@ class _TrainerClientDetailScreenState
                         color: AppColors.textSecondary),
                     onPressed: () => Navigator.of(context).pop(),
                   ),
+                  actions: [
+                    IconButton(
+                      icon: const Icon(Icons.chat_bubble_outline_rounded,
+                          color: AppColors.textSecondary),
+                      onPressed: () {
+                        final gymId = _gymId;
+                        if (gymId == null) return;
+                        Navigator.of(context).push(
+                          MaterialPageRoute(
+                            builder: (_) => TrainerChatConversationScreen(
+                              gymId: gymId,
+                              otherUserId: client.userId,
+                              otherUserName: client.fullName,
+                            ),
+                          ),
+                        );
+                      },
+                    ),
+                  ],
                   flexibleSpace: FlexibleSpaceBar(
                     background: Container(
                       padding: const EdgeInsets.only(top: 60, left: 20, right: 20),
@@ -256,7 +278,7 @@ class _TrainerClientDetailScreenState
               children: [
                 _buildProgressTab(entriesAsync, summaryAsync),
                 _buildAttendanceTab(attendanceAsync),
-                _buildNutritionTab(nutritionAsync),
+                _buildNutritionTab(nutritionAsync, dietPlansAsync),
                 _buildWorkoutsTab(workoutsAsync),
               ],
             ),
@@ -403,11 +425,18 @@ class _TrainerClientDetailScreenState
               const SizedBox(height: 24),
               SizedBox(
                 height: 100,
-                child: CustomPaint(
-                  painter: _WeightLinePainter(
-                    values: _normalizedWeights(weights),
-                  ),
-                ),
+                child: weights.length >= 2
+                    ? CustomPaint(
+                        painter: _WeightLinePainter(
+                          values: _normalizedWeights(weights),
+                        ),
+                      )
+                    : Center(
+                        child: Text(
+                          'Log at least 2 weigh-ins to see a trend.',
+                          style: AppTextStyles.caption.copyWith(color: AppColors.textTertiary),
+                        ),
+                      ),
               ),
               const SizedBox(height: 16),
               Row(
@@ -699,7 +728,16 @@ class _TrainerClientDetailScreenState
   // ═══════════════════════════════════════════════
   //  NUTRITION TAB
   // ═══════════════════════════════════════════════
-  Widget _buildNutritionTab(AsyncValue<List<NutritionLog>> nutritionAsync) {
+  Widget _buildNutritionTab(
+      AsyncValue<List<NutritionLog>> nutritionAsync,
+      AsyncValue<List<DietPlan>> dietPlansAsync) {
+    // Real target from the client's current diet plan when one is assigned;
+    // the plan list may still be loading independently of the logs — that's
+    // fine, it just falls back to "no target set" until it resolves.
+    final activeDietPlan = dietPlansAsync.maybeWhen(
+      data: (plans) => plans.isEmpty ? null : plans.first,
+      orElse: () => null,
+    );
     return SingleChildScrollView(
       physics: const BouncingScrollPhysics(),
       padding: const EdgeInsets.fromLTRB(20, 16, 20, 120),
@@ -735,7 +773,10 @@ class _TrainerClientDetailScreenState
                   0.0, (sum, l) => sum + l.totalCarbsG);
               final fats = todayLogs.fold<double>(
                   0.0, (sum, l) => sum + l.totalFatG);
-              const caloriesTarget = 2500.0;
+              final caloriesTarget = activeDietPlan?.dailyCalorieTarget;
+              final proteinTarget = activeDietPlan?.dailyProteinTargetG;
+              final carbsTarget = activeDietPlan?.dailyCarbsTargetG;
+              final fatTarget = activeDietPlan?.dailyFatTargetG;
 
               return Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
@@ -746,8 +787,9 @@ class _TrainerClientDetailScreenState
                     child: Row(
                       children: [
                         RadialProgress(
-                          progress:
-                              (consumed / caloriesTarget).clamp(0.0, 1.0),
+                          progress: caloriesTarget == null || caloriesTarget == 0
+                              ? 0.0
+                              : (consumed / caloriesTarget).clamp(0.0, 1.0),
                           size: 110,
                           strokeWidth: 9,
                           progressColor: AppColors.accentCoral,
@@ -761,7 +803,9 @@ class _TrainerClientDetailScreenState
                                       .copyWith(fontWeight: FontWeight.bold),
                                 ),
                                 Text(
-                                  '/ $caloriesTarget',
+                                  caloriesTarget == null
+                                      ? 'No target set'
+                                      : '/ ${caloriesTarget.toStringAsFixed(0)}',
                                   style: AppTextStyles.caption.copyWith(
                                       color: AppColors.textTertiary,
                                       fontSize: 9),
@@ -785,13 +829,13 @@ class _TrainerClientDetailScreenState
                                   style: AppTextStyles.labelLarge),
                               const SizedBox(height: 10),
                               _buildMacroProgress(
-                                  'Protein', protein, 140, AppColors.accentCoral),
+                                  'Protein', protein, proteinTarget, AppColors.accentCoral),
                               const SizedBox(height: 8),
                               _buildMacroProgress(
-                                  'Carbs', carbs, 250, AppColors.accentBlue),
+                                  'Carbs', carbs, carbsTarget, AppColors.accentBlue),
                               const SizedBox(height: 8),
                               _buildMacroProgress(
-                                  'Fats', fats, 75, AppColors.accentOrange),
+                                  'Fats', fats, fatTarget, AppColors.accentOrange),
                             ],
                           ),
                         ),
@@ -888,7 +932,7 @@ class _TrainerClientDetailScreenState
   }
 
   Widget _buildMacroProgress(
-      String label, double current, double target, Color color) {
+      String label, double current, double? target, Color color) {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
@@ -898,14 +942,19 @@ class _TrainerClientDetailScreenState
             Text(label,
                 style: AppTextStyles.caption
                     .copyWith(fontSize: 10, color: AppColors.textSecondary)),
-            Text('${current.toStringAsFixed(0)} / $target g',
+            Text(
+                target == null
+                    ? '${current.toStringAsFixed(0)} g'
+                    : '${current.toStringAsFixed(0)} / ${target.toStringAsFixed(0)} g',
                 style: AppTextStyles.caption
                     .copyWith(fontSize: 10, fontWeight: FontWeight.bold)),
           ],
         ),
         const SizedBox(height: 4),
         LinearProgressBar(
-          progress: (current / target).clamp(0.0, 1.0),
+          progress: target == null || target == 0
+              ? 0.0
+              : (current / target).clamp(0.0, 1.0),
           color: color,
           height: 3,
         ),
@@ -1299,22 +1348,12 @@ class _WeightLinePainter extends CustomPainter {
       ..strokeCap = StrokeCap.round
       ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 4);
 
+    if (values.length < 2) return;
     final points = <Offset>[];
-    if (values.length < 2) {
-      // Placeholder trend when there's not enough data yet.
-      final placeholder = [0.7, 0.6, 0.65, 0.5, 0.55, 0.45];
-      final n = placeholder.length;
-      for (var i = 0; i < n; i++) {
-        points.add(Offset(size.width * i / (n - 1), (1.0 - placeholder[i]) * size.height));
-      }
-    } else {
-      final n = values.length;
-      for (var i = 0; i < n; i++) {
-        points.add(Offset(size.width * i / (n - 1), (1.0 - values[i]) * size.height));
-      }
+    final n = values.length;
+    for (var i = 0; i < n; i++) {
+      points.add(Offset(size.width * i / (n - 1), (1.0 - values[i]) * size.height));
     }
-
-    if (points.isEmpty) return;
 
     final path = Path();
     path.moveTo(points.first.dx, points.first.dy);

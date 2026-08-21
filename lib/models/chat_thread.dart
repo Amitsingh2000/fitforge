@@ -47,8 +47,12 @@ class ChatThread {
       participants: participants,
       otherUserId: json['otherUserId'] as String? ??
           json['userId'] as String? ??
+          json['memberId'] as String? ??
+          (json['member'] as Map?)?['id'] as String? ??
           other?.userId,
-      otherUserName: json['otherUserName'] as String? ?? other?.name,
+      otherUserName: json['otherUserName'] as String? ??
+          (json['member'] as Map?)?['fullName'] as String? ??
+          other?.name,
       otherUserAvatarUrl:
           json['otherUserAvatarUrl'] as String? ?? other?.avatarUrl,
       lastMessagePreview: json['lastMessagePreview'] as String? ??

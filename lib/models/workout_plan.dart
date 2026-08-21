@@ -112,18 +112,17 @@ class WorkoutDay {
 /// An exercise prescription inside a [WorkoutDay].
 class WorkoutPlanExercise {
   final String? exerciseId;
-
-  /// Exercise name — always sent so the plan renders even if [exerciseId] was
-  /// created client-side from the /exercises library.
   final String name;
+  final int order;
   final int? sets;
-  final int? reps;
+  final String? reps;
   final double? restSeconds;
   final double? weightKg;
 
   const WorkoutPlanExercise({
     this.exerciseId,
     required this.name,
+    this.order = 0,
     this.sets,
     this.reps,
     this.restSeconds,
@@ -131,11 +130,16 @@ class WorkoutPlanExercise {
   });
 
   factory WorkoutPlanExercise.fromJson(Map<String, dynamic> json) {
+    final rawReps = json['reps'];
     return WorkoutPlanExercise(
       exerciseId: json['exerciseId'] as String?,
-      name: json['name'] as String? ?? json['exerciseName'] as String? ?? '',
+      name: json['name'] as String? ??
+          json['exerciseName'] as String? ??
+          json['exercise']?['name'] as String? ??
+          '',
+      order: (json['order'] as num?)?.toInt() ?? 0,
       sets: (json['sets'] as num?)?.toInt(),
-      reps: (json['reps'] as num?)?.toInt() ?? (json['repRange'] as num?)?.toInt(),
+      reps: rawReps == null ? null : rawReps.toString(),
       restSeconds: (json['restSeconds'] as num?)?.toDouble(),
       weightKg: (json['weightKg'] as num?)?.toDouble(),
     );
@@ -143,12 +147,11 @@ class WorkoutPlanExercise {
 
   Map<String, dynamic> toJson() {
     return {
-      if (exerciseId != null) 'exerciseId': exerciseId,
-      'name': name,
-      if (sets != null) 'sets': sets,
-      if (reps != null) 'reps': reps,
-      if (restSeconds != null) 'restSeconds': restSeconds,
-      if (weightKg != null) 'weightKg': weightKg,
+      'exerciseId': exerciseId,
+      'order': order,
+      'sets': sets ?? 1,
+      'reps': reps ?? '8-12',
+      if (restSeconds != null) 'restSeconds': restSeconds?.round(),
     };
   }
 }

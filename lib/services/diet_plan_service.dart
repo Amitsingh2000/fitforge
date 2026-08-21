@@ -14,6 +14,25 @@ class DietPlanService {
   final Dio dio;
   DietPlanService(this.dio);
 
+  /// `GET /gyms/:gymId/diet-plans` — filterable by [memberId]/[status]; used
+  /// to find a member's current plan before deciding create vs. update.
+  Future<List<DietPlan>> getDietPlans(
+    String gymId, {
+    String? memberId,
+    String? status,
+  }) =>
+      apiCall(() async {
+        final query = <String, dynamic>{
+          if (memberId != null) 'memberId': memberId,
+          if (status != null) 'status': status,
+        };
+        final res = await dio.get('/gyms/$gymId/diet-plans', queryParameters: query);
+        return extractList(res.data)
+            .whereType<Map>()
+            .map((e) => DietPlan.fromJson(Map<String, dynamic>.from(e)))
+            .toList();
+      });
+
   /// `POST /gyms/:gymId/diet-plans`. Omit [memberId] to save a reusable
   /// template; assignment is a separate call ([assignDietPlan]).
   Future<DietPlan> createDietPlan(
@@ -23,6 +42,10 @@ class DietPlanService {
     String? memberId,
     String? status,
     required List<Meal> meals,
+    double? dailyCalorieTarget,
+    double? dailyProteinTargetG,
+    double? dailyCarbsTargetG,
+    double? dailyFatTargetG,
   }) =>
       apiCall(() async {
         final plan = DietPlan(
@@ -31,6 +54,10 @@ class DietPlanService {
           description: description,
           status: status ?? 'DRAFT',
           meals: meals,
+          dailyCalorieTarget: dailyCalorieTarget,
+          dailyProteinTargetG: dailyProteinTargetG,
+          dailyCarbsTargetG: dailyCarbsTargetG,
+          dailyFatTargetG: dailyFatTargetG,
         );
         final res =
             await dio.post('/gyms/$gymId/diet-plans', data: plan.toCreatePayload(memberId: memberId));
@@ -46,6 +73,10 @@ class DietPlanService {
     String? description,
     String? status,
     required List<Meal> meals,
+    double? dailyCalorieTarget,
+    double? dailyProteinTargetG,
+    double? dailyCarbsTargetG,
+    double? dailyFatTargetG,
   }) =>
       apiCall(() async {
         final plan = DietPlan(
@@ -54,6 +85,10 @@ class DietPlanService {
           description: description,
           status: status ?? 'DRAFT',
           meals: meals,
+          dailyCalorieTarget: dailyCalorieTarget,
+          dailyProteinTargetG: dailyProteinTargetG,
+          dailyCarbsTargetG: dailyCarbsTargetG,
+          dailyFatTargetG: dailyFatTargetG,
         );
         final res =
             await dio.patch('/gyms/$gymId/diet-plans/$planId', data: plan.toUpdatePayload());

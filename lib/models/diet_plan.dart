@@ -16,6 +16,13 @@ class DietPlan {
   final DateTime? createdAt;
   final List<Meal> meals;
 
+  /// Daily macro targets the trainer sets for this plan — read by the
+  /// member/trainer UI as the real target instead of a hardcoded guess.
+  final double? dailyCalorieTarget;
+  final double? dailyProteinTargetG;
+  final double? dailyCarbsTargetG;
+  final double? dailyFatTargetG;
+
   const DietPlan({
     required this.id,
     this.gymId,
@@ -25,6 +32,10 @@ class DietPlan {
     this.description,
     this.createdAt,
     this.meals = const [],
+    this.dailyCalorieTarget,
+    this.dailyProteinTargetG,
+    this.dailyCarbsTargetG,
+    this.dailyFatTargetG,
   });
 
   factory DietPlan.fromJson(Map<String, dynamic> json) {
@@ -40,6 +51,10 @@ class DietPlan {
           .whereType<Map>()
           .map((e) => Meal.fromJson(Map<String, dynamic>.from(e)))
           .toList(),
+      dailyCalorieTarget: (json['dailyCalorieTarget'] as num?)?.toDouble(),
+      dailyProteinTargetG: (json['dailyProteinTargetG'] as num?)?.toDouble(),
+      dailyCarbsTargetG: (json['dailyCarbsTargetG'] as num?)?.toDouble(),
+      dailyFatTargetG: (json['dailyFatTargetG'] as num?)?.toDouble(),
     );
   }
 
@@ -48,6 +63,10 @@ class DietPlan {
       if (title != null) 'title': title,
       if (description != null) 'description': description,
       if (memberId != null) 'memberId': memberId,
+      if (dailyCalorieTarget != null) 'dailyCalorieTarget': dailyCalorieTarget,
+      if (dailyProteinTargetG != null) 'dailyProteinTargetG': dailyProteinTargetG,
+      if (dailyCarbsTargetG != null) 'dailyCarbsTargetG': dailyCarbsTargetG,
+      if (dailyFatTargetG != null) 'dailyFatTargetG': dailyFatTargetG,
       'meals': meals.map((m) => m.toJson()).toList(),
     };
   }
@@ -57,6 +76,10 @@ class DietPlan {
       if (title != null) 'title': title,
       if (description != null) 'description': description,
       'status': status,
+      if (dailyCalorieTarget != null) 'dailyCalorieTarget': dailyCalorieTarget,
+      if (dailyProteinTargetG != null) 'dailyProteinTargetG': dailyProteinTargetG,
+      if (dailyCarbsTargetG != null) 'dailyCarbsTargetG': dailyCarbsTargetG,
+      if (dailyFatTargetG != null) 'dailyFatTargetG': dailyFatTargetG,
       'meals': meals.map((m) => m.toJson()).toList(),
     };
   }
@@ -67,6 +90,7 @@ class DietPlan {
 /// One meal (Breakfast / Lunch / ...) inside a [DietPlan].
 class Meal {
   final String name;
+  final int order;
   final String? time;
   final String? note;
   final double? targetCalories;
@@ -74,6 +98,7 @@ class Meal {
 
   const Meal({
     required this.name,
+    this.order = 0,
     this.time,
     this.note,
     this.targetCalories,
@@ -82,7 +107,11 @@ class Meal {
 
   factory Meal.fromJson(Map<String, dynamic> json) {
     return Meal(
-      name: json['name'] as String? ?? json['mealName'] as String? ?? '',
+      name: json['mealSlot'] as String? ??
+          json['name'] as String? ??
+          json['mealName'] as String? ??
+          '',
+      order: (json['order'] as num?)?.toInt() ?? 0,
       time: json['time'] as String?,
       note: json['note'] as String?,
       targetCalories: (json['targetCalories'] as num?)?.toDouble(),
@@ -95,10 +124,8 @@ class Meal {
 
   Map<String, dynamic> toJson() {
     return {
-      'name': name,
-      if (time != null) 'time': time,
-      if (note != null) 'note': note,
-      if (targetCalories != null) 'targetCalories': targetCalories,
+      'mealSlot': name,
+      'order': order,
       'items': items.map((i) => i.toJson()).toList(),
     };
   }
@@ -139,12 +166,12 @@ class FoodItem {
   Map<String, dynamic> toJson() {
     return {
       'foodName': foodName,
-      if (calories != null) 'calories': calories,
-      if (proteinG != null) 'proteinG': proteinG,
-      if (carbsG != null) 'carbsG': carbsG,
-      if (fatG != null) 'fatG': fatG,
-      if (quantity != null) 'quantity': quantity,
-      if (unit != null) 'unit': unit,
+      if (unit != null || quantity != null)
+        'portion': [quantity?.toString(), unit].whereType<String>().join(' ').trim(),
+      if (calories != null) 'calories': calories!.round(),
+      if (proteinG != null) 'proteinG': proteinG!.round(),
+      if (carbsG != null) 'carbsG': carbsG!.round(),
+      if (fatG != null) 'fatG': fatG!.round(),
     };
   }
 }
