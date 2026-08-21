@@ -1,5 +1,6 @@
 import 'dart:ui';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_animate/flutter_animate.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../providers/gym_provider.dart';
@@ -23,6 +24,8 @@ class _GymOwnerReferralsTabState extends ConsumerState<GymOwnerReferralsTab> {
 
   String _editRewardType = 'FREE_DAYS';
   double _editRewardValue = 7;
+  String? _ownerCode;
+  int _ownerReferralCount = 0;
 
   static const _rewardTypes = [
     {'value': 'FREE_DAYS', 'label': 'Free Days', 'icon': Icons.calendar_today_rounded},
@@ -46,8 +49,23 @@ class _GymOwnerReferralsTabState extends ConsumerState<GymOwnerReferralsTab> {
     }
     setState(() { _loading = true; _error = null; });
     try {
-      final config = await ref.read(gymOwnerServiceProvider).getReferralConfig(gymId);
-      if (mounted) setState(() { _config = config; _loading = false; });
+      final service = ref.read(gymOwnerServiceProvider);
+      final config = await service.getReferralConfig(gymId);
+      String? code;
+      var count = 0;
+      try {
+        final owner = await service.getOrCreateOwnerReferralCode();
+        code = owner['code'] as String?;
+        count = (await service.getMyOwnerReferrals()).length;
+      } catch (_) {}
+      if (mounted) {
+        setState(() {
+          _config = config;
+          _ownerCode = code;
+          _ownerReferralCount = count;
+          _loading = false;
+        });
+      }
     } catch (e) {
       if (mounted) setState(() { _loading = false; _error = e.toString(); });
     }
@@ -106,6 +124,12 @@ class _GymOwnerReferralsTabState extends ConsumerState<GymOwnerReferralsTab> {
           child: _buildConfigCard(),
         ).animate().fadeIn(duration: 500.ms, delay: 100.ms).slideY(begin: 0.05, end: 0, duration: 500.ms, delay: 100.ms)),
 
+        if (_ownerCode != null)
+          SliverToBoxAdapter(child: Padding(
+            padding: const EdgeInsets.fromLTRB(20, 16, 20, 0),
+            child: _buildOwnerCodeCard(),
+          )),
+
         SliverToBoxAdapter(child: Padding(
           padding: const EdgeInsets.fromLTRB(20, 20, 20, 0),
           child: _buildHowItWorksCard(),
@@ -120,6 +144,36 @@ class _GymOwnerReferralsTabState extends ConsumerState<GymOwnerReferralsTab> {
       Positioned(bottom: 90, right: 20, child: _buildFAB()
           .animate().scale(begin: const Offset(0, 0), end: const Offset(1, 1), duration: 500.ms, delay: 500.ms, curve: Curves.elasticOut)),
     ]);
+  }
+
+  Widget _buildOwnerCodeCard() {
+    return DashboardGlassCard(
+      padding: const EdgeInsets.all(16),
+      child: Row(
+        children: [
+          const Icon(Icons.share_rounded, color: AppColors.accentPurple),
+          const SizedBox(width: 12),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text('Owner referral code', style: AppTextStyles.caption.copyWith(color: AppColors.textTertiary)),
+                Text(_ownerCode ?? '', style: AppTextStyles.titleMedium.copyWith(fontWeight: FontWeight.w800)),
+                Text('$_ownerReferralCount gyms signed up with this code',
+                    style: AppTextStyles.caption.copyWith(color: AppColors.textSecondary)),
+              ],
+            ),
+          ),
+          IconButton(
+            onPressed: () {
+              Clipboard.setData(ClipboardData(text: _ownerCode ?? ''));
+              _showSnackBar('Code copied', success: true);
+            },
+            icon: const Icon(Icons.copy_rounded, color: AppColors.accentCyan),
+          ),
+        ],
+      ),
+    );
   }
 
   Widget _buildConfigCard() {

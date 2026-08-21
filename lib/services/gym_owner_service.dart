@@ -379,6 +379,12 @@ class GymOwnerService {
     });
   }
 
+  /// `GET /gyms/:gymId/trainers/:userId` — profile + assigned members.
+  Future<Map<String, dynamic>> getTrainerDetail(String gymId, String userId) async {
+    final res = await dio.get('/gyms/$gymId/trainers/$userId');
+    return Map<String, dynamic>.from(res.data as Map);
+  }
+
   /// Staff edits to a member's record: photo/ID-proof/emergency-contact.
   /// (Distinct from the member's own goal-intake profile.)
   Future<void> updateMemberRecord(
@@ -763,6 +769,12 @@ class GymOwnerService {
     return Map<String, dynamic>.from(res.data as Map);
   }
 
+  /// `GET /gyms/:gymId/payments/revenue` — totals and breakdown by method.
+  Future<Map<String, dynamic>> getRevenueReport(String gymId) async {
+    final res = await dio.get('/gyms/$gymId/payments/revenue');
+    return Map<String, dynamic>.from(res.data as Map);
+  }
+
   /// Dues dashboard — lists members with outstanding amounts.
   /// Dues = enrollment price − Σ(recorded payments).
   Future<List<DuesSummary>> getDuesDashboard(String gymId) async {
@@ -963,6 +975,20 @@ class GymOwnerService {
       'rewardType': rewardType,
       'rewardValue': rewardValue,
     });
+  }
+
+  /// `POST /owner-referrals` — get-or-mint this owner's GTM code.
+  Future<Map<String, dynamic>> getOrCreateOwnerReferralCode() async {
+    final res = await dio.post('/owner-referrals');
+    return Map<String, dynamic>.from(res.data as Map);
+  }
+
+  /// `GET /owner-referrals/mine` — gyms created with this owner's code.
+  Future<List<Map<String, dynamic>>> getMyOwnerReferrals() async {
+    final res = await dio.get('/owner-referrals/mine');
+    return _extractList(res.data)
+        .map((e) => Map<String, dynamic>.from(e as Map))
+        .toList();
   }
 
   // ────────────────────────────────────────────────────────────────────────────

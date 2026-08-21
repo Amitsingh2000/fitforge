@@ -949,7 +949,19 @@ class _GymOwnerTrainersScreenState extends ConsumerState<GymOwnerTrainersScreen>
   //  TRAINER DETAIL SHEET (real data only)
   // ═══════════════════════════════════════════════
 
-  void _showTrainerDetail(GymTrainer trainer) {
+  Future<void> _showTrainerDetail(GymTrainer trainer) async {
+    final gymId = ref.read(currentGymIdProvider);
+    Map<String, dynamic>? detail;
+    if (gymId != null && trainer.trainerId.isNotEmpty) {
+      try {
+        detail = await ref.read(gymOwnerServiceProvider).getTrainerDetail(gymId, trainer.trainerId);
+      } catch (_) {}
+    }
+    if (!mounted) return;
+    final assigned = (detail?['assignedMembers'] as List?) ?? const [];
+    final profile = detail?['profile'] as Map?;
+    final bio = profile?['bio'] as String?;
+    if (!mounted) return;
     showModalBottomSheet(
       context: context,
       backgroundColor: Colors.transparent,
@@ -972,6 +984,10 @@ class _GymOwnerTrainersScreenState extends ConsumerState<GymOwnerTrainersScreen>
             ),
             const SizedBox(height: 4),
             Text(trainer.specialization, style: AppTextStyles.caption.copyWith(color: AppColors.textSecondary)),
+            if (bio != null && bio.isNotEmpty) ...[
+              const SizedBox(height: 8),
+              Text(bio, style: AppTextStyles.bodyMedium.copyWith(color: AppColors.textSecondary)),
+            ],
             const SizedBox(height: 16),
             _detailRow('Verification', trainer.isVerified ? 'Verified' : trainer.verificationStatus),
             _detailRow('Email', trainer.email ?? '—'),
@@ -985,6 +1001,17 @@ class _GymOwnerTrainersScreenState extends ConsumerState<GymOwnerTrainersScreen>
                 trainer.clientCheckInRate7dPercent != null
                     ? '${trainer.clientCheckInRate7dPercent!.toStringAsFixed(0)}%'
                     : '—'),
+            if (assigned.isNotEmpty) ...[
+              const SizedBox(height: 12),
+              Text('Assigned members', style: AppTextStyles.caption.copyWith(color: AppColors.textTertiary)),
+              const SizedBox(height: 6),
+              ...assigned.take(8).map((raw) {
+                final m = Map<String, dynamic>.from(raw as Map);
+                final plan = m['plan'];
+                final planName = plan is Map ? '${plan['name'] ?? ''}' : '';
+                return _detailRow(m['fullName'] as String? ?? 'Member', planName.isEmpty ? '—' : planName);
+              }),
+            ],
           ],
         ),
       ),

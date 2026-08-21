@@ -2,10 +2,14 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../models/chat_message.dart';
+import '../../models/diet_plan.dart';
+import '../../models/workout_plan.dart';
 import '../../providers/auth_provider.dart';
 import '../../services/api_client.dart';
 import '../../services/chat_service.dart';
 import '../../services/chat_socket_service.dart';
+import '../../services/diet_plan_service.dart';
+import '../../services/workout_plan_service.dart';
 import '../../theme/app_theme.dart';
 import '../../dashboard/widgets/ambient_glow_background.dart';
 import '../../dashboard/widgets/state_views.dart';
@@ -146,6 +150,93 @@ class _TrainerChatConversationScreenState
     }
   }
 
+  Future<void> _attachPlan() async {
+    final threadId = _threadId;
+    if (threadId == null || _sending) return;
+    List<WorkoutPlan> workouts = const [];
+    List<DietPlan> diets = const [];
+    try {
+      workouts = await ref.read(workoutPlanServiceProvider)
+          .getWorkoutPlans(widget.gymId, memberId: widget.otherUserId);
+      diets = await ref.read(dietPlanServiceProvider)
+          .getDietPlans(widget.gymId, memberId: widget.otherUserId);
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(friendlyApiError(e))));
+      return;
+    }
+    if (!mounted) return;
+    if (workouts.isEmpty && diets.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('No plans to attach. Create one from the client profile.')),
+      );
+      return;
+    }
+    await showModalBottomSheet<void>(
+      context: context,
+      backgroundColor: AppColors.bgSecondary,
+      builder: (ctx) => SafeArea(
+        child: ListView(
+          shrinkWrap: true,
+          padding: const EdgeInsets.fromLTRB(16, 16, 16, 24),
+          children: [
+            Text('Attach a plan', style: AppTextStyles.titleMedium.copyWith(fontWeight: FontWeight.w700)),
+            const SizedBox(height: 12),
+            ...workouts.map((p) => ListTile(
+                  leading: const Icon(Icons.fitness_center_rounded, color: AppColors.accentCyan),
+                  title: Text(p.title ?? 'Workout', style: const TextStyle(color: AppColors.textPrimary)),
+                  onTap: () {
+                    Navigator.pop(ctx);
+                    _sendPlan(type: 'WORKOUT_PLAN_REF', workoutId: p.id, label: p.title ?? 'Workout plan');
+                  },
+                )),
+            ...diets.map((p) => ListTile(
+                  leading: const Icon(Icons.restaurant_rounded, color: AppColors.accentOrange),
+                  title: Text(p.title ?? 'Diet', style: const TextStyle(color: AppColors.textPrimary)),
+                  onTap: () {
+                    Navigator.pop(ctx);
+                    _sendPlan(type: 'DIET_PLAN_REF', dietId: p.id, label: p.title ?? 'Diet plan');
+                  },
+                )),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Future<void> _sendPlan({
+    required String type,
+    String? workoutId,
+    String? dietId,
+    required String label,
+  }) async {
+    final threadId = _threadId;
+    if (threadId == null || _sending) return;
+    setState(() => _sending = true);
+    try {
+      final sent = await ref.read(chatServiceProvider).sendMessage(
+            widget.gymId,
+            threadId,
+            type: type,
+            body: label,
+            refWorkoutPlanId: workoutId,
+            refDietPlanId: dietId,
+          );
+      if (!mounted) return;
+      if (!_messages.any((m) => m.id == sent.id)) {
+        setState(() => _messages = [..._messages, sent]);
+        _scrollToEnd();
+      }
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text(friendlyApiError(e))),
+      );
+    } finally {
+      if (mounted) setState(() => _sending = false);
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     // Keep the socket connection alive for as long as this screen watches it.
@@ -232,7 +323,11 @@ class _TrainerChatConversationScreenState
           border: isMine ? null : Border.all(color: AppColors.glassBorder),
         ),
         child: Text(
-          message.body,
+          message.isWorkoutRef
+              ? 'Workout: ${message.body.isNotEmpty ? message.body : 'Plan attached'}'
+              : message.isDietRef
+                  ? 'Diet: ${message.body.isNotEmpty ? message.body : 'Plan attached'}'
+                  : message.body,
           style: AppTextStyles.bodyMedium.copyWith(
             color: isMine ? Colors.white : AppColors.textPrimary,
           ),
@@ -249,6 +344,10 @@ class _TrainerChatConversationScreenState
       ),
       child: Row(
         children: [
+          IconButton(
+            onPressed: _sending ? null : _attachPlan,
+            icon: const Icon(Icons.attach_file_rounded, color: AppColors.textSecondary),
+          ),
           Expanded(
             child: TextField(
               controller: _input,

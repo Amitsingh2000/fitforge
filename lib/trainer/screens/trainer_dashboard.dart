@@ -378,28 +378,29 @@ class _TrainerDashboardState extends ConsumerState<TrainerDashboard>
                   ),
                 ),
                 const SizedBox(height: 2),
-                Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 3),
-                  decoration: BoxDecoration(
-                    borderRadius: BorderRadius.circular(20),
-                    gradient: LinearGradient(
-                      colors: [
-                        AppColors.accentCyan.withValues(alpha: 0.2),
-                        AppColors.accentBlue.withValues(alpha: 0.15),
+                GestureDetector(
+                  onTap: ref.read(gymMembershipsProvider).length > 1
+                      ? () => showGymSwitcherSheet(context, ref, onSwitched: () => setState(() {}))
+                      : null,
+                  child: Row(
+                    children: [
+                      Flexible(
+                        child: Text(
+                          ref.watch(selectedGymProvider)?.gymName ?? _displaySpecialization,
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: AppTextStyles.caption.copyWith(
+                            color: AppColors.accentCyan,
+                            fontWeight: FontWeight.w600,
+                            fontSize: 11,
+                          ),
+                        ),
+                      ),
+                      if (ref.watch(gymMembershipsProvider).length > 1) ...[
+                        const SizedBox(width: 4),
+                        const Icon(Icons.swap_horiz_rounded, color: AppColors.accentCyan, size: 14),
                       ],
-                    ),
-                    border: Border.all(
-                      color: AppColors.accentCyan.withValues(alpha: 0.3),
-                      width: 1,
-                    ),
-                  ),
-                  child: Text(
-                    _displaySpecialization,
-                    style: AppTextStyles.caption.copyWith(
-                      color: AppColors.accentCyan,
-                      fontWeight: FontWeight.w600,
-                      fontSize: 11,
-                    ),
+                    ],
                   ),
                 ),
               ],

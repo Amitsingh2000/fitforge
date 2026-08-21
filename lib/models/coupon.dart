@@ -15,6 +15,7 @@ class GymCoupon {
   final int usageCount;
   final List<String> applicablePlanIds;
   final bool isActive;
+  final bool appliesToPremium;
 
   const GymCoupon({
     required this.id,
@@ -27,6 +28,7 @@ class GymCoupon {
     this.usageCount = 0,
     this.applicablePlanIds = const [],
     this.isActive = true,
+    this.appliesToPremium = false,
   });
 
   factory GymCoupon.fromJson(Map<String, dynamic> json) {
@@ -44,6 +46,7 @@ class GymCoupon {
               .toList() ??
           [],
       isActive: json['isActive'] as bool? ?? true,
+      appliesToPremium: json['appliesToPremium'] as bool? ?? false,
     );
   }
 

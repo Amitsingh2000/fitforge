@@ -82,6 +82,20 @@ class MemberManagementService {
         final res = await dio.get('/gyms/$gymId/members/$userId/progress-summary');
         return MemberProgressSummary.fromJson(asMap(res.data));
       });
+
+  /// `PATCH /gyms/:gymId/members/:userId/weekly-focus`.
+  Future<MemberProfile> setWeeklyFocus(
+    String gymId,
+    String userId, {
+    required String weeklyFocus,
+  }) =>
+      apiCall(() async {
+        final res = await dio.patch(
+          '/gyms/$gymId/members/$userId/weekly-focus',
+          data: {'weeklyFocus': weeklyFocus},
+        );
+        return MemberProfile.fromJson(asMap(res.data));
+      });
 }
 
 /// Riverpod provider for [MemberManagementService].

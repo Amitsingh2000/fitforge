@@ -48,6 +48,7 @@ class _CouponsScreenState extends ConsumerState<CouponsScreen> {
     final valueCtrl = TextEditingController();
     final limitCtrl = TextEditingController();
     String type = 'PERCENT';
+    var premium = false;
     try {
 
     final saved = await showModalBottomSheet<bool>(
@@ -107,7 +108,17 @@ class _CouponsScreenState extends ConsumerState<CouponsScreen> {
                       hint: type == 'PERCENT' ? 'e.g. 20' : 'e.g. 500', keyboardType: TextInputType.number),
                   const SizedBox(height: 12),
                   _inputField(limitCtrl, 'Usage Limit (optional)', hint: 'Leave blank = unlimited', keyboardType: TextInputType.number),
-                  const SizedBox(height: 20),
+                  const SizedBox(height: 8),
+                  SwitchListTile(
+                    contentPadding: EdgeInsets.zero,
+                    title: Text('Applies to Premium AI', style: AppTextStyles.bodyMedium.copyWith(color: AppColors.textPrimary)),
+                    subtitle: Text('Redeem against MEMBER_PREMIUM_AI instead of a gym plan.',
+                        style: AppTextStyles.caption.copyWith(color: AppColors.textTertiary)),
+                    value: premium,
+                    activeThumbColor: AppColors.accentCyan,
+                    onChanged: (v) => setS(() => premium = v),
+                  ),
+                  const SizedBox(height: 12),
                   SizedBox(
                     width: double.infinity,
                     child: ElevatedButton(
@@ -141,6 +152,7 @@ class _CouponsScreenState extends ConsumerState<CouponsScreen> {
           type: type,
           value: value,
           usageLimit: int.tryParse(limitCtrl.text),
+          appliesToPremium: premium,
         );
         if (mounted) { ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Coupon created ✓'))); _load(); }
       } catch (e) {
@@ -346,7 +358,7 @@ class _CouponTile extends StatelessWidget {
                 children: [
                   Text(c.code, style: AppTextStyles.bodyLarge.copyWith(fontWeight: FontWeight.w700,
                       color: active ? AppColors.textPrimary : AppColors.textTertiary)),
-                  Text('${c.displayValue}  ·  ${c.usageCount} uses${c.usageLimit != null ? '/${c.usageLimit}' : ''}',
+                  Text('${c.displayValue}  ·  ${c.usageCount} uses${c.usageLimit != null ? '/${c.usageLimit}' : ''}${c.appliesToPremium ? '  ·  Premium' : ''}',
                       style: AppTextStyles.caption.copyWith(color: AppColors.textSecondary)),
                 ],
               ),

@@ -316,6 +316,57 @@ class _PaymentsScreenState extends ConsumerState<PaymentsScreen>
     }
   }
 
+  Future<void> _showRevenueReport() async {
+    Map<String, dynamic>? report;
+    try {
+      report = await ref.read(gymOwnerServiceProvider).getRevenueReport(widget.gymId);
+    } catch (e) {
+      if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('$e')));
+      return;
+    }
+    if (!mounted) return;
+    final total = report['totalInr'] ?? 0;
+    final count = report['paymentCount'] ?? 0;
+    final byMethod = (report['byMethod'] as List?) ?? const [];
+    showModalBottomSheet<void>(
+      context: context,
+      backgroundColor: AppColors.bgSecondary,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
+      ),
+      builder: (ctx) => Padding(
+        padding: const EdgeInsets.fromLTRB(20, 20, 20, 32),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text('Revenue', style: AppTextStyles.titleMedium.copyWith(fontWeight: FontWeight.w700)),
+            const SizedBox(height: 8),
+            Text('₹$total · $count payments',
+                style: AppTextStyles.titleLarge.copyWith(fontWeight: FontWeight.w800)),
+            const SizedBox(height: 16),
+            if (byMethod.isEmpty)
+              Text('No payments in this range.', style: AppTextStyles.bodyMedium.copyWith(color: AppColors.textTertiary))
+            else
+              ...byMethod.map((raw) {
+                final m = Map<String, dynamic>.from(raw as Map);
+                return Padding(
+                  padding: const EdgeInsets.only(bottom: 8),
+                  child: Row(
+                    children: [
+                      Expanded(child: Text('${m['method'] ?? '—'}', style: AppTextStyles.bodyMedium)),
+                      Text('₹${m['totalInr'] ?? 0}  (${m['count'] ?? 0})',
+                          style: AppTextStyles.labelLarge),
+                    ],
+                  ),
+                );
+              }),
+          ],
+        ),
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     final isOwner = ref.watch(currentGymRoleProvider)?.isOwnerOrManager ?? false;
@@ -325,6 +376,14 @@ class _PaymentsScreenState extends ConsumerState<PaymentsScreen>
         backgroundColor: Colors.transparent,
         elevation: 0,
         title: const Text('Payments', style: TextStyle(color: AppColors.textPrimary)),
+        actions: [
+          if (isOwner)
+            IconButton(
+              tooltip: 'Revenue report',
+              icon: const Icon(Icons.bar_chart_rounded, color: AppColors.textSecondary),
+              onPressed: _showRevenueReport,
+            ),
+        ],
         bottom: TabBar(
           controller: _tabs,
           indicatorColor: AppColors.accentCyan,

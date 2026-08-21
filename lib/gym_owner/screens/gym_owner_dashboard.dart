@@ -102,50 +102,7 @@ class _GymOwnerDashboardState extends ConsumerState<GymOwnerDashboard>
   /// Bottom sheet to switch the active gym. Available to owners with multiple
   /// gym memberships — without it, auto-select would pin them to the first gym.
   void _showGymPicker() {
-    final memberships = ref.read(gymMembershipsProvider);
-    if (memberships.isEmpty) return;
-    final current = ref.read(selectedGymProvider);
-
-    showModalBottomSheet<void>(
-      context: context,
-      backgroundColor: AppColors.bgSecondary,
-      shape: const RoundedRectangleBorder(
-        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
-      ),
-      builder: (sheetCtx) => SafeArea(
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            const SizedBox(height: 16),
-            Text('Switch Gym',
-                style: AppTextStyles.titleMedium.copyWith(fontWeight: FontWeight.w700)),
-            const SizedBox(height: 8),
-            ...memberships.map((m) {
-              final isCurrent = m.gymId == current?.gymId;
-              return ListTile(
-                leading: const Icon(Icons.fitness_center_rounded,
-                    color: AppColors.accentBlue),
-                title: Text(m.gymName ?? 'Unnamed Gym',
-                    style: AppTextStyles.bodyMedium.copyWith(
-                        color: AppColors.textPrimary,
-                        fontWeight: isCurrent ? FontWeight.w700 : FontWeight.w500)),
-                trailing: isCurrent
-                    ? const Icon(Icons.check_rounded, color: AppColors.accentCyan)
-                    : null,
-                onTap: () {
-                  Navigator.of(sheetCtx).pop();
-                  if (!isCurrent) {
-                    ref.read(selectedGymProvider.notifier).state = m;
-                    _loadDashboardData();
-                  }
-                },
-              );
-            }),
-            const SizedBox(height: 8),
-          ],
-        ),
-      ),
-    );
+    showGymSwitcherSheet(context, ref, onSwitched: _loadDashboardData);
   }
 
   int get _notificationCount => _overviewStats.unreadNotifications;

@@ -3,6 +3,7 @@ import 'package:flutter_animate/flutter_animate.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../providers/gym_provider.dart';
 import '../../providers/trainer_flow_providers.dart';
+import '../../services/chat_service.dart';
 import '../../theme/app_theme.dart';
 import '../../dashboard/widgets/ambient_glow_background.dart';
 import '../../dashboard/widgets/dashboard_glass_card.dart';
@@ -15,6 +16,46 @@ import 'trainer_chat_conversation_screen.dart';
 /// point in this module.
 class TrainerChatThreadsScreen extends ConsumerWidget {
   const TrainerChatThreadsScreen({super.key});
+
+  Future<void> _broadcast(BuildContext context, WidgetRef ref, String gymId) async {
+    final ctrl = TextEditingController();
+    final send = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        backgroundColor: AppColors.bgSecondary,
+        title: const Text('Message all clients', style: TextStyle(color: AppColors.textPrimary)),
+        content: TextField(
+          controller: ctrl,
+          maxLines: 4,
+          style: const TextStyle(color: AppColors.textPrimary),
+          decoration: const InputDecoration(
+            hintText: 'Motivational note for every assigned client…',
+            hintStyle: TextStyle(color: AppColors.textTertiary),
+          ),
+        ),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text('Cancel')),
+          TextButton(onPressed: () => Navigator.pop(ctx, true), child: const Text('Send')),
+        ],
+      ),
+    );
+    final body = ctrl.text.trim();
+    ctrl.dispose();
+    if (send != true || body.isEmpty || !context.mounted) return;
+    try {
+      await ref.read(chatServiceProvider).broadcast(gymId, body: body);
+      if (context.mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Sent to all assigned clients')),
+        );
+        ref.invalidate(chatThreadsProvider(gymId));
+      }
+    } catch (e) {
+      if (context.mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(friendlyApiError(e))));
+      }
+    }
+  }
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
@@ -36,6 +77,13 @@ class TrainerChatThreadsScreen extends ConsumerWidget {
         backgroundColor: AppColors.bgPrimary,
         elevation: 0,
         title: Text('Messages', style: AppTextStyles.titleLarge),
+        actions: [
+          IconButton(
+            tooltip: 'Broadcast',
+            icon: const Icon(Icons.campaign_outlined, color: AppColors.textSecondary),
+            onPressed: () => _broadcast(context, ref, gymId),
+          ),
+        ],
       ),
       body: Stack(
         children: [

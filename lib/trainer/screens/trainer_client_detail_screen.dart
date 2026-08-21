@@ -12,6 +12,7 @@ import '../../models/trainer_client.dart';
 import '../../models/workout_log.dart';
 import '../../providers/gym_provider.dart';
 import '../../providers/trainer_flow_providers.dart';
+import '../../services/member_management_service.dart';
 import '../../theme/app_theme.dart';
 import '../../dashboard/widgets/dashboard_glass_card.dart';
 import '../../dashboard/widgets/linear_progress_bar.dart';
@@ -79,6 +80,50 @@ class _TrainerClientDetailScreenState
     return '$hour:$minute $meridian';
   }
 
+  Future<void> _editWeeklyFocus(String? current) async {
+    final gymId = _gymId;
+    if (gymId == null) return;
+    final ctrl = TextEditingController(text: current ?? '');
+    final saved = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        backgroundColor: AppColors.bgSecondary,
+        title: const Text('This week\'s focus', style: TextStyle(color: AppColors.textPrimary)),
+        content: TextField(
+          controller: ctrl,
+          maxLength: 500,
+          maxLines: 3,
+          style: const TextStyle(color: AppColors.textPrimary),
+          decoration: const InputDecoration(
+            hintText: 'e.g. Train 4x; hit 120g protein',
+            hintStyle: TextStyle(color: AppColors.textTertiary),
+          ),
+        ),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text('Cancel')),
+          TextButton(onPressed: () => Navigator.pop(ctx, true), child: const Text('Save')),
+        ],
+      ),
+    );
+    final text = ctrl.text.trim();
+    ctrl.dispose();
+    if (saved != true || !mounted) return;
+    try {
+      await ref.read(memberManagementServiceProvider).setWeeklyFocus(
+            gymId,
+            widget.client.userId,
+            weeklyFocus: text,
+          );
+      ref.invalidate(memberProfileProvider(_memberKey));
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text(friendlyApiError(e))),
+        );
+      }
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     final client = widget.client;
@@ -112,6 +157,8 @@ class _TrainerClientDetailScreenState
     final nutritionAsync = ref.watch(memberNutritionLogsProvider(key));
     final workoutsAsync = ref.watch(memberWorkoutLogsProvider(key));
     final dietPlansAsync = ref.watch(memberDietPlansProvider(key));
+    final profileAsync = ref.watch(memberProfileProvider(key));
+    final weeklyFocus = profileAsync.asData?.value.weeklyFocus;
 
     return Scaffold(
       backgroundColor: AppColors.bgPrimary,
@@ -152,6 +199,11 @@ class _TrainerClientDetailScreenState
                     onPressed: () => Navigator.of(context).pop(),
                   ),
                   actions: [
+                    IconButton(
+                      icon: const Icon(Icons.flag_outlined, color: AppColors.textSecondary),
+                      tooltip: 'Weekly focus',
+                      onPressed: () => _editWeeklyFocus(weeklyFocus),
+                    ),
                     IconButton(
                       icon: const Icon(Icons.chat_bubble_outline_rounded,
                           color: AppColors.textSecondary),
@@ -241,6 +293,15 @@ class _TrainerClientDetailScreenState
                                     ),
                                   ],
                                 ),
+                                if (weeklyFocus != null && weeklyFocus.isNotEmpty) ...[
+                                  const SizedBox(height: 4),
+                                  Text(
+                                    weeklyFocus,
+                                    maxLines: 1,
+                                    overflow: TextOverflow.ellipsis,
+                                    style: AppTextStyles.caption.copyWith(color: AppColors.textSecondary),
+                                  ),
+                                ],
                                 const SizedBox(height: 14),
                                 const Spacer(),
                               ],
