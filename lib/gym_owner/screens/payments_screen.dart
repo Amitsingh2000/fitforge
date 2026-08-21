@@ -6,6 +6,8 @@ import '../../models/payment.dart';
 import '../../providers/gym_provider.dart';
 import '../../services/gym_owner_service.dart';
 import '../../theme/app_theme.dart';
+import '../../theme/layout.dart';
+import '../../dashboard/widgets/adaptive_data_table.dart';
 import '../../dashboard/widgets/dashboard_glass_card.dart';
 import '../../dashboard/widgets/sheet_chrome.dart';
 import '../../dashboard/widgets/state_views.dart';
@@ -399,7 +401,8 @@ class _PaymentsScreenState extends ConsumerState<PaymentsScreen>
         icon: const Icon(Icons.add_rounded),
         label: const Text('Record Payment', style: TextStyle(fontWeight: FontWeight.w700)),
       ),
-      body: TabBarView(
+      body: ResponsiveBody(
+        child: TabBarView(
         controller: _tabs,
         children: [
           // ── Tab 1: All Payments ───────────────────────────────────────────
@@ -412,16 +415,21 @@ class _PaymentsScreenState extends ConsumerState<PaymentsScreen>
                       color: AppColors.accentBlue,
                       child: _payments.isEmpty
                           ? ListView(children: const [SizedBox(height: 120), Center(child: EmptyStateView(icon: Icons.inbox_rounded, title: 'No payments recorded yet.'))])
-                          : ListView.builder(
-                              padding: const EdgeInsets.fromLTRB(16, 16, 16, 90),
-                              itemCount: _payments.length,
-                              itemBuilder: (ctx, i) => _PaymentTile(
-                                payment: _payments[i],
-                                isOwner: isOwner,
-                                onVoid: isOwner ? () => _voidPayment(_payments[i]) : null,
-                                onTap: () => _showReceipt(_payments[i]),
-                              ),
-                            ),
+                          : Layout.useRail(context)
+                              ? ListView(
+                                  padding: EdgeInsets.fromLTRB(16, 16, 16, Layout.navClearance(context)),
+                                  children: [_buildPaymentsTable(isOwner)],
+                                )
+                              : ListView.builder(
+                                  padding: EdgeInsets.fromLTRB(16, 16, 16, Layout.navClearance(context)),
+                                  itemCount: _payments.length,
+                                  itemBuilder: (ctx, i) => _PaymentTile(
+                                    payment: _payments[i],
+                                    isOwner: isOwner,
+                                    onVoid: isOwner ? () => _voidPayment(_payments[i]) : null,
+                                    onTap: () => _showReceipt(_payments[i]),
+                                  ),
+                                ),
                     ),
           // ── Tab 2: Dues Dashboard ─────────────────────────────────────────
           _duesLoading
@@ -435,14 +443,90 @@ class _PaymentsScreenState extends ConsumerState<PaymentsScreen>
                           color: AppColors.accentBlue,
                           child: _dues.isEmpty
                               ? ListView(children: const [SizedBox(height: 120), Center(child: EmptyStateView(icon: Icons.inbox_rounded, title: 'No outstanding dues. 🎉'))])
-                              : ListView.builder(
-                                  padding: const EdgeInsets.all(16),
-                                  itemCount: _dues.length,
-                                  itemBuilder: (ctx, i) => _DuesTile(due: _dues[i]),
-                                ),
+                              : Layout.useRail(context)
+                                  ? ListView(
+                                      padding: EdgeInsets.fromLTRB(16, 16, 16, Layout.navClearance(context)),
+                                      children: [_buildDuesTable()],
+                                    )
+                                  : ListView.builder(
+                                      padding: EdgeInsets.fromLTRB(16, 16, 16, Layout.navClearance(context)),
+                                      itemCount: _dues.length,
+                                      itemBuilder: (ctx, i) => _DuesTile(due: _dues[i]),
+                                    ),
                         ),
         ],
       ),
+      ),
+    );
+  }
+
+  Widget _buildPaymentsTable(bool isOwner) {
+    return AdaptiveDataTable(
+      columns: const [
+        AdaptiveDataColumn('Receipt', flex: 2),
+        AdaptiveDataColumn('Member', flex: 2),
+        AdaptiveDataColumn('Method', flex: 2),
+        AdaptiveDataColumn('Amount', flex: 1),
+        AdaptiveDataColumn('Status', flex: 1),
+      ],
+      rowCount: _payments.length,
+      onRowTap: (i) => _showReceipt(_payments[i]),
+      cellsBuilder: (context, index) {
+        final p = _payments[index];
+        return [
+          Text(p.receiptNumber, maxLines: 1, overflow: TextOverflow.ellipsis,
+              style: AppTextStyles.bodyMedium.copyWith(
+                fontWeight: FontWeight.w600,
+                decoration: p.isVoided ? TextDecoration.lineThrough : null,
+              )),
+          Text(p.memberName ?? '—', maxLines: 1, overflow: TextOverflow.ellipsis,
+              style: AppTextStyles.bodyMedium.copyWith(color: AppColors.textSecondary, fontSize: 13)),
+          Text(p.methodLabel, maxLines: 1, overflow: TextOverflow.ellipsis,
+              style: AppTextStyles.bodyMedium.copyWith(color: AppColors.textSecondary, fontSize: 13)),
+          Text('₹${p.amountInr.toStringAsFixed(0)}',
+              style: AppTextStyles.bodyMedium.copyWith(
+                fontWeight: FontWeight.w700,
+                color: p.isVoided ? AppColors.textTertiary : AppColors.accentCyan,
+              )),
+          AdaptiveStatusChip(
+            p.isVoided ? 'Voided' : 'Paid',
+            color: p.isVoided ? AppColors.accentCoral : AppColors.accentCyan,
+          ),
+        ];
+      },
+      trailingBuilder: isOwner
+          ? (context, index) {
+              final p = _payments[index];
+              if (p.isVoided) return null;
+              return IconButton(
+                tooltip: 'Void payment',
+                icon: const Icon(Icons.block_rounded, size: 18, color: AppColors.textTertiary),
+                onPressed: () => _voidPayment(p),
+              );
+            }
+          : null,
+    );
+  }
+
+  Widget _buildDuesTable() {
+    return AdaptiveDataTable(
+      columns: const [
+        AdaptiveDataColumn('Member', flex: 3),
+        AdaptiveDataColumn('Plan', flex: 2),
+        AdaptiveDataColumn('Amount due', flex: 1),
+      ],
+      rowCount: _dues.length,
+      cellsBuilder: (context, index) {
+        final d = _dues[index];
+        return [
+          Text(d.memberName, maxLines: 1, overflow: TextOverflow.ellipsis,
+              style: AppTextStyles.bodyMedium.copyWith(fontWeight: FontWeight.w600)),
+          Text(d.planName ?? '—', maxLines: 1, overflow: TextOverflow.ellipsis,
+              style: AppTextStyles.bodyMedium.copyWith(color: AppColors.textSecondary, fontSize: 13)),
+          Text('₹${d.dueAmountInr.toStringAsFixed(0)}',
+              style: AppTextStyles.bodyMedium.copyWith(fontWeight: FontWeight.w700, color: AppColors.accentCoral)),
+        ];
+      },
     );
   }
 

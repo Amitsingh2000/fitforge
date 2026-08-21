@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_animate/flutter_animate.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../theme/app_theme.dart';
+import '../../theme/layout.dart';
 import '../../onboarding/widgets/primary_button.dart';
 import '../../providers/auth_provider.dart';
 
@@ -206,9 +207,12 @@ class _RegisterScreenState extends ConsumerState<RegisterScreen>
                   return SingleChildScrollView(
                     physics: const BouncingScrollPhysics(),
                     padding: const EdgeInsets.symmetric(horizontal: 24),
-                    child: ConstrainedBox(
+                    child: Align(
+                      alignment: Alignment.topCenter,
+                      child: ConstrainedBox(
                       constraints: BoxConstraints(
                         minHeight: constraints.maxHeight,
+                        maxWidth: Layout.formMax,
                       ),
                       child: Column(
                         mainAxisAlignment: MainAxisAlignment.center,
@@ -248,6 +252,7 @@ class _RegisterScreenState extends ConsumerState<RegisterScreen>
                           ],
                         ],
                       ),
+                    ),
                     ),
                   );
                 },

@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_animate/flutter_animate.dart';
 
 import '../../theme/app_theme.dart';
+import '../../theme/layout.dart';
 import '../widgets/dashboard_glass_card.dart';
 import '../widgets/linear_progress_bar.dart';
 import 'exercise_detail_screen.dart';
@@ -368,7 +369,7 @@ class _ExercisePlanContentState extends State<ExercisePlanContent>
       slivers: [
         SliverToBoxAdapter(child: _buildHeader()),
         SliverPadding(
-          padding: const EdgeInsets.fromLTRB(20, 8, 20, 120),
+          padding: EdgeInsets.fromLTRB(20, 8, 20, Layout.navClearance(context)),
           sliver: SliverList(
             delegate: SliverChildListDelegate([
               // Routine selector bar

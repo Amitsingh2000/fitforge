@@ -1,4 +1,3 @@
-import 'dart:ui';
 import 'package:flutter/material.dart';
 import 'package:flutter_animate/flutter_animate.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -9,6 +8,8 @@ import '../../providers/auth_provider.dart';
 import '../../providers/gym_provider.dart';
 import '../../services/gym_owner_service.dart';
 import '../../theme/app_theme.dart';
+import '../../theme/layout.dart';
+import '../../dashboard/widgets/adaptive_nav_shell.dart';
 import '../../dashboard/widgets/dashboard_glass_card.dart';
 import 'add_member_screen.dart';
 import 'attendance_screen.dart';
@@ -261,29 +262,29 @@ class _GymOwnerDashboardState extends ConsumerState<GymOwnerDashboard>
             ),
           ),
 
-          // ── Tab content ──
-          SafeArea(
-            bottom: false,
-            child: AnimatedSwitcher(
-              duration: const Duration(milliseconds: 300),
-              switchInCurve: Curves.easeOutCubic,
-              switchOutCurve: Curves.easeInCubic,
-              transitionBuilder: (child, animation) {
-                return FadeTransition(opacity: animation, child: child);
-              },
-              child: _buildCurrentPage(),
+          // ── Tab content + adaptive nav ──
+          AdaptiveNavShell(
+            selectedIndex: _currentNavIndex,
+            onSelect: (i) => setState(() => _currentNavIndex = i),
+            items: const [
+              AdaptiveNavItem(icon: Icons.dashboard_rounded, label: 'Dashboard'),
+              AdaptiveNavItem(icon: Icons.people_rounded, label: 'Members'),
+              AdaptiveNavItem(icon: Icons.card_giftcard_rounded, label: 'Referrals'),
+              AdaptiveNavItem(icon: Icons.insights_rounded, label: 'Analytics'),
+              AdaptiveNavItem(icon: Icons.person_rounded, label: 'Profile'),
+            ],
+            body: SafeArea(
+              bottom: false,
+              child: AnimatedSwitcher(
+                duration: const Duration(milliseconds: 300),
+                switchInCurve: Curves.easeOutCubic,
+                switchOutCurve: Curves.easeInCubic,
+                transitionBuilder: (child, animation) {
+                  return FadeTransition(opacity: animation, child: child);
+                },
+                child: _buildCurrentPage(),
+              ),
             ),
-          ),
-
-          // ── Bottom navigation ──
-          Positioned(
-            bottom: 0,
-            left: 0,
-            right: 0,
-            child: _buildBottomNavigation()
-                .animate()
-                .fadeIn(duration: 600.ms, delay: 300.ms)
-                .slideY(begin: 0.5, end: 0, duration: 600.ms, delay: 300.ms),
           ),
         ],
       ),
@@ -376,7 +377,7 @@ class _GymOwnerDashboardState extends ConsumerState<GymOwnerDashboard>
           ),
 
         SliverPadding(
-          padding: const EdgeInsets.fromLTRB(20, 8, 20, 130),
+          padding: Layout.scroll(context),
           sliver: SliverList(
             delegate: SliverChildListDelegate([
               // Analytics cards grid
@@ -633,12 +634,7 @@ class _GymOwnerDashboardState extends ConsumerState<GymOwnerDashboard>
     return GridView.builder(
       shrinkWrap: true,
       physics: const NeverScrollableScrollPhysics(),
-      gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-        crossAxisCount: 2,
-        crossAxisSpacing: 12,
-        mainAxisSpacing: 12,
-        childAspectRatio: 1.38,
-      ),
+      gridDelegate: Layout.cards(),
       itemCount: _analyticsData.length,
       itemBuilder: (context, index) {
         final data = _analyticsData[index];
@@ -1067,101 +1063,6 @@ class _GymOwnerDashboardState extends ConsumerState<GymOwnerDashboard>
               overflow: TextOverflow.ellipsis,
             ),
           ],
-        ),
-      ),
-    );
-  }
-
-  // ─────────────────────────────────────────────
-  // BOTTOM NAVIGATION
-  // ─────────────────────────────────────────────
-
-  Widget _buildBottomNavigation() {
-    final navItems = [
-      {'icon': Icons.dashboard_rounded, 'label': 'Dashboard'},
-      {'icon': Icons.people_rounded, 'label': 'Members'},
-      {'icon': Icons.card_giftcard_rounded, 'label': 'Referrals'},
-      {'icon': Icons.insights_rounded, 'label': 'Analytics'},
-      {'icon': Icons.person_rounded, 'label': 'Profile'},
-    ];
-
-    return Container(
-      margin: const EdgeInsets.fromLTRB(16, 0, 16, 16),
-      child: ClipRRect(
-        borderRadius: BorderRadius.circular(22),
-        child: BackdropFilter(
-          filter: ImageFilter.blur(sigmaX: 24, sigmaY: 24),
-          child: Container(
-            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 10),
-            decoration: BoxDecoration(
-              color: AppColors.bgSecondary.withValues(alpha: 0.85),
-              borderRadius: BorderRadius.circular(22),
-              border: Border.all(
-                color: AppColors.glassBorder,
-                width: 1,
-              ),
-              boxShadow: [
-                BoxShadow(
-                  color: Colors.black.withValues(alpha: 0.3),
-                  blurRadius: 30,
-                  offset: const Offset(0, 10),
-                ),
-              ],
-            ),
-            child: Row(
-              mainAxisAlignment: MainAxisAlignment.spaceAround,
-              children: List.generate(navItems.length, (index) {
-                final item = navItems[index];
-                final isActive = index == _currentNavIndex;
-
-                return Expanded(
-                  child: GestureDetector(
-                    onTap: () => setState(() => _currentNavIndex = index),
-                    child: AnimatedContainer(
-                      duration: const Duration(milliseconds: 250),
-                      curve: Curves.easeOutCubic,
-                      padding: const EdgeInsets.symmetric(
-                        horizontal: 4,
-                        vertical: 8,
-                      ),
-                      decoration: BoxDecoration(
-                        color: isActive
-                            ? AppColors.accentBlue.withValues(alpha: 0.12)
-                            : Colors.transparent,
-                        borderRadius: BorderRadius.circular(14),
-                      ),
-                      child: Column(
-                        mainAxisSize: MainAxisSize.min,
-                        children: [
-                          Icon(
-                            item['icon'] as IconData,
-                            color: isActive
-                                ? AppColors.accentBlue
-                                : AppColors.textTertiary,
-                            size: 22,
-                          ),
-                          const SizedBox(height: 4),
-                          AnimatedDefaultTextStyle(
-                            duration: const Duration(milliseconds: 250),
-                            style: AppTextStyles.caption.copyWith(
-                              color: isActive
-                                  ? AppColors.accentBlue
-                                  : AppColors.textTertiary,
-                              fontSize: 10,
-                              fontWeight: isActive
-                                  ? FontWeight.w600
-                                  : FontWeight.w500,
-                            ),
-                            child: Text(item['label'] as String),
-                          ),
-                        ],
-                      ),
-                    ),
-                  ),
-                );
-              }),
-            ),
-          ),
         ),
       ),
     );

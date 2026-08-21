@@ -5,6 +5,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_animate/flutter_animate.dart';
 
 import '../../theme/app_theme.dart';
+import '../../theme/layout.dart';
 import '../widgets/dashboard_glass_card.dart';
 import '../widgets/linear_progress_bar.dart';
 import '../widgets/radial_progress.dart';
@@ -336,7 +337,7 @@ class _ExerciseDetailScreenState extends State<ExerciseDetailScreen>
 
         SliverToBoxAdapter(
           child: Padding(
-            padding: const EdgeInsets.fromLTRB(20, 18, 20, 120),
+            padding: EdgeInsets.fromLTRB(20, 18, 20, Layout.navClearance(context)),
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [

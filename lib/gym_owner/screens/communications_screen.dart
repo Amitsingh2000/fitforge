@@ -4,6 +4,7 @@ import 'package:url_launcher/url_launcher.dart';
 import '../../models/communication_log.dart';
 import '../../services/gym_owner_service.dart';
 import '../../theme/app_theme.dart';
+import '../../theme/layout.dart';
 import '../../dashboard/widgets/dashboard_glass_card.dart';
 import '../../dashboard/widgets/state_views.dart';
 
@@ -194,7 +195,7 @@ class _CommunicationsScreenState extends ConsumerState<CommunicationsScreen> {
                   child: _logs.isEmpty
                       ? ListView(children: const [SizedBox(height: 120), Center(child: EmptyStateView(icon: Icons.inbox_rounded, title: 'No messages in outbox.'))])
                       : ListView.builder(
-                          padding: const EdgeInsets.fromLTRB(16, 12, 16, 90),
+                          padding: EdgeInsets.fromLTRB(16, 12, 16, Layout.navClearance(context)),
                           itemCount: _logs.length,
                           itemBuilder: (ctx, i) => _CommTile(
                             log: _logs[i],

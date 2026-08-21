@@ -14,6 +14,7 @@ import '../../providers/gym_provider.dart';
 import '../../providers/trainer_flow_providers.dart';
 import '../../services/member_management_service.dart';
 import '../../theme/app_theme.dart';
+import '../../theme/layout.dart';
 import '../../dashboard/widgets/dashboard_glass_card.dart';
 import '../../dashboard/widgets/linear_progress_bar.dart';
 import '../../dashboard/widgets/radial_progress.dart';
@@ -365,7 +366,7 @@ class _TrainerClientDetailScreenState
       AsyncValue<MemberProgressSummary> summaryAsync) {
     return SingleChildScrollView(
       physics: const BouncingScrollPhysics(),
-      padding: const EdgeInsets.fromLTRB(20, 16, 20, 120),
+      padding: EdgeInsets.fromLTRB(20, 16, 20, Layout.navClearance(context)),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
@@ -612,7 +613,7 @@ class _TrainerClientDetailScreenState
       AsyncValue<List<MemberAttendanceEntry>> attendanceAsync) {
     return SingleChildScrollView(
       physics: const BouncingScrollPhysics(),
-      padding: const EdgeInsets.fromLTRB(20, 16, 20, 120),
+      padding: EdgeInsets.fromLTRB(20, 16, 20, Layout.navClearance(context)),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
@@ -801,7 +802,7 @@ class _TrainerClientDetailScreenState
     );
     return SingleChildScrollView(
       physics: const BouncingScrollPhysics(),
-      padding: const EdgeInsets.fromLTRB(20, 16, 20, 120),
+      padding: EdgeInsets.fromLTRB(20, 16, 20, Layout.navClearance(context)),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
@@ -1029,7 +1030,7 @@ class _TrainerClientDetailScreenState
   Widget _buildWorkoutsTab(AsyncValue<List<WorkoutLog>> workoutsAsync) {
     return SingleChildScrollView(
       physics: const BouncingScrollPhysics(),
-      padding: const EdgeInsets.fromLTRB(20, 16, 20, 120),
+      padding: EdgeInsets.fromLTRB(20, 16, 20, Layout.navClearance(context)),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [

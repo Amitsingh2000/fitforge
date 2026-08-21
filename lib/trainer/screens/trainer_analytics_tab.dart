@@ -5,6 +5,7 @@ import '../../models/trainer_analytics.dart';
 import '../../models/trainer_client.dart';
 import '../../providers/trainer_flow_providers.dart';
 import '../../theme/app_theme.dart';
+import '../../theme/layout.dart';
 import '../../dashboard/widgets/dashboard_glass_card.dart';
 import '../../dashboard/widgets/linear_progress_bar.dart';
 import '../../dashboard/widgets/radial_progress.dart';
@@ -267,7 +268,7 @@ class _TrainerAnalyticsTabState extends ConsumerState<TrainerAnalyticsTab> {
                       );
                     },
                   ),
-                const SizedBox(height: 130), // space for bottom nav
+                SizedBox(height: Layout.navClearance(context)),
               ],
             ),
           ).animate().fadeIn(delay: 200.ms),

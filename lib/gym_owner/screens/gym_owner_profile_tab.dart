@@ -6,6 +6,7 @@ import '../../providers/auth_provider.dart';
 import '../../providers/gym_provider.dart';
 import '../../services/gym_owner_service.dart';
 import '../../theme/app_theme.dart';
+import '../../theme/layout.dart';
 import '../../dashboard/widgets/dashboard_glass_card.dart';
 import '../../dashboard/widgets/state_views.dart';
 import 'checkin_poster_screen.dart';
@@ -127,7 +128,7 @@ class _GymOwnerProfileTabState extends ConsumerState<GymOwnerProfileTab> {
           )
         else
           SliverPadding(
-            padding: const EdgeInsets.fromLTRB(20, 8, 20, 120),
+            padding: EdgeInsets.fromLTRB(20, 8, 20, Layout.navClearance(context)),
             sliver: SliverList(
               delegate: SliverChildListDelegate([
                 _buildProfileCard(user, gymName)

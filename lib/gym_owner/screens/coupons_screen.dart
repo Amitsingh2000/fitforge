@@ -4,6 +4,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../models/coupon.dart';
 import '../../services/gym_owner_service.dart';
 import '../../theme/app_theme.dart';
+import '../../theme/layout.dart';
 import '../../dashboard/widgets/dashboard_glass_card.dart';
 import '../../dashboard/widgets/state_views.dart';
 
@@ -265,7 +266,8 @@ class _CouponsScreenState extends ConsumerState<CouponsScreen> {
         icon: const Icon(Icons.local_offer_rounded),
         label: const Text('New Coupon', style: TextStyle(fontWeight: FontWeight.w700)),
       ),
-      body: _loading
+      body: ResponsiveBody(
+        child: _loading
           ? const Center(child: CircularProgressIndicator(color: AppColors.accentBlue))
           : _error != null && _coupons.isEmpty
               ? Center(child: ErrorRetryView(message: _error!, onRetry: _load))
@@ -275,7 +277,7 @@ class _CouponsScreenState extends ConsumerState<CouponsScreen> {
                   child: _coupons.isEmpty
                       ? ListView(children: const [SizedBox(height: 120), Center(child: EmptyStateView(icon: Icons.inbox_rounded, title: 'No coupons yet.\nTap + to create your first offer.'))])
                       : ListView.builder(
-                          padding: const EdgeInsets.fromLTRB(16, 16, 16, 90),
+                          padding: EdgeInsets.fromLTRB(16, 16, 16, Layout.navClearance(context)),
                           itemCount: _coupons.length,
                           itemBuilder: (ctx, i) => _CouponTile(
                             coupon: _coupons[i],
@@ -285,6 +287,7 @@ class _CouponsScreenState extends ConsumerState<CouponsScreen> {
                           ),
                         ),
                 ),
+      ),
     );
   }
 

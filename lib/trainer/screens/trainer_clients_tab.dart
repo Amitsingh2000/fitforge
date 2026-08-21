@@ -4,6 +4,8 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../models/trainer_client.dart';
 import '../../providers/trainer_flow_providers.dart';
 import '../../theme/app_theme.dart';
+import '../../theme/layout.dart';
+import '../../dashboard/widgets/adaptive_data_table.dart';
 import '../../dashboard/widgets/dashboard_glass_card.dart';
 import '../../dashboard/widgets/linear_progress_bar.dart';
 import '../../dashboard/widgets/state_views.dart';
@@ -172,8 +174,15 @@ class _TrainerClientsTabState extends ConsumerState<TrainerClientsTab> {
             data: (clients) {
               final filtered = _filteredClients(clients);
               if (filtered.isEmpty) return _buildEmptyState();
+              if (Layout.useRail(context)) {
+                return SingleChildScrollView(
+                  padding: EdgeInsets.fromLTRB(20, 0, 20, Layout.navClearance(context)),
+                  physics: const BouncingScrollPhysics(),
+                  child: _buildClientsTable(filtered),
+                );
+              }
               return ListView.separated(
-                padding: const EdgeInsets.fromLTRB(20, 0, 20, 130),
+                padding: EdgeInsets.fromLTRB(20, 0, 20, Layout.navClearance(context)),
                 physics: const BouncingScrollPhysics(),
                 itemCount: filtered.length,
                 separatorBuilder: (_, __) => const SizedBox(height: 12),
@@ -186,6 +195,48 @@ class _TrainerClientsTabState extends ConsumerState<TrainerClientsTab> {
         ),
       ],
     );
+  }
+
+  Widget _buildClientsTable(List<TrainerClient> clients) {
+    return AdaptiveDataTable(
+      columns: const [
+        AdaptiveDataColumn('Client', flex: 3),
+        AdaptiveDataColumn('Goal', flex: 2),
+        AdaptiveDataColumn('Plan', flex: 2),
+        AdaptiveDataColumn('Status', flex: 1),
+        AdaptiveDataColumn('Progress', flex: 2),
+      ],
+      rowCount: clients.length,
+      onRowTap: (i) {
+        Navigator.of(context).push(
+          MaterialPageRoute(
+            builder: (_) => TrainerClientDetailScreen(client: clients[i]),
+          ),
+        );
+      },
+      cellsBuilder: (context, index) {
+        final client = clients[index];
+        final status = _statusFor(client);
+        final Color badgeColor = status == 'Active'
+            ? AppColors.accentCyan
+            : status == 'Inactive'
+                ? AppColors.textDisabled
+                : AppColors.accentOrange;
+        final summary = client.progressSummary;
+        final progressPct = summary == null ? 0 : summary.workoutCompletionRatePercent.round();
+        return [
+          Text(client.fullName, maxLines: 1, overflow: TextOverflow.ellipsis,
+              style: AppTextStyles.bodyMedium.copyWith(fontWeight: FontWeight.w600)),
+          Text(client.fitnessGoal ?? '—', maxLines: 1, overflow: TextOverflow.ellipsis,
+              style: AppTextStyles.bodyMedium.copyWith(color: AppColors.textSecondary, fontSize: 13)),
+          Text(client.planName ?? '—', maxLines: 1, overflow: TextOverflow.ellipsis,
+              style: AppTextStyles.bodyMedium.copyWith(color: AppColors.textSecondary, fontSize: 13)),
+          AdaptiveStatusChip(status, color: badgeColor),
+          Text('$progressPct%', style: AppTextStyles.bodyMedium.copyWith(
+            color: AppColors.accentCyan, fontWeight: FontWeight.w600, fontSize: 13)),
+        ];
+      },
+    ).animate().fadeIn(duration: 400.ms, delay: 120.ms);
   }
 
   Widget _buildEmptyState() {

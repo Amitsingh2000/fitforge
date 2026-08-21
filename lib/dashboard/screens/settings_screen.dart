@@ -6,6 +6,7 @@ import '../../models/user_session.dart';
 import '../../providers/auth_provider.dart';
 import '../../services/member_service.dart';
 import '../../theme/app_theme.dart';
+import '../../theme/layout.dart';
 import '../widgets/dashboard_glass_card.dart';
 
 class SettingsScreen extends ConsumerStatefulWidget {
@@ -122,7 +123,8 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
     return Scaffold(
       backgroundColor: AppColors.bgPrimary,
       body: SafeArea(
-        child: CustomScrollView(
+        child: ResponsiveBody(
+          child: CustomScrollView(
           physics: const BouncingScrollPhysics(),
           slivers: [
             // App Bar Header
@@ -130,7 +132,7 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
 
             // Content body
             SliverPadding(
-              padding: const EdgeInsets.fromLTRB(20, 8, 20, 40),
+              padding: Layout.page(context),
               sliver: SliverList(
                 delegate: SliverChildListDelegate([
                   const SizedBox(height: 12),
@@ -172,6 +174,7 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
               ),
             ),
           ],
+        ),
         ),
       ),
     );

@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:ui' show PointerDeviceKind;
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -40,6 +41,17 @@ void main() {
   runApp(const ProviderScope(child: FitForgeApp()));
 }
 
+/// Mouse/trackpad drag scrolling for Flutter web & desktop.
+class _AppScrollBehavior extends MaterialScrollBehavior {
+  @override
+  Set<PointerDeviceKind> get dragDevices => {
+        PointerDeviceKind.touch,
+        PointerDeviceKind.mouse,
+        PointerDeviceKind.trackpad,
+        PointerDeviceKind.stylus,
+      };
+}
+
 class FitForgeApp extends StatelessWidget {
   const FitForgeApp({super.key});
 
@@ -49,6 +61,17 @@ class FitForgeApp extends StatelessWidget {
       title: 'FitForge',
       debugShowCheckedModeBanner: false,
       theme: AppTheme.darkTheme,
+      scrollBehavior: _AppScrollBehavior(),
+      builder: (context, child) {
+        // Cap whole-app text scale a bit on huge desktop fonts, keep readable.
+        final media = MediaQuery.of(context);
+        return MediaQuery(
+          data: media.copyWith(
+            textScaler: media.textScaler.clamp(minScaleFactor: 0.9, maxScaleFactor: 1.25),
+          ),
+          child: child ?? const SizedBox.shrink(),
+        );
+      },
       home: const _AppEntry(),
       routes: {
         '/onboarding': (context) {

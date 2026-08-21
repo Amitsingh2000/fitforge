@@ -5,6 +5,7 @@ import '../../models/trainer_profile.dart';
 import '../../providers/auth_provider.dart';
 import '../../services/trainer_service.dart';
 import '../../theme/app_theme.dart';
+import '../../theme/layout.dart';
 import '../../dashboard/widgets/dashboard_glass_card.dart';
 import '../../dashboard/widgets/state_views.dart';
 import 'trainer_availability_screen.dart';
@@ -238,7 +239,7 @@ class _TrainerProfileTabState extends ConsumerState<TrainerProfileTab> {
                       ],
                     ),
                   ),
-                  const SizedBox(height: 130),
+                  SizedBox(height: Layout.navClearance(context)),
                 ],
               ),
             ).animate().fadeIn(delay: 150.ms),

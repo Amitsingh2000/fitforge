@@ -8,6 +8,7 @@ import '../../models/member_subscription.dart';
 import '../../providers/auth_provider.dart';
 import '../../services/member_service.dart';
 import '../../theme/app_theme.dart';
+import '../../theme/layout.dart';
 import '../widgets/dashboard_glass_card.dart';
 import 'edit_profile_screen.dart';
 import 'join_gym_screen.dart';
@@ -156,12 +157,9 @@ class _ProfileContentState extends ConsumerState<ProfileContent> {
           const SliverFillRemaining(
             hasScrollBody: false,
             child: Center(
-              child: Padding(
-                padding: EdgeInsets.only(bottom: 120),
-                child: CircularProgressIndicator(
-                  color: AppColors.accentBlue,
-                  strokeWidth: 2.5,
-                ),
+              child: CircularProgressIndicator(
+                color: AppColors.accentBlue,
+                strokeWidth: 2.5,
               ),
             ),
           )
@@ -171,7 +169,7 @@ class _ProfileContentState extends ConsumerState<ProfileContent> {
 
           // Scrollable content body
           SliverPadding(
-            padding: const EdgeInsets.fromLTRB(20, 8, 20, 130), // Bottom padding to clear floating nav bar
+            padding: EdgeInsets.fromLTRB(20, 8, 20, Layout.navClearance(context)), // Bottom padding to clear floating nav bar
             sliver: SliverList(
               delegate: SliverChildListDelegate([
                 const SizedBox(height: 12),

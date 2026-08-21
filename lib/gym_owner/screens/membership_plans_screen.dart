@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../providers/gym_provider.dart';
 import '../../services/gym_owner_service.dart';
 import '../../theme/app_theme.dart';
+import '../../theme/layout.dart';
 import '../../dashboard/widgets/dashboard_glass_card.dart';
 import '../../dashboard/widgets/state_views.dart';
 
@@ -318,7 +319,7 @@ class _MembershipPlansScreenState extends ConsumerState<MembershipPlansScreen> {
       onRefresh: _load,
       color: AppColors.accentBlue,
       child: ListView.separated(
-        padding: const EdgeInsets.fromLTRB(20, 16, 20, 100),
+        padding: EdgeInsets.fromLTRB(20, 16, 20, Layout.navClearance(context)),
         itemCount: _plans.length,
         separatorBuilder: (_, __) => const SizedBox(height: 12),
         itemBuilder: (context, i) => _planCard(_plans[i]),

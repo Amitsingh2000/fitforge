@@ -2,6 +2,7 @@ import 'dart:ui';
 import 'package:flutter/material.dart';
 import 'package:flutter_animate/flutter_animate.dart';
 import '../../theme/app_theme.dart';
+import '../../theme/layout.dart';
 import '../widgets/dashboard_glass_card.dart';
 import '../widgets/streak_flame.dart';
 
@@ -50,7 +51,7 @@ class _StreakRewardsContentState extends State<StreakRewardsContent> {
 
         // Scrollable content body
         SliverPadding(
-          padding: const EdgeInsets.fromLTRB(20, 8, 20, 130), // Padding at bottom to avoid floating nav bar
+          padding: EdgeInsets.fromLTRB(20, 8, 20, Layout.navClearance(context)), // Padding at bottom to avoid floating nav bar
           sliver: SliverList(
             delegate: SliverChildListDelegate([
               const SizedBox(height: 12),

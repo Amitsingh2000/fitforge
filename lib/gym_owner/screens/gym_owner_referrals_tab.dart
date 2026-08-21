@@ -6,6 +6,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../providers/gym_provider.dart';
 import '../../services/gym_owner_service.dart';
 import '../../theme/app_theme.dart';
+import '../../theme/layout.dart';
 import '../../dashboard/widgets/dashboard_glass_card.dart';
 
 class GymOwnerReferralsTab extends ConsumerStatefulWidget {
@@ -136,7 +137,7 @@ class _GymOwnerReferralsTabState extends ConsumerState<GymOwnerReferralsTab> {
         ).animate().fadeIn(duration: 500.ms, delay: 200.ms).slideY(begin: 0.05, end: 0, duration: 500.ms, delay: 200.ms)),
 
         SliverToBoxAdapter(child: Padding(
-          padding: const EdgeInsets.fromLTRB(20, 20, 20, 100),
+          padding: EdgeInsets.fromLTRB(20, 20, 20, Layout.navClearance(context)),
           child: _buildInfoCard(),
         ).animate().fadeIn(duration: 500.ms, delay: 300.ms)),
       ]),
@@ -475,7 +476,7 @@ class _GymOwnerReferralsTabState extends ConsumerState<GymOwnerReferralsTab> {
       backgroundColor: success ? AppColors.accentBlue : AppColors.accentCoral,
       behavior: SnackBarBehavior.floating,
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-      margin: const EdgeInsets.fromLTRB(20, 0, 20, 100),
+      margin: EdgeInsets.fromLTRB(20, 0, 20, Layout.navClearance(context)),
       duration: const Duration(seconds: 2),
     ));
   }

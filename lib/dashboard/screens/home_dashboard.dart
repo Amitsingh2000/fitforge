@@ -1,7 +1,8 @@
-import 'dart:ui';
 import 'package:flutter/material.dart';
 import 'package:flutter_animate/flutter_animate.dart';
 import '../../theme/app_theme.dart';
+import '../../theme/layout.dart';
+import '../widgets/adaptive_nav_shell.dart';
 import '../widgets/dashboard_glass_card.dart';
 import '../widgets/radial_progress.dart';
 import '../widgets/linear_progress_bar.dart';
@@ -128,32 +129,31 @@ class _HomeDashboardState extends State<HomeDashboard>
             ),
           ),
 
-          // Tab content — switches based on bottom nav index
-          SafeArea(
-            bottom: false,
-            child: AnimatedSwitcher(
-              duration: const Duration(milliseconds: 300),
-              switchInCurve: Curves.easeOutCubic,
-              switchOutCurve: Curves.easeInCubic,
-              transitionBuilder: (child, animation) {
-                return FadeTransition(
-                  opacity: animation,
-                  child: child,
-                );
-              },
-              child: _buildCurrentPage(),
+          AdaptiveNavShell(
+            selectedIndex: _currentNavIndex >= 4 ? 4 : _currentNavIndex,
+            onSelect: (i) => setState(() => _currentNavIndex = i),
+            items: const [
+              AdaptiveNavItem(icon: Icons.home_rounded, label: 'Home'),
+              AdaptiveNavItem(icon: Icons.restaurant_menu_rounded, label: 'Diet'),
+              AdaptiveNavItem(icon: Icons.fitness_center_rounded, label: 'Workout'),
+              AdaptiveNavItem(icon: Icons.insights_rounded, label: 'Progress'),
+              AdaptiveNavItem(icon: Icons.person_rounded, label: 'Profile'),
+            ],
+            body: SafeArea(
+              bottom: false,
+              child: AnimatedSwitcher(
+                duration: const Duration(milliseconds: 300),
+                switchInCurve: Curves.easeOutCubic,
+                switchOutCurve: Curves.easeInCubic,
+                transitionBuilder: (child, animation) {
+                  return FadeTransition(
+                    opacity: animation,
+                    child: child,
+                  );
+                },
+                child: _buildCurrentPage(),
+              ),
             ),
-          ),
-
-          // Bottom navigation (always visible)
-          Positioned(
-            bottom: 0,
-            left: 0,
-            right: 0,
-            child: _buildBottomNavigation()
-                .animate()
-                .fadeIn(duration: 600.ms, delay: 300.ms)
-                .slideY(begin: 0.5, end: 0, duration: 600.ms, delay: 300.ms),
           ),
         ],
       ),
@@ -218,7 +218,7 @@ class _HomeDashboardState extends State<HomeDashboard>
 
         // Content
         SliverPadding(
-          padding: const EdgeInsets.fromLTRB(16, 0, 16, 80),
+          padding: Layout.scroll(context, horizontal: 16),
           sliver: SliverList(
             delegate: SliverChildListDelegate([
               // ── Swipeable Hero Section ──
@@ -1356,101 +1356,6 @@ class _HomeDashboardState extends State<HomeDashboard>
             ),
           ),
         ],
-      ),
-    );
-  }
-  // ─────────────────────────────────────────────
-
-  Widget _buildBottomNavigation() {
-    final navItems = [
-      {'icon': Icons.home_rounded, 'label': 'Home'},
-      {'icon': Icons.restaurant_menu_rounded, 'label': 'Diet'},
-      {'icon': Icons.fitness_center_rounded, 'label': 'Workout'},
-      {'icon': Icons.insights_rounded, 'label': 'Progress'},
-      {'icon': Icons.person_rounded, 'label': 'Profile'},
-    ];
-
-    return Container(
-      margin: const EdgeInsets.fromLTRB(16, 0, 16, 16),
-      child: ClipRRect(
-        borderRadius: BorderRadius.circular(22),
-        child: BackdropFilter(
-          filter: ImageFilter.blur(sigmaX: 24, sigmaY: 24),
-          child: Container(
-            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 10),
-            decoration: BoxDecoration(
-              color: AppColors.bgSecondary.withValues(alpha: 0.85),
-              borderRadius: BorderRadius.circular(22),
-              border: Border.all(
-                color: AppColors.glassBorder,
-                width: 1,
-              ),
-              boxShadow: [
-                BoxShadow(
-                  color: Colors.black.withValues(alpha: 0.3),
-                  blurRadius: 30,
-                  offset: const Offset(0, 10),
-                ),
-              ],
-            ),
-            child: Row(
-              mainAxisAlignment: MainAxisAlignment.spaceAround,
-              children: List.generate(navItems.length, (index) {
-                final item = navItems[index];
-                 final isActive = index == _currentNavIndex ||
-                    (_currentNavIndex == 5 && index == 4) ||
-                    (_currentNavIndex == 6 && index == 4) ||
-                    (_currentNavIndex == 7 && index == 4);
-
-                return Expanded(
-                  child: GestureDetector(
-                    onTap: () => setState(() => _currentNavIndex = index),
-                    child: AnimatedContainer(
-                      duration: const Duration(milliseconds: 250),
-                      curve: Curves.easeOutCubic,
-                      padding: const EdgeInsets.symmetric(
-                        horizontal: 4,
-                        vertical: 8,
-                      ),
-                      decoration: BoxDecoration(
-                        color: isActive
-                            ? AppColors.accentBlue.withValues(alpha: 0.12)
-                            : Colors.transparent,
-                        borderRadius: BorderRadius.circular(14),
-                      ),
-                      child: Column(
-                        mainAxisSize: MainAxisSize.min,
-                        children: [
-                          Icon(
-                            item['icon'] as IconData,
-                            color: isActive
-                                ? AppColors.accentBlue
-                                : AppColors.textTertiary,
-                            size: 22,
-                          ),
-                          const SizedBox(height: 4),
-                          AnimatedDefaultTextStyle(
-                            duration: const Duration(milliseconds: 250),
-                            style: AppTextStyles.caption.copyWith(
-                              color: isActive
-                                  ? AppColors.accentBlue
-                                  : AppColors.textTertiary,
-                              fontSize: 10,
-                              fontWeight: isActive
-                                  ? FontWeight.w600
-                                  : FontWeight.w500,
-                            ),
-                            child: Text(item['label'] as String),
-                          ),
-                        ],
-                      ),
-                    ),
-                  ),
-                );
-              }),
-            ),
-          ),
-        ),
       ),
     );
   }

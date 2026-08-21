@@ -6,6 +6,7 @@ import '../../models/gym_trainer.dart';
 import '../../providers/gym_provider.dart';
 import '../../services/gym_owner_service.dart';
 import '../../theme/app_theme.dart';
+import '../../theme/layout.dart';
 import '../../dashboard/widgets/dashboard_glass_card.dart';
 import '../../dashboard/widgets/sheet_chrome.dart';
 import '../../dashboard/widgets/state_views.dart';
@@ -329,7 +330,7 @@ class _GymOwnerTrainersScreenState extends ConsumerState<GymOwnerTrainersScreen>
                 // ── Trainer Cards ──
                 if (!_trainersLoading && filtered.isNotEmpty)
                   SliverPadding(
-                    padding: const EdgeInsets.fromLTRB(20, 4, 20, 100),
+                    padding: EdgeInsets.fromLTRB(20, 4, 20, Layout.navClearance(context)),
                     sliver: SliverList(
                       delegate: SliverChildBuilderDelegate(
                         (context, index) {

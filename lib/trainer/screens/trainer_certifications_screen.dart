@@ -6,6 +6,7 @@ import '../../models/trainer_profile.dart';
 import '../../services/media_upload_service.dart';
 import '../../services/trainer_service.dart';
 import '../../theme/app_theme.dart';
+import '../../theme/layout.dart';
 import '../../dashboard/widgets/dashboard_glass_card.dart';
 import '../../dashboard/widgets/state_views.dart';
 
@@ -197,7 +198,7 @@ class _TrainerCertificationsScreenState extends ConsumerState<TrainerCertificati
       onRefresh: _load,
       color: AppColors.accentBlue,
       child: ListView(
-        padding: const EdgeInsets.fromLTRB(20, 16, 20, 100),
+        padding: EdgeInsets.fromLTRB(20, 16, 20, Layout.navClearance(context)),
         children: [
           _verificationBanner(),
           const SizedBox(height: 20),

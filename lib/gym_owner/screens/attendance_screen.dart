@@ -6,6 +6,7 @@ import '../../models/gym_membership.dart';
 import '../../providers/gym_provider.dart';
 import '../../services/gym_owner_service.dart';
 import '../../theme/app_theme.dart';
+import '../../theme/layout.dart';
 import '../../dashboard/widgets/dashboard_glass_card.dart';
 import '../../dashboard/widgets/state_views.dart';
 
@@ -257,7 +258,7 @@ class _AttendanceScreenState extends ConsumerState<AttendanceScreen>
                                     Center(child: EmptyStateView(icon: Icons.inbox_rounded, title: 'No check-ins on $_isoDate')),
                                   ])
                                 : ListView.builder(
-                                    padding: const EdgeInsets.fromLTRB(16, 8, 16, 90),
+                                    padding: EdgeInsets.fromLTRB(16, 8, 16, Layout.navClearance(context)),
                                     itemCount: _records.length,
                                     itemBuilder: (ctx, i) => _AttendanceTile(
                                       record: _records[i],

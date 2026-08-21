@@ -7,6 +7,8 @@ import '../../models/gym_trainer.dart';
 import '../../providers/gym_provider.dart';
 import '../../services/gym_owner_service.dart';
 import '../../theme/app_theme.dart';
+import '../../theme/layout.dart';
+import '../../dashboard/widgets/adaptive_data_table.dart';
 import '../../dashboard/widgets/dashboard_glass_card.dart';
 import '../../dashboard/widgets/state_views.dart';
 import 'add_member_screen.dart';
@@ -295,9 +297,14 @@ class _GymOwnerMembersTabState extends ConsumerState<GymOwnerMembersTab> {
                           ),
                   ),
                 )
+              else if (Layout.useRail(context))
+                SliverPadding(
+                  padding: EdgeInsets.fromLTRB(20, 4, 20, Layout.navClearance(context)),
+                  sliver: SliverToBoxAdapter(child: _buildMembersTable(filtered)),
+                )
               else
                 SliverPadding(
-                  padding: const EdgeInsets.fromLTRB(20, 4, 20, 130),
+                  padding: EdgeInsets.fromLTRB(20, 4, 20, Layout.navClearance(context)),
                   sliver: SliverList(
                     delegate: SliverChildBuilderDelegate(
                       (context, index) {
@@ -318,7 +325,7 @@ class _GymOwnerMembersTabState extends ConsumerState<GymOwnerMembersTab> {
           ),
         ),
         Positioned(
-          bottom: 90,
+          bottom: Layout.useRail(context) ? 24 : 90,
           right: 20,
           child: _buildFAB()
               .animate()
@@ -326,6 +333,83 @@ class _GymOwnerMembersTabState extends ConsumerState<GymOwnerMembersTab> {
         ),
       ],
     );
+  }
+
+  Color _statusColor(String status) {
+    switch (status.toUpperCase()) {
+      case 'ACTIVE':
+        return AppColors.accentCyan;
+      case 'EXPIRED':
+        return AppColors.accentCoral;
+      case 'FROZEN':
+        return AppColors.accentOrange;
+      default:
+        return AppColors.textTertiary;
+    }
+  }
+
+  void _openMemberDetail(GymMember member) {
+    final gymId = ref.read(currentGymIdProvider);
+    if (gymId == null) return;
+    Navigator.of(context)
+        .push(
+      MaterialPageRoute(
+        builder: (_) => MemberDetailScreen(
+          gymId: gymId,
+          membershipId: member.membershipId,
+          initial: member,
+        ),
+      ),
+    )
+        .then((removed) {
+      if (removed == true) _loadMembers();
+    });
+  }
+
+  Widget _buildMembersTable(List<GymMember> members) {
+    return AdaptiveDataTable(
+      columns: const [
+        AdaptiveDataColumn('Member', flex: 3),
+        AdaptiveDataColumn('Plan', flex: 2),
+        AdaptiveDataColumn('Status', flex: 1),
+        AdaptiveDataColumn('Trainer', flex: 2),
+        AdaptiveDataColumn('Phone', flex: 2),
+      ],
+      rowCount: members.length,
+      onRowTap: (i) => _openMemberDetail(members[i]),
+      cellsBuilder: (context, index) {
+        final m = members[index];
+        return [
+          Text(m.fullName, maxLines: 1, overflow: TextOverflow.ellipsis,
+              style: AppTextStyles.bodyMedium.copyWith(fontWeight: FontWeight.w600)),
+          Text(m.planName ?? '—', maxLines: 1, overflow: TextOverflow.ellipsis,
+              style: AppTextStyles.bodyMedium.copyWith(color: AppColors.textSecondary, fontSize: 13)),
+          AdaptiveStatusChip(m.status, color: _statusColor(m.status)),
+          Text(m.assignedTrainerName ?? '—', maxLines: 1, overflow: TextOverflow.ellipsis,
+              style: AppTextStyles.bodyMedium.copyWith(color: AppColors.textSecondary, fontSize: 13)),
+          Text(m.phone ?? '—', maxLines: 1, overflow: TextOverflow.ellipsis,
+              style: AppTextStyles.bodyMedium.copyWith(color: AppColors.textSecondary, fontSize: 13)),
+        ];
+      },
+      trailingBuilder: (context, index) {
+        final m = members[index];
+        return Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            IconButton(
+              tooltip: 'View',
+              icon: const Icon(Icons.visibility_rounded, size: 18, color: AppColors.accentBlue),
+              onPressed: () => _openMemberDetail(m),
+            ),
+            IconButton(
+              tooltip: 'Remove',
+              icon: const Icon(Icons.person_remove_rounded, size: 18, color: AppColors.accentCoral),
+              onPressed: () => _removeMember(m),
+            ),
+          ],
+        );
+      },
+    ).animate().fadeIn(duration: 400.ms, delay: 200.ms);
   }
 
   Future<void> _openAddMember() async {

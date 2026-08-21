@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../models/lead.dart';
 import '../../services/gym_owner_service.dart';
 import '../../theme/app_theme.dart';
+import '../../theme/layout.dart';
 import '../../dashboard/widgets/dashboard_glass_card.dart';
 import '../../dashboard/widgets/state_views.dart';
 
@@ -211,7 +212,7 @@ class _LeadsScreenState extends ConsumerState<LeadsScreen> {
                   onRefresh: _load,
                   color: AppColors.accentBlue,
                   child: ListView(
-                    padding: const EdgeInsets.fromLTRB(16, 12, 16, 90),
+                    padding: EdgeInsets.fromLTRB(16, 12, 16, Layout.navClearance(context)),
                     children: [
                       // Metrics banner
                       DashboardGlassCard(
