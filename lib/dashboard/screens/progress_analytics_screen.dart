@@ -2,45 +2,75 @@ import 'dart:math';
 import 'dart:ui';
 import 'package:flutter/material.dart';
 import 'package:flutter_animate/flutter_animate.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
+import '../../models/analytics_summary.dart';
+import '../../providers/member_flow_providers.dart';
+import '../../services/member_dashboard_service.dart';
 import '../../theme/app_theme.dart';
 import '../../theme/layout.dart';
 import '../widgets/dashboard_glass_card.dart';
+import '../widgets/member_async_value.dart';
 import '../widgets/radial_progress.dart';
 
 /// Progress Analytics Content — designed to be embedded inside the DashboardShell.
 /// Does NOT have its own Scaffold or bottom nav.
-class ProgressAnalyticsContent extends StatefulWidget {
+class ProgressAnalyticsContent extends ConsumerStatefulWidget {
   const ProgressAnalyticsContent({super.key});
 
   @override
-  State<ProgressAnalyticsContent> createState() => _ProgressAnalyticsContentState();
+  ConsumerState<ProgressAnalyticsContent> createState() =>
+      _ProgressAnalyticsContentState();
 }
 
-class _ProgressAnalyticsContentState extends State<ProgressAnalyticsContent> {
+class _ProgressAnalyticsContentState
+    extends ConsumerState<ProgressAnalyticsContent> {
+  static const _rangeKeys = ['week', 'month', '3months', 'year'];
+
   int _selectedDateRangeIndex = 1; // 0: Week, 1: Month, 2: 3 Months, 3: Year
-  int _hoveredWeightIndex = 3; // Highlighted data point in chart
+  int _hoveredWeightIndex = 3;
 
-  // Simulated weight data lists based on selected range
-  final List<List<double>> _weightDataRanges = [
-    [79.8, 79.2, 78.9, 78.4, 78.5, 78.1, 78.0], // Week
-    [79.8, 79.5, 79.1, 78.8, 78.6, 78.2, 78.0], // Month (weekly ticks)
-    [81.2, 80.5, 79.8, 79.2, 78.9, 78.4, 78.0], // 3 Months
-    [84.0, 82.5, 81.6, 80.8, 79.9, 79.2, 78.0], // Year
-  ];
+  String get _selectedRange => _rangeKeys[_selectedDateRangeIndex];
 
-  final List<List<String>> _weightLabelsRanges = [
-    ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'],
-    ['W1', 'W2', 'W3', 'W4', 'W5', 'W6', 'W7'],
-    ['Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct'],
-    ['Jan', 'Mar', 'May', 'Jul', 'Sep', 'Nov', 'Dec'],
-  ];
-
-  // Hydration data for last 7 days
-  final List<double> _hydrationData = [3.2, 4.2, 3.5, 4.5, 3.8, 4.0, 3.9];
-  final List<String> _hydrationDays = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
+  Future<void> _handleExport() async {
+    try {
+      final csv =
+          await ref.read(memberDashboardServiceProvider).exportAnalyticsCsv();
+      final lineCount =
+          csv.split('\n').where((line) => line.trim().isNotEmpty).length;
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('Report exported ($lineCount rows)'),
+          backgroundColor: AppColors.accentBlue,
+          behavior: SnackBarBehavior.floating,
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+        ),
+      );
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('Export failed: $e'),
+          backgroundColor: AppColors.accentCoral,
+          behavior: SnackBarBehavior.floating,
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+        ),
+      );
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
+    final analyticsAsync = ref.watch(analyticsSummaryProvider(_selectedRange));
+    return MemberAsyncValue<AnalyticsSummary>(
+      value: analyticsAsync,
+      loadingMessage: 'Loading analytics…',
+      onRetry: () => ref.invalidate(analyticsSummaryProvider(_selectedRange)),
+      builder: (summary) => _buildContent(summary),
+    );
+  }
+
+  Widget _buildContent(AnalyticsSummary summary) {
     return CustomScrollView(
       physics: const BouncingScrollPhysics(),
       slivers: [
@@ -66,7 +96,7 @@ class _ProgressAnalyticsContentState extends State<ProgressAnalyticsContent> {
               const SizedBox(height: 16),
 
               // Combined Body Metrics + Weight Trend Hero Card
-              _buildBodyMetricsWithTrend()
+              _buildBodyMetricsWithTrend(summary)
                   .animate()
                   .fadeIn(duration: 500.ms, delay: 100.ms)
                   .slideY(begin: 0.06, end: 0, duration: 500.ms, delay: 100.ms),
@@ -83,7 +113,7 @@ class _ProgressAnalyticsContentState extends State<ProgressAnalyticsContent> {
               // Hydration Analytics
               _buildSectionLabel('HYDRATION ANALYTICS'),
               const SizedBox(height: 12),
-              _buildHydrationAnalytics()
+              _buildHydrationAnalytics(summary)
                   .animate()
                   .fadeIn(duration: 500.ms, delay: 400.ms),
               const SizedBox(height: 20),
@@ -91,7 +121,7 @@ class _ProgressAnalyticsContentState extends State<ProgressAnalyticsContent> {
               // Activity Insights
               _buildSectionLabel('ACTIVITY INSIGHTS'),
               const SizedBox(height: 12),
-              _buildActivityInsights()
+              _buildActivityInsights(summary)
                   .animate()
                   .fadeIn(duration: 500.ms, delay: 500.ms),
               const SizedBox(height: 20),
@@ -245,21 +275,38 @@ class _ProgressAnalyticsContentState extends State<ProgressAnalyticsContent> {
   // COMBINED BODY METRICS + WEIGHT TREND
   // ─────────────────────────────────────────────
 
-  Widget _buildBodyMetricsWithTrend() {
-    const double currentWeight = 78.0;
-    const double targetWeight = 72.0;
-    const double startWeight = 84.0;
-    const double lostWeight = startWeight - currentWeight;
-    const double totalGoal = startWeight - targetWeight;
-    final double progressPercent = lostWeight / totalGoal;
+  Widget _buildBodyMetricsWithTrend(AnalyticsSummary summary) {
+    final weight = summary.weight;
+    final currentWeight = weight.currentKg ?? 78.0;
+    final targetWeight = weight.targetKg ?? 72.0;
+    final startWeight = weight.startKg ?? currentWeight + 6;
+    final lostWeight = startWeight - currentWeight;
+    final totalGoal = (startWeight - targetWeight).abs();
+    final progressPercent =
+        totalGoal > 0 ? (lostWeight / totalGoal).clamp(0.0, 1.0) : 0.0;
 
-    final data = _weightDataRanges[_selectedDateRangeIndex];
-    final labels = _weightLabelsRanges[_selectedDateRangeIndex];
+    final data = weight.history.map((p) => p.weightKg).toList();
+    final labels = weight.history.map(_formatChartLabel).toList();
+    final chartData = data.length >= 2
+        ? data
+        : data.isEmpty
+            ? [currentWeight, currentWeight]
+            : [data.first, data.first];
+    final chartLabels = labels.length >= 2
+        ? labels
+        : labels.isEmpty
+            ? ['Start', 'Now']
+            : [labels.first, labels.first];
+    final hoverIndex =
+        _hoveredWeightIndex.clamp(0, chartData.length - 1);
+    final avgWeight = chartData.isEmpty
+        ? currentWeight
+        : chartData.reduce((a, b) => a + b) / chartData.length;
 
     final metrics = [
       {
         'title': 'Weight',
-        'value': '78.0 kg',
+        'value': '${currentWeight.toStringAsFixed(1)} kg',
         'trend': '↓ 2.1 kg',
         'positive': true,
         'icon': Icons.scale_rounded,
@@ -485,7 +532,7 @@ class _ProgressAnalyticsContentState extends State<ProgressAnalyticsContent> {
                     borderRadius: BorderRadius.circular(8),
                   ),
                   child: Text(
-                    'Avg: 78.8 kg',
+                    'Avg: ${avgWeight.toStringAsFixed(1)} kg',
                     style: AppTextStyles.caption.copyWith(color: AppColors.textSecondary, fontSize: 10),
                   ),
                 ),
@@ -500,8 +547,8 @@ class _ProgressAnalyticsContentState extends State<ProgressAnalyticsContent> {
                 final chartWidth = box.size.width - 64;
                 final relativeX = localPos.dx - 32;
                 if (relativeX > 0 && relativeX < chartWidth) {
-                  final index = ((relativeX / chartWidth) * (data.length - 1)).round();
-                  if (index >= 0 && index < data.length) {
+                  final index = ((relativeX / chartWidth) * (chartData.length - 1)).round();
+                  if (index >= 0 && index < chartData.length) {
                     setState(() => _hoveredWeightIndex = index);
                   }
                 }
@@ -514,9 +561,9 @@ class _ProgressAnalyticsContentState extends State<ProgressAnalyticsContent> {
                 child: CustomPaint(
                   size: const Size(double.infinity, 140),
                   painter: _WeightChartPainter(
-                    data: data,
-                    labels: labels,
-                    hoveredIndex: _hoveredWeightIndex,
+                    data: chartData,
+                    labels: chartLabels,
+                    hoveredIndex: hoverIndex,
                     lineColor: AppColors.accentBlue,
                     glowColor: AppColors.accentPurple,
                   ),
@@ -543,11 +590,11 @@ class _ProgressAnalyticsContentState extends State<ProgressAnalyticsContent> {
                   ),
                   const SizedBox(width: 8),
                   Text(
-                    '${labels[_hoveredWeightIndex]}: ',
+                    '${chartLabels[hoverIndex]}: ',
                     style: AppTextStyles.bodyMedium.copyWith(color: AppColors.textSecondary, fontSize: 12),
                   ),
                   Text(
-                    '${data[_hoveredWeightIndex].toStringAsFixed(1)} kg',
+                    '${chartData[hoverIndex].toStringAsFixed(1)} kg',
                     style: AppTextStyles.bodyMedium.copyWith(
                       color: AppColors.textPrimary,
                       fontWeight: FontWeight.bold,
@@ -591,13 +638,13 @@ class _ProgressAnalyticsContentState extends State<ProgressAnalyticsContent> {
               Container(
                 padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
                 decoration: BoxDecoration(
-                  color: AppColors.accentCyan.withValues(alpha: 0.1),
+                  color: AppColors.textTertiary.withValues(alpha: 0.1),
                   borderRadius: BorderRadius.circular(8),
                 ),
                 child: Text(
-                  'Today',
+                  'Sample',
                   style: AppTextStyles.caption.copyWith(
-                    color: AppColors.accentCyan,
+                    color: AppColors.textTertiary,
                     fontWeight: FontWeight.bold,
                     fontSize: 10,
                   ),
@@ -726,7 +773,19 @@ class _ProgressAnalyticsContentState extends State<ProgressAnalyticsContent> {
   // HYDRATION ANALYTICS
   // ─────────────────────────────────────────────
 
-  Widget _buildHydrationAnalytics() {
+  Widget _buildHydrationAnalytics(AnalyticsSummary summary) {
+    final hydrationData = summary.hydration7Days;
+    final hydrationDays = _hydrationDayLabels(hydrationData.length);
+    final dailyAvg = hydrationData.isEmpty
+        ? 0.0
+        : hydrationData.reduce((a, b) => a + b) / hydrationData.length;
+    final bestIdx = hydrationData.isEmpty
+        ? 0
+        : hydrationData.indexOf(hydrationData.reduce(max));
+    final bestAmount = hydrationData.isEmpty ? 0.0 : hydrationData[bestIdx];
+    final bestDay =
+        bestIdx < hydrationDays.length ? hydrationDays[bestIdx] : '';
+
     return DashboardGlassCard(
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -772,7 +831,7 @@ class _ProgressAnalyticsContentState extends State<ProgressAnalyticsContent> {
                     ),
                     const SizedBox(height: 2),
                     Text(
-                      '3.8 Liters',
+                      '${dailyAvg.toStringAsFixed(1)} Liters',
                       style: AppTextStyles.titleMedium.copyWith(
                         fontWeight: FontWeight.bold,
                         color: AppColors.accentCyan,
@@ -791,7 +850,7 @@ class _ProgressAnalyticsContentState extends State<ProgressAnalyticsContent> {
                     ),
                     const SizedBox(height: 2),
                     Text(
-                      '4.5L (Thu)',
+                      '${bestAmount.toStringAsFixed(1)}L ($bestDay)',
                       style: AppTextStyles.titleMedium.copyWith(
                         fontWeight: FontWeight.bold,
                         color: AppColors.textSecondary,
@@ -810,8 +869,8 @@ class _ProgressAnalyticsContentState extends State<ProgressAnalyticsContent> {
             child: Row(
               mainAxisAlignment: MainAxisAlignment.spaceBetween,
               crossAxisAlignment: CrossAxisAlignment.end,
-              children: List.generate(_hydrationData.length, (index) {
-                final amount = _hydrationData[index];
+              children: List.generate(hydrationData.length, (index) {
+                final amount = hydrationData[index];
                 // Target is 4.0L
                 final ratio = (amount / 4.5).clamp(0.0, 1.0);
 
@@ -856,7 +915,7 @@ class _ProgressAnalyticsContentState extends State<ProgressAnalyticsContent> {
                         const SizedBox(height: 8),
                         // Label
                         Text(
-                          _hydrationDays[index],
+                          hydrationDays[index],
                           style: AppTextStyles.caption.copyWith(
                             fontSize: 10,
                             color: AppColors.textSecondary,
@@ -880,7 +939,12 @@ class _ProgressAnalyticsContentState extends State<ProgressAnalyticsContent> {
   // ACTIVITY INSIGHTS
   // ─────────────────────────────────────────────
 
-  Widget _buildActivityInsights() {
+  Widget _buildActivityInsights(AnalyticsSummary summary) {
+    final activity = summary.activity;
+    final consistency = (activity.consistencyRatePercent / 100).clamp(0.0, 1.0);
+    final workoutProgress =
+        (activity.workoutsCompleted / 30).clamp(0.0, 1.0);
+
     return Column(
       children: [
         Row(
@@ -897,10 +961,10 @@ class _ProgressAnalyticsContentState extends State<ProgressAnalyticsContent> {
             const SizedBox(width: 14),
             Expanded(
               child: _buildActivityMetricCard(
-                label: 'Workout rate',
-                value: '87% Completed',
+                label: 'Consistency',
+                value: '${activity.consistencyRatePercent.toStringAsFixed(0)}%',
                 icon: Icons.check_circle_outline_rounded,
-                progress: 0.87,
+                progress: consistency,
                 color: AppColors.accentPurple,
               ),
             ),
@@ -911,10 +975,10 @@ class _ProgressAnalyticsContentState extends State<ProgressAnalyticsContent> {
           children: [
             Expanded(
               child: _buildActivityMetricCard(
-                label: 'Active Days',
-                value: '24 Days / Month',
+                label: 'Workouts',
+                value: '${activity.workoutsCompleted} completed',
                 icon: Icons.calendar_month_rounded,
-                progress: 0.80,
+                progress: workoutProgress,
                 color: AppColors.accentCyan,
               ),
             ),
@@ -1021,8 +1085,8 @@ class _ProgressAnalyticsContentState extends State<ProgressAnalyticsContent> {
                 style: AppTextStyles.titleMedium.copyWith(fontWeight: FontWeight.w700),
               ),
               Text(
-                '4 Unlocked',
-                style: AppTextStyles.caption.copyWith(color: AppColors.accentBlue, fontWeight: FontWeight.bold),
+                'Sample badges',
+                style: AppTextStyles.caption.copyWith(color: AppColors.textTertiary, fontWeight: FontWeight.bold),
               ),
             ],
           ),
@@ -1212,7 +1276,7 @@ class _ProgressAnalyticsContentState extends State<ProgressAnalyticsContent> {
     return Column(
       children: [
         GestureDetector(
-          onTap: () {},
+          onTap: _handleExport,
           child: Container(
             width: double.infinity,
             padding: const EdgeInsets.symmetric(vertical: 16),
@@ -1288,6 +1352,27 @@ class _ProgressAnalyticsContentState extends State<ProgressAnalyticsContent> {
       ),
     );
   }
+
+  String _formatChartLabel(WeightHistoryPoint point) {
+    final d = DateTime.tryParse(point.date);
+    if (d != null) {
+      const months = [
+        'Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun',
+        'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec',
+      ];
+      return '${months[d.month - 1]} ${d.day}';
+    }
+    return point.date.length > 5 ? point.date.substring(5) : point.date;
+  }
+
+  List<String> _hydrationDayLabels(int count) {
+    const days = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
+    if (count <= 0) return const [];
+    return List.generate(count, (i) {
+      final d = DateTime.now().subtract(Duration(days: count - 1 - i));
+      return days[d.weekday - 1];
+    });
+  }
 }
 
 // ─────────────────────────────────────────────
@@ -1359,7 +1444,7 @@ class _WeightChartPainter extends CustomPainter {
       // Y value text
       final val = minVal + (yRatio * range);
       textPainter.text = TextSpan(
-        text: '${val.toStringAsFixed(0)}',
+        text: val.toStringAsFixed(0),
         style: AppTextStyles.caption.copyWith(
           color: AppColors.textTertiary,
           fontSize: 9,

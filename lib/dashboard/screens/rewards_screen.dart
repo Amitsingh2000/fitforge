@@ -1,14 +1,22 @@
 import 'dart:ui';
 import 'package:flutter/material.dart';
 import 'package:flutter_animate/flutter_animate.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
+import '../../models/daily_task.dart';
+import '../../models/rewards_overview.dart';
+import '../../providers/auth_provider.dart';
+import '../../providers/member_flow_providers.dart';
+import '../../services/gamification_service.dart';
 import '../../theme/app_theme.dart';
 import '../../theme/layout.dart';
 import '../widgets/dashboard_glass_card.dart';
+import '../widgets/member_async_value.dart';
 import '../widgets/streak_flame.dart';
+import '../widgets/state_views.dart';
 
 /// Streak & Rewards content — designed to be embedded inside the DashboardShell.
 /// Does NOT have its own Scaffold or bottom nav.
-class StreakRewardsContent extends StatefulWidget {
+class StreakRewardsContent extends ConsumerStatefulWidget {
   final VoidCallback onNavigateToLeaderboard;
 
   const StreakRewardsContent({
@@ -17,32 +25,53 @@ class StreakRewardsContent extends StatefulWidget {
   });
 
   @override
-  State<StreakRewardsContent> createState() => _StreakRewardsContentState();
+  ConsumerState<StreakRewardsContent> createState() =>
+      _StreakRewardsContentState();
 }
 
-class _StreakRewardsContentState extends State<StreakRewardsContent> {
-  // Gamification state
-  int _currentStreak = 18;
-  int _currentXP = 4250;
-  final int _xpForNextLevel = 5000;
-  final int _level = 12;
+class _StreakRewardsContentState extends ConsumerState<StreakRewardsContent> {
+  bool _checkInBusy = false;
 
-  // Checklist tasks state
-  final List<Map<String, dynamic>> _todayTasks = [
-    {'title': 'Complete Hydration Target', 'xp': 50, 'completed': false, 'icon': '💧'},
-    {'title': 'Reach Daily Protein Goal', 'xp': 75, 'completed': false, 'icon': '💪'},
-    {'title': 'Perform Planned Workout', 'xp': 100, 'completed': false, 'icon': '🏃'},
-    {'title': 'Log 7+ Hours of Sleep', 'xp': 40, 'completed': true, 'icon': '😴'},
-  ];
+  String get _monthLabel {
+    const months = [
+      'January', 'February', 'March', 'April', 'May', 'June',
+      'July', 'August', 'September', 'October', 'November', 'December',
+    ];
+    final now = DateTime.now();
+    return '${months[now.month - 1]} ${now.year}';
+  }
 
-
-
-  // Calendar details
-  final int _daysInMonth = 30; // June
-  final int _missedDay = 4; // Day 4 missed
+  Future<void> _dailyCheckIn() async {
+    if (_checkInBusy) return;
+    setState(() => _checkInBusy = true);
+    try {
+      await ref.read(gamificationServiceProvider).dailyCheckIn();
+      invalidateDailyLoop(ref);
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text(friendlyApiError(e))),
+        );
+      }
+    } finally {
+      if (mounted) setState(() => _checkInBusy = false);
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
+    final overviewAsync = ref.watch(rewardsOverviewProvider);
+    final tasks = ref.watch(todayDashboardProvider).valueOrNull?.tasks ?? const [];
+
+    return MemberAsyncValue<RewardsOverview>(
+      value: overviewAsync,
+      loadingMessage: 'Loading rewards…',
+      onRetry: () => ref.invalidate(rewardsOverviewProvider),
+      builder: (overview) => _buildContent(overview, tasks),
+    );
+  }
+
+  Widget _buildContent(RewardsOverview overview, List<DailyTask> tasks) {
     return CustomScrollView(
       physics: const BouncingScrollPhysics(),
       slivers: [
@@ -57,14 +86,14 @@ class _StreakRewardsContentState extends State<StreakRewardsContent> {
               const SizedBox(height: 12),
 
               // Merged Daily Streak & Streak Calendar Section
-              _buildMergedStreakCalendar()
+              _buildMergedStreakCalendar(overview)
                   .animate()
                   .fadeIn(duration: 500.ms, delay: 100.ms)
                   .slideY(begin: 0.05, end: 0, duration: 500.ms, delay: 100.ms),
               const SizedBox(height: 20),
 
               // Unified XP Progression & Daily Tasks
-              _buildXPProgressAndTasksCard()
+              _buildXPProgressAndTasksCard(overview, tasks)
                   .animate()
                   .fadeIn(duration: 500.ms, delay: 200.ms),
               const SizedBox(height: 20),
@@ -74,7 +103,7 @@ class _StreakRewardsContentState extends State<StreakRewardsContent> {
               // Active Achievements Gallery
               _buildSectionLabel('ACHIEVEMENTS'),
               const SizedBox(height: 12),
-              _buildAchievementsGallery()
+              _buildAchievementsGallery(overview.badges)
                   .animate()
                   .fadeIn(duration: 500.ms, delay: 450.ms),
               const SizedBox(height: 20),
@@ -86,7 +115,7 @@ class _StreakRewardsContentState extends State<StreakRewardsContent> {
 
 
               // AI Insights
-              _buildAIInsightsCard()
+              _buildAIInsightsCard(overview)
                   .animate()
                   .fadeIn(duration: 500.ms, delay: 650.ms),
               const SizedBox(height: 16),
@@ -176,17 +205,29 @@ class _StreakRewardsContentState extends State<StreakRewardsContent> {
             tooltip: 'Community Leaderboard',
           ),
           // Profile avatar
-          Container(
-            width: 40,
-            height: 40,
-            decoration: BoxDecoration(
-              shape: BoxShape.circle,
-              border: Border.all(color: AppColors.glassBorder, width: 1.5),
-              image: const DecorationImage(
-                image: NetworkImage('https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&q=80&w=200'),
-                fit: BoxFit.cover,
-              ),
-            ),
+          Builder(
+            builder: (context) {
+              final avatarUrl = ref.watch(authProvider).user?.avatarUrl;
+              return Container(
+                width: 40,
+                height: 40,
+                decoration: BoxDecoration(
+                  shape: BoxShape.circle,
+                  border: Border.all(color: AppColors.glassBorder, width: 1.5),
+                  image: avatarUrl != null
+                      ? DecorationImage(
+                          image: NetworkImage(avatarUrl),
+                          fit: BoxFit.cover,
+                        )
+                      : null,
+                  color: avatarUrl == null ? AppColors.bgTertiary : null,
+                ),
+                child: avatarUrl == null
+                    ? const Icon(Icons.person_rounded,
+                        color: AppColors.textSecondary, size: 20)
+                    : null,
+              );
+            },
           ),
         ],
       ),
@@ -197,7 +238,19 @@ class _StreakRewardsContentState extends State<StreakRewardsContent> {
   // MERGED STREAK & CALENDAR SECTION
   // ─────────────────────────────────────────────
 
-  Widget _buildMergedStreakCalendar() {
+  Widget _buildMergedStreakCalendar(RewardsOverview overview) {
+    final board = overview.dailyCheckInBoard;
+    final streak = overview.streakDays;
+    DailyCheckInDay? todayEntry;
+    for (final d in board) {
+      if (d.isToday) {
+        todayEntry = d;
+        break;
+      }
+    }
+    final canCheckIn = todayEntry != null && !todayEntry.claimed;
+    final todayClaimed = todayEntry?.claimed ?? false;
+
     return DashboardGlassCard(
       padding: const EdgeInsets.all(18),
       child: Column(
@@ -227,7 +280,7 @@ class _StreakRewardsContentState extends State<StreakRewardsContent> {
                           ),
                           const SizedBox(height: 2),
                           Text(
-                            '$_currentStreak Days Active',
+                            '$streak Days Active',
                             style: AppTextStyles.titleLarge.copyWith(
                               fontWeight: FontWeight.w800,
                               fontSize: 18,
@@ -243,7 +296,7 @@ class _StreakRewardsContentState extends State<StreakRewardsContent> {
               const SizedBox(width: 8),
               // Right: June 2026 title
               Text(
-                'June 2026',
+                _monthLabel,
                 style: AppTextStyles.bodyMedium.copyWith(
                   fontWeight: FontWeight.bold,
                   color: AppColors.textPrimary,
@@ -260,7 +313,7 @@ class _StreakRewardsContentState extends State<StreakRewardsContent> {
           
           // Motivational Text
           Text(
-            'You\'ve shown up for yourself $_currentStreak days in a row! Keep the flame burning.',
+            'You\'ve shown up for yourself $streak days in a row! Keep the flame burning.',
             style: AppTextStyles.bodyMedium.copyWith(
               color: AppColors.textSecondary,
               fontSize: 12,
@@ -268,6 +321,52 @@ class _StreakRewardsContentState extends State<StreakRewardsContent> {
             ),
           ),
           const SizedBox(height: 12),
+
+          if (canCheckIn || _checkInBusy)
+            Padding(
+              padding: const EdgeInsets.only(bottom: 12),
+              child: SizedBox(
+                width: double.infinity,
+                child: FilledButton(
+                  onPressed: _checkInBusy ? null : _dailyCheckIn,
+                  style: FilledButton.styleFrom(
+                    backgroundColor: AppColors.accentOrange,
+                    padding: const EdgeInsets.symmetric(vertical: 12),
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(12),
+                    ),
+                  ),
+                  child: Text(
+                    _checkInBusy
+                        ? 'Checking in…'
+                        : 'Claim Daily Check-In (+${todayEntry?.rewardXp ?? 0} XP)',
+                    style: AppTextStyles.bodyMedium.copyWith(
+                      fontWeight: FontWeight.bold,
+                      color: Colors.white,
+                    ),
+                  ),
+                ),
+              ),
+            )
+          else if (todayClaimed)
+            Padding(
+              padding: const EdgeInsets.only(bottom: 12),
+              child: Row(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  const Icon(Icons.check_circle_rounded,
+                      color: AppColors.accentCyan, size: 16),
+                  const SizedBox(width: 6),
+                  Text(
+                    'Checked in today',
+                    style: AppTextStyles.caption.copyWith(
+                      color: AppColors.accentCyan,
+                      fontWeight: FontWeight.bold,
+                    ),
+                  ),
+                ],
+              ),
+            ),
 
           // Legends Row
           Row(
@@ -286,21 +385,110 @@ class _StreakRewardsContentState extends State<StreakRewardsContent> {
           GridView.builder(
             shrinkWrap: true,
             physics: const NeverScrollableScrollPhysics(),
-            itemCount: _daysInMonth,
-            gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-              crossAxisCount: 7,
+            itemCount: board.isNotEmpty
+                ? board.length
+                : DateTime(DateTime.now().year, DateTime.now().month + 1, 0).day,
+            gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
+              crossAxisCount: board.isNotEmpty ? board.length.clamp(1, 7) : 7,
               crossAxisSpacing: 8,
               mainAxisSpacing: 8,
             ),
             itemBuilder: (context, index) {
+              if (board.isNotEmpty) {
+                final entry = board[index];
+                final isStreak = entry.claimed;
+                final isMissed = !entry.claimed && !entry.isToday;
+                final isFuture = !entry.claimed && entry.isToday;
+
+                return Container(
+                  decoration: BoxDecoration(
+                    gradient: isStreak
+                        ? LinearGradient(
+                            colors: [
+                              AppColors.accentOrange.withValues(alpha: 0.2),
+                              AppColors.accentOrange.withValues(alpha: 0.05),
+                            ],
+                            begin: Alignment.topLeft,
+                            end: Alignment.bottomRight,
+                          )
+                        : isMissed
+                            ? LinearGradient(
+                                colors: [
+                                  AppColors.accentCoral.withValues(alpha: 0.15),
+                                  AppColors.accentCoral.withValues(alpha: 0.03),
+                                ],
+                                begin: Alignment.topLeft,
+                                end: Alignment.bottomRight,
+                              )
+                            : isFuture
+                                ? null
+                                : LinearGradient(
+                                    colors: [
+                                      Colors.white.withValues(alpha: 0.08),
+                                      Colors.white.withValues(alpha: 0.02),
+                                    ],
+                                    begin: Alignment.topLeft,
+                                    end: Alignment.bottomRight,
+                                  ),
+                    color: isFuture ? Colors.transparent : null,
+                    borderRadius: BorderRadius.circular(10),
+                    border: Border.all(
+                      color: entry.isToday
+                          ? AppColors.accentCyan.withValues(alpha: 0.5)
+                          : isStreak
+                              ? AppColors.accentOrange.withValues(alpha: 0.4)
+                              : isMissed
+                                  ? AppColors.accentCoral.withValues(alpha: 0.3)
+                                  : AppColors.glassBorder,
+                      width: entry.isToday ? 1.5 : 1,
+                    ),
+                  ),
+                  child: Center(
+                    child: Column(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: [
+                        Text(
+                          '${entry.day}',
+                          style: AppTextStyles.caption.copyWith(
+                            color: entry.isToday
+                                ? AppColors.accentCyan
+                                : isStreak
+                                    ? AppColors.accentOrange
+                                    : isMissed
+                                        ? AppColors.accentCoral
+                                        : AppColors.textSecondary,
+                            fontWeight: entry.isToday || isStreak
+                                ? FontWeight.bold
+                                : FontWeight.normal,
+                            fontSize: 11,
+                          ),
+                        ),
+                        const SizedBox(height: 2),
+                        Text(
+                          isStreak
+                              ? '🔥'
+                              : isMissed
+                                  ? '⭕'
+                                  : entry.isToday
+                                      ? '✨'
+                                      : '✔',
+                          style: const TextStyle(fontSize: 8),
+                        ),
+                      ],
+                    ),
+                  ),
+                );
+              }
+
               final day = index + 1;
-              final isStreak = day <= _currentStreak && day != _missedDay;
-              final isMissed = day == _missedDay;
-              final isFuture = day > _currentStreak;
+              final daysInMonth =
+                  DateTime(DateTime.now().year, DateTime.now().month + 1, 0).day;
+              final isStreak = day <= streak;
+              final isFuture = day > DateTime.now().day;
 
               return Container(
                 decoration: BoxDecoration(
-                  gradient: isStreak
+                  gradient: isStreak && !isFuture
                       ? LinearGradient(
                           colors: [
                             AppColors.accentOrange.withValues(alpha: 0.2),
@@ -309,33 +497,22 @@ class _StreakRewardsContentState extends State<StreakRewardsContent> {
                           begin: Alignment.topLeft,
                           end: Alignment.bottomRight,
                         )
-                      : isMissed
-                          ? LinearGradient(
+                      : isFuture
+                          ? null
+                          : LinearGradient(
                               colors: [
-                                AppColors.accentCoral.withValues(alpha: 0.15),
-                                AppColors.accentCoral.withValues(alpha: 0.03),
+                                Colors.white.withValues(alpha: 0.08),
+                                Colors.white.withValues(alpha: 0.02),
                               ],
                               begin: Alignment.topLeft,
                               end: Alignment.bottomRight,
-                            )
-                          : isFuture
-                              ? null
-                              : LinearGradient(
-                                  colors: [
-                                    Colors.white.withValues(alpha: 0.08),
-                                    Colors.white.withValues(alpha: 0.02),
-                                  ],
-                                  begin: Alignment.topLeft,
-                                  end: Alignment.bottomRight,
-                                ),
+                            ),
                   color: isFuture ? Colors.transparent : null,
                   borderRadius: BorderRadius.circular(10),
                   border: Border.all(
-                    color: isStreak
+                    color: isStreak && !isFuture
                         ? AppColors.accentOrange.withValues(alpha: 0.4)
-                        : isMissed
-                            ? AppColors.accentCoral.withValues(alpha: 0.3)
-                            : AppColors.glassBorder,
+                        : AppColors.glassBorder,
                   ),
                 ),
                 child: Center(
@@ -349,21 +526,16 @@ class _StreakRewardsContentState extends State<StreakRewardsContent> {
                               ? AppColors.textTertiary
                               : isStreak
                                   ? AppColors.accentOrange
-                                  : isMissed
-                                      ? AppColors.accentCoral
-                                      : AppColors.textSecondary,
-                          fontWeight: isFuture ? FontWeight.normal : FontWeight.bold,
+                                  : AppColors.textSecondary,
+                          fontWeight:
+                              isFuture ? FontWeight.normal : FontWeight.bold,
                           fontSize: 11,
                         ),
                       ),
-                      if (!isFuture) ...[
+                      if (!isFuture && day <= daysInMonth) ...[
                         const SizedBox(height: 2),
                         Text(
-                          isStreak
-                              ? '🔥'
-                              : isMissed
-                                  ? '⭕'
-                                  : '✔',
+                          isStreak ? '🔥' : '✔',
                           style: const TextStyle(fontSize: 8),
                         ),
                       ],
@@ -392,10 +564,21 @@ class _StreakRewardsContentState extends State<StreakRewardsContent> {
   // XP & LEVEL PROGRESSION WITH TODAY'S TASKS CARD
   // ─────────────────────────────────────────────
 
-  Widget _buildXPProgressAndTasksCard() {
-    final double levelProgress = _currentXP / _xpForNextLevel;
-    final int completedCount = _todayTasks.where((t) => t['completed'] == true).length;
-    final int remainingCount = _todayTasks.where((t) => t['completed'] == false).length;
+  Widget _buildXPProgressAndTasksCard(
+    RewardsOverview overview,
+    List<DailyTask> tasks,
+  ) {
+    final currentXp = overview.currentXp;
+    final nextLevelXp = overview.nextLevelXp > 0 ? overview.nextLevelXp : 1000;
+    final level = overview.level;
+    final levelTitle = overview.levelTitle.isNotEmpty
+        ? overview.levelTitle
+        : 'Level $level';
+    final double levelProgress =
+        nextLevelXp > 0 ? (currentXp / nextLevelXp).clamp(0.0, 1.0) : 0;
+    final completedCount = tasks.where((t) => t.completed).length;
+    final remainingCount = tasks.where((t) => !t.completed).length;
+    final xpToNext = (nextLevelXp - currentXp).clamp(0, nextLevelXp);
 
     return DashboardGlassCard(
       child: Column(
@@ -410,13 +593,13 @@ class _StreakRewardsContentState extends State<StreakRewardsContent> {
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     Text(
-                      'Level $_level Veteran',
+                      levelTitle,
                       style: AppTextStyles.titleMedium.copyWith(fontWeight: FontWeight.bold),
                       overflow: TextOverflow.ellipsis,
                     ),
                     const SizedBox(height: 2),
                     Text(
-                      '$_currentXP / $_xpForNextLevel XP total',
+                      '$currentXp / $nextLevelXp XP total',
                       style: AppTextStyles.caption.copyWith(color: AppColors.textSecondary),
                       overflow: TextOverflow.ellipsis,
                     ),
@@ -432,7 +615,7 @@ class _StreakRewardsContentState extends State<StreakRewardsContent> {
                   border: Border.all(color: AppColors.accentPurple.withValues(alpha: 0.2)),
                 ),
                 child: Text(
-                  '${_xpForNextLevel - _currentXP} XP to Lvl ${_level + 1}',
+                  '$xpToNext XP to Lvl ${level + 1}',
                   style: AppTextStyles.caption.copyWith(
                     color: AppColors.accentPurple,
                     fontWeight: FontWeight.bold,
@@ -500,115 +683,132 @@ class _StreakRewardsContentState extends State<StreakRewardsContent> {
           const SizedBox(height: 14),
 
           // 3. Today's Tasks List
-          Column(
-            children: List.generate(_todayTasks.length, (index) {
-              final task = _todayTasks[index];
-              final completed = task['completed'] as bool;
+          if (tasks.isEmpty)
+            Text(
+              'No tasks for today yet.',
+              style: AppTextStyles.caption.copyWith(color: AppColors.textTertiary),
+            )
+          else
+            Column(
+              children: List.generate(tasks.length, (index) {
+                final task = tasks[index];
+                final completed = task.completed;
 
-              return Padding(
-                padding: const EdgeInsets.only(bottom: 10),
-                child: Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
-                  decoration: BoxDecoration(
-                    gradient: completed
-                        ? LinearGradient(
-                            colors: [
-                              AppColors.accentBlue.withValues(alpha: 0.12),
-                              AppColors.accentBlue.withValues(alpha: 0.03),
-                            ],
-                            begin: Alignment.topLeft,
-                            end: Alignment.bottomRight,
-                          )
-                        : LinearGradient(
-                            colors: [
-                              Colors.white.withValues(alpha: 0.06),
-                              Colors.white.withValues(alpha: 0.01),
-                            ],
-                            begin: Alignment.topLeft,
-                            end: Alignment.bottomRight,
+                return Padding(
+                  padding: const EdgeInsets.only(bottom: 10),
+                  child: Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+                    decoration: BoxDecoration(
+                      gradient: completed
+                          ? LinearGradient(
+                              colors: [
+                                AppColors.accentBlue.withValues(alpha: 0.12),
+                                AppColors.accentBlue.withValues(alpha: 0.03),
+                              ],
+                              begin: Alignment.topLeft,
+                              end: Alignment.bottomRight,
+                            )
+                          : LinearGradient(
+                              colors: [
+                                Colors.white.withValues(alpha: 0.06),
+                                Colors.white.withValues(alpha: 0.01),
+                              ],
+                              begin: Alignment.topLeft,
+                              end: Alignment.bottomRight,
+                            ),
+                      borderRadius: BorderRadius.circular(12),
+                      border: Border.all(
+                        color: completed
+                            ? AppColors.accentBlue.withValues(alpha: 0.25)
+                            : AppColors.glassBorder,
+                      ),
+                    ),
+                    child: Row(
+                      children: [
+                        Container(
+                          width: 32,
+                          height: 32,
+                          decoration: BoxDecoration(
+                            color: completed
+                                ? AppColors.accentBlue.withValues(alpha: 0.12)
+                                : Colors.white.withValues(alpha: 0.05),
+                            borderRadius: BorderRadius.circular(8),
+                            border: Border.all(
+                              color: completed
+                                  ? AppColors.accentBlue.withValues(alpha: 0.2)
+                                  : AppColors.glassBorder,
+                            ),
                           ),
-                    borderRadius: BorderRadius.circular(12),
-                    border: Border.all(
-                      color: completed 
-                          ? AppColors.accentBlue.withValues(alpha: 0.25) 
-                          : AppColors.glassBorder,
+                          child: Center(
+                            child: Text(
+                              '✓',
+                              style: TextStyle(
+                                fontSize: 14,
+                                color: completed
+                                    ? AppColors.accentBlue
+                                    : AppColors.textSecondary,
+                              ),
+                            ),
+                          ),
+                        ),
+                        const SizedBox(width: 12),
+                        Expanded(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text(
+                                task.title,
+                                style: AppTextStyles.bodyMedium.copyWith(
+                                  color: completed
+                                      ? AppColors.textSecondary
+                                      : AppColors.textPrimary,
+                                  fontWeight: FontWeight.w600,
+                                  fontSize: 13,
+                                  decoration:
+                                      completed ? TextDecoration.lineThrough : null,
+                                ),
+                              ),
+                              const SizedBox(height: 2),
+                              Text(
+                                '${task.xp} XP per task',
+                                style: AppTextStyles.caption.copyWith(
+                                  color: completed
+                                      ? AppColors.textTertiary
+                                      : AppColors.accentBlue,
+                                  fontWeight: FontWeight.bold,
+                                  fontSize: 10,
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                        const SizedBox(width: 8),
+                        Container(
+                          padding:
+                              const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                          decoration: BoxDecoration(
+                            color: completed
+                                ? AppColors.accentCyan.withValues(alpha: 0.15)
+                                : AppColors.accentOrange.withValues(alpha: 0.1),
+                            borderRadius: BorderRadius.circular(8),
+                          ),
+                          child: Text(
+                            completed ? 'Completed' : 'Remaining',
+                            style: AppTextStyles.caption.copyWith(
+                              color: completed
+                                  ? AppColors.accentCyan
+                                  : AppColors.accentOrange,
+                              fontWeight: FontWeight.bold,
+                              fontSize: 9,
+                            ),
+                          ),
+                        ),
+                      ],
                     ),
                   ),
-                  child: Row(
-                    children: [
-                      // Icon emoji
-                      Container(
-                        width: 32,
-                        height: 32,
-                        decoration: BoxDecoration(
-                          color: completed
-                              ? AppColors.accentBlue.withValues(alpha: 0.12)
-                              : Colors.white.withValues(alpha: 0.05),
-                          borderRadius: BorderRadius.circular(8),
-                          border: Border.all(
-                            color: completed
-                                ? AppColors.accentBlue.withValues(alpha: 0.2)
-                                : AppColors.glassBorder,
-                          ),
-                        ),
-                        child: Center(
-                          child: Text(
-                            task['icon'] as String,
-                            style: const TextStyle(fontSize: 14),
-                          ),
-                        ),
-                      ),
-                      const SizedBox(width: 12),
-                      Expanded(
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Text(
-                              task['title'] as String,
-                              style: AppTextStyles.bodyMedium.copyWith(
-                                color: completed ? AppColors.textSecondary : AppColors.textPrimary,
-                                fontWeight: FontWeight.w600,
-                                fontSize: 13,
-                                decoration: completed ? TextDecoration.lineThrough : null,
-                              ),
-                            ),
-                            const SizedBox(height: 2),
-                            Text(
-                              '${task['xp']} XP per task',
-                              style: AppTextStyles.caption.copyWith(
-                                color: completed ? AppColors.textTertiary : AppColors.accentBlue,
-                                fontWeight: FontWeight.bold,
-                                fontSize: 10,
-                              ),
-                            ),
-                          ],
-                        ),
-                      ),
-                      const SizedBox(width: 8),
-                      // Status Badge
-                      Container(
-                        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-                        decoration: BoxDecoration(
-                          color: completed
-                              ? AppColors.accentCyan.withValues(alpha: 0.15)
-                              : AppColors.accentOrange.withValues(alpha: 0.1),
-                          borderRadius: BorderRadius.circular(8),
-                        ),
-                        child: Text(
-                          completed ? 'Completed' : 'Remaining',
-                          style: AppTextStyles.caption.copyWith(
-                            color: completed ? AppColors.accentCyan : AppColors.accentOrange,
-                            fontWeight: FontWeight.bold,
-                            fontSize: 9,
-                          ),
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-              );
-            }),
-          ),
+                );
+              }),
+            ),
         ],
       ),
     );
@@ -620,15 +820,14 @@ class _StreakRewardsContentState extends State<StreakRewardsContent> {
   // ACTIVE ACHIEVEMENTS GALLERY
   // ─────────────────────────────────────────────
 
-  Widget _buildAchievementsGallery() {
-    final earnedBadges = [
-      {'emoji': '🔥', 'title': '7 Day Streak', 'sub': 'Met consistency'},
-      {'emoji': '⚔️', 'title': '30d Warrior', 'sub': 'Active month'},
-      {'emoji': '💪', 'title': 'Protein Master', 'sub': 'Muscle builder'},
-      {'emoji': '💧', 'title': 'Hydration Hero', 'sub': 'Fluids optimizer'},
-      {'emoji': '⚡', 'title': 'Champ Status', 'sub': 'Task achiever'},
-      {'emoji': '🎯', 'title': 'Goal Crusher', 'sub': 'Weight benchmark'},
-    ];
+  Widget _buildAchievementsGallery(List<MemberBadge> badges) {
+    final earnedBadges = badges
+        .map((b) => {
+              'emoji': b.icon ?? '🏅',
+              'title': b.name,
+              'sub': b.code,
+            })
+        .toList();
 
     return DashboardGlassCard(
       child: Column(
@@ -642,13 +841,19 @@ class _StreakRewardsContentState extends State<StreakRewardsContent> {
                 style: AppTextStyles.titleMedium.copyWith(fontWeight: FontWeight.w700),
               ),
               Text(
-                '6 Unlocked',
+                earnedBadges.isEmpty ? 'None yet' : '${earnedBadges.length} Unlocked',
                 style: AppTextStyles.caption.copyWith(color: AppColors.accentBlue, fontWeight: FontWeight.bold),
               ),
             ],
           ),
           const SizedBox(height: 18),
-          GridView.builder(
+          if (earnedBadges.isEmpty)
+            Text(
+              'Complete streaks and tasks to unlock badges.',
+              style: AppTextStyles.caption.copyWith(color: AppColors.textTertiary),
+            )
+          else
+            GridView.builder(
             shrinkWrap: true,
             physics: const NeverScrollableScrollPhysics(),
             itemCount: earnedBadges.length,
@@ -747,7 +952,12 @@ class _StreakRewardsContentState extends State<StreakRewardsContent> {
   // AI MOTIVATIONAL INSIGHTS
   // ─────────────────────────────────────────────
 
-  Widget _buildAIInsightsCard() {
+  Widget _buildAIInsightsCard(RewardsOverview overview) {
+    final streak = overview.streakDays;
+    final levelProgress = overview.nextLevelXp > 0
+        ? ((overview.currentXp / overview.nextLevelXp) * 100).round()
+        : 0;
+
     return Container(
       decoration: BoxDecoration(
         borderRadius: BorderRadius.circular(20),
@@ -835,9 +1045,9 @@ class _StreakRewardsContentState extends State<StreakRewardsContent> {
                 Row(
                   mainAxisAlignment: MainAxisAlignment.spaceBetween,
                   children: [
-                    _buildAIMetric('Consistency', '94%', 'Weekly Score', AppColors.accentCyan),
-                    _buildAIMetric('Milestone', '18/21 d', 'Streak Goal', AppColors.accentOrange),
-                    _buildAIMetric('Rank', 'Top 13%', 'Global Division', AppColors.accentPurple),
+                    _buildAIMetric('Consistency', '$levelProgress%', 'Level Progress', AppColors.accentCyan),
+                    _buildAIMetric('Milestone', '$streak d', 'Current Streak', AppColors.accentOrange),
+                    _buildAIMetric('Level', '${overview.level}', overview.levelTitle.isNotEmpty ? overview.levelTitle : 'Your Rank', AppColors.accentPurple),
                   ],
                 ),
                 const SizedBox(height: 18),

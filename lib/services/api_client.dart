@@ -65,7 +65,7 @@ final dioProvider = Provider<Dio>((ref) {
         // rotates refresh tokens on every use, so applying a stale response to
         // a newer session would clobber the new user's credentials.
         final refreshDio = Dio(BaseOptions(
-          baseUrl: 'https://fitos-backend-55g6.onrender.com/api/v1',
+          baseUrl: kApiBase,
           connectTimeout: const Duration(seconds: 30),
           receiveTimeout: const Duration(seconds: 30),
           headers: {

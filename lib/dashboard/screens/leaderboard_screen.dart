@@ -1,13 +1,21 @@
 import 'dart:ui';
 import 'package:flutter/material.dart';
 import 'package:flutter_animate/flutter_animate.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
+import '../../models/leaderboard_entry.dart';
+import '../../providers/auth_provider.dart';
+import '../../providers/member_flow_providers.dart';
 import '../../theme/app_theme.dart';
 import '../../theme/layout.dart';
 import '../widgets/dashboard_glass_card.dart';
+import '../widgets/member_async_value.dart';
+
+const _defaultAvatar =
+    'https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&q=80&w=200';
 
 /// Leaderboard & Social content — designed to be embedded inside the DashboardShell.
 /// Does NOT have its own Scaffold or bottom nav.
-class LeaderboardContent extends StatefulWidget {
+class LeaderboardContent extends ConsumerStatefulWidget {
   final VoidCallback onBack;
 
   const LeaderboardContent({
@@ -16,52 +24,13 @@ class LeaderboardContent extends StatefulWidget {
   });
 
   @override
-  State<LeaderboardContent> createState() => _LeaderboardContentState();
+  ConsumerState<LeaderboardContent> createState() => _LeaderboardContentState();
 }
 
-class _LeaderboardContentState extends State<LeaderboardContent> {
-  final int _currentXP = 4250;
+class _LeaderboardContentState extends ConsumerState<LeaderboardContent> {
+  String _scope = 'GLOBAL';
 
-  // Leaderboard data with avatar URLs
-  late final List<Map<String, dynamic>> _ranking = [
-    {
-      'rank': 1,
-      'name': 'Marcus Vance',
-      'xp': '4,980 XP',
-      'isUser': false,
-      'avatar': 'https://images.unsplash.com/photo-1500648767791-00dcc994a43e?auto=format&fit=crop&q=80&w=200'
-    },
-    {
-      'rank': 2,
-      'name': 'Sarah K.',
-      'xp': '4,750 XP',
-      'isUser': false,
-      'avatar': 'https://images.unsplash.com/photo-1494790108377-be9c29b29330?auto=format&fit=crop&q=80&w=200'
-    },
-    {
-      'rank': 3,
-      'name': 'Alex Rivera',
-      'xp': '4,410 XP',
-      'isUser': false,
-      'avatar': 'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?auto=format&fit=crop&q=80&w=200'
-    },
-    {
-      'rank': 4,
-      'name': 'You',
-      'xp': '$_currentXP XP',
-      'isUser': true,
-      'avatar': 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&q=80&w=200'
-    },
-    {
-      'rank': 5,
-      'name': 'Dave Miller',
-      'xp': '3,990 XP',
-      'isUser': false,
-      'avatar': 'https://images.unsplash.com/photo-1522075469751-3a6694fb2f61?auto=format&fit=crop&q=80&w=200'
-    },
-  ];
-
-  // Interactive Activity Feed data
+  // Interactive Activity Feed data (still mock — no API yet)
   final List<Map<String, dynamic>> _activities = [
     {
       'name': 'Marcus Vance',
@@ -92,6 +61,26 @@ class _LeaderboardContentState extends State<LeaderboardContent> {
     },
   ];
 
+  String? get _activeGymId {
+    final memberships = ref.watch(authProvider).user?.gymMemberships ?? [];
+    for (final m in memberships) {
+      if (m.status == 'ACTIVE') return m.gymId;
+    }
+    return null;
+  }
+
+  bool get _hasGym => _activeGymId != null;
+
+  String? get _myUserId => ref.watch(authProvider).user?.id;
+
+  LeaderboardQuery get _leaderboardQuery => (
+        type: 'XP',
+        scope: _scope,
+        gymId: _scope == 'GYM' ? _activeGymId : null,
+        filter: 'ALL_TIME',
+        limit: 50,
+      );
+
   void _toggleCheer(int index) {
     setState(() {
       final wasCheered = _activities[index]['cheered'] as bool;
@@ -100,8 +89,34 @@ class _LeaderboardContentState extends State<LeaderboardContent> {
     });
   }
 
+  bool _scopeInitialized = false;
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    if (!_scopeInitialized && _activeGymId != null) {
+      _scope = 'GYM';
+      _scopeInitialized = true;
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
+    final leaderboardAsync = ref.watch(leaderboardProvider(_leaderboardQuery));
+    final challengesAsync = ref.watch(challengesProvider(_activeGymId));
+    final challenge = challengesAsync.valueOrNull?.isNotEmpty == true
+        ? challengesAsync.valueOrNull!.first
+        : null;
+
+    return MemberAsyncValue<LeaderboardResponse>(
+      value: leaderboardAsync,
+      loadingMessage: 'Loading leaderboard…',
+      onRetry: () => ref.invalidate(leaderboardProvider(_leaderboardQuery)),
+      builder: (response) => _buildContent(response, challenge),
+    );
+  }
+
+  Widget _buildContent(LeaderboardResponse response, Challenge? challenge) {
     return CustomScrollView(
       physics: const BouncingScrollPhysics(),
       slivers: [
@@ -116,14 +131,17 @@ class _LeaderboardContentState extends State<LeaderboardContent> {
               const SizedBox(height: 12),
 
               // Weekly Rankings Podiums & Leaderboard
-              _buildLeaderboardSection()
+              _buildLeaderboardSection(response)
                   .animate()
                   .fadeIn(duration: 500.ms, delay: 100.ms)
                   .slideY(begin: 0.05, end: 0, duration: 500.ms, delay: 100.ms),
               const SizedBox(height: 20),
 
               // Monthly Challenge Card
-              _buildMonthlyChallengeCard()
+              if (challenge != null)
+                _buildMonthlyChallengeCard(challenge)
+              else
+                _buildMonthlyChallengeCardPlaceholder()
                   .animate()
                   .fadeIn(duration: 500.ms, delay: 200.ms),
               const SizedBox(height: 20),
@@ -217,7 +235,21 @@ class _LeaderboardContentState extends State<LeaderboardContent> {
   // LEADERBOARD SECTION WITH PODIUMS
   // ─────────────────────────────────────────────
 
-  Widget _buildLeaderboardSection() {
+  Widget _buildLeaderboardSection(LeaderboardResponse response) {
+    final entries = response.leaderboard;
+    final myRank = response.myRank;
+    final myId = _myUserId;
+    final scopeLabel = _scope == 'GYM' ? 'Gym Leaderboard' : 'Global Division';
+
+    LeaderboardEntry? first;
+    LeaderboardEntry? second;
+    LeaderboardEntry? third;
+    for (final e in entries) {
+      if (e.rank == 1) first = e;
+      if (e.rank == 2) second = e;
+      if (e.rank == 3) third = e;
+    }
+
     return DashboardGlassCard(
       padding: const EdgeInsets.all(18),
       child: Column(
@@ -228,128 +260,195 @@ class _LeaderboardContentState extends State<LeaderboardContent> {
             children: [
               Expanded(
                 child: Text(
-                  'Weekly Rankings',
+                  'XP Rankings',
                   style: AppTextStyles.titleMedium.copyWith(fontWeight: FontWeight.bold),
                   overflow: TextOverflow.ellipsis,
                 ),
               ),
               const SizedBox(width: 8),
               Text(
-                'Global Division III',
+                scopeLabel,
                 style: AppTextStyles.caption.copyWith(color: AppColors.textSecondary),
               ),
             ],
           ),
-          const SizedBox(height: 24),
-
-          // Top 3 Podium
-          Row(
-            mainAxisAlignment: MainAxisAlignment.spaceEvenly,
-            crossAxisAlignment: CrossAxisAlignment.end,
-            children: [
-              // 2nd Place
-              _buildPodiumItem(
-                rank: 2,
-                name: 'Sarah K.',
-                xp: '4,750 XP',
-                avatarUrl: 'https://images.unsplash.com/photo-1494790108377-be9c29b29330?auto=format&fit=crop&q=80&w=200',
-                pedestalHeight: 50,
-                color: Colors.grey.shade400,
+          if (_hasGym) ...[
+            const SizedBox(height: 12),
+            Row(
+              children: [
+                _buildScopeChip('Gym', 'GYM'),
+                const SizedBox(width: 8),
+                _buildScopeChip('Global', 'GLOBAL'),
+              ],
+            ),
+          ],
+          if (myRank != null) ...[
+            const SizedBox(height: 12),
+            Container(
+              width: double.infinity,
+              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+              decoration: BoxDecoration(
+                color: AppColors.accentBlue.withValues(alpha: 0.1),
+                borderRadius: BorderRadius.circular(10),
+                border: Border.all(color: AppColors.accentBlue.withValues(alpha: 0.2)),
               ),
-
-              // 1st Place
-              _buildPodiumItem(
-                rank: 1,
-                name: 'Marcus V.',
-                xp: '4,980 XP',
-                avatarUrl: 'https://images.unsplash.com/photo-1500648767791-00dcc994a43e?auto=format&fit=crop&q=80&w=200',
-                pedestalHeight: 75,
-                color: const Color(0xFFFFD700), // Gold
-                hasCrown: true,
-              ),
-
-              // 3rd Place
-              _buildPodiumItem(
-                rank: 3,
-                name: 'Alex R.',
-                xp: '4,410 XP',
-                avatarUrl: 'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?auto=format&fit=crop&q=80&w=200',
-                pedestalHeight: 38,
-                color: const Color(0xFFCD7F32), // Bronze
-              ),
-            ],
-          ),
-          const SizedBox(height: 24),
-          Divider(color: AppColors.glassBorder),
-          const SizedBox(height: 12),
-
-          // Remaining Leaderboard List
-          Column(
-            children: _ranking.map((user) {
-              final isUser = user['isUser'] as bool;
-              final rankNum = user['rank'] as int;
-
-              return Container(
-                margin: const EdgeInsets.only(bottom: 6),
-                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-                decoration: BoxDecoration(
-                  color: isUser ? AppColors.accentBlue.withValues(alpha: 0.1) : Colors.transparent,
-                  borderRadius: BorderRadius.circular(10),
-                  border: isUser ? Border.all(color: AppColors.accentBlue.withValues(alpha: 0.2)) : null,
+              child: Text(
+                'Your rank: #${myRank.rank} · ${myRank.score} XP',
+                style: AppTextStyles.caption.copyWith(
+                  color: AppColors.accentBlue,
+                  fontWeight: FontWeight.bold,
                 ),
-                child: Row(
-                  children: [
-                    Container(
-                      width: 24,
-                      alignment: Alignment.centerLeft,
-                      child: Text(
-                        '#$rankNum',
+              ),
+            ),
+          ],
+          const SizedBox(height: 24),
+          if (entries.length >= 3)
+            Row(
+              mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+              crossAxisAlignment: CrossAxisAlignment.end,
+              children: [
+                if (second != null)
+                  _buildPodiumItem(
+                    rank: 2,
+                    name: second.name,
+                    xp: '${second.score} XP',
+                    avatarUrl: second.avatarUrl ?? _defaultAvatar,
+                    pedestalHeight: 50,
+                    color: Colors.grey.shade400,
+                  ),
+                if (first != null)
+                  _buildPodiumItem(
+                    rank: 1,
+                    name: first.name,
+                    xp: '${first.score} XP',
+                    avatarUrl: first.avatarUrl ?? _defaultAvatar,
+                    pedestalHeight: 75,
+                    color: const Color(0xFFFFD700),
+                    hasCrown: true,
+                  ),
+                if (third != null)
+                  _buildPodiumItem(
+                    rank: 3,
+                    name: third.name,
+                    xp: '${third.score} XP',
+                    avatarUrl: third.avatarUrl ?? _defaultAvatar,
+                    pedestalHeight: 38,
+                    color: const Color(0xFFCD7F32),
+                  ),
+              ],
+            )
+          else if (entries.isEmpty)
+            Padding(
+              padding: const EdgeInsets.symmetric(vertical: 24),
+              child: Text(
+                'No rankings yet.',
+                style: AppTextStyles.caption.copyWith(color: AppColors.textTertiary),
+              ),
+            ),
+          const SizedBox(height: 24),
+          if (entries.isNotEmpty) ...[
+            Divider(color: AppColors.glassBorder),
+            const SizedBox(height: 12),
+            Column(
+              children: entries.map((user) {
+                final isUser = user.userId == myId;
+
+                return Container(
+                  margin: const EdgeInsets.only(bottom: 6),
+                  padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                  decoration: BoxDecoration(
+                    color: isUser
+                        ? AppColors.accentBlue.withValues(alpha: 0.1)
+                        : Colors.transparent,
+                    borderRadius: BorderRadius.circular(10),
+                    border: isUser
+                        ? Border.all(color: AppColors.accentBlue.withValues(alpha: 0.2))
+                        : null,
+                  ),
+                  child: Row(
+                    children: [
+                      Container(
+                        width: 24,
+                        alignment: Alignment.centerLeft,
+                        child: Text(
+                          '#${user.rank}',
+                          style: AppTextStyles.caption.copyWith(
+                            fontWeight: FontWeight.bold,
+                            color: isUser ? AppColors.accentBlue : AppColors.textSecondary,
+                          ),
+                        ),
+                      ),
+                      const SizedBox(width: 8),
+                      Container(
+                        width: 28,
+                        height: 28,
+                        decoration: BoxDecoration(
+                          shape: BoxShape.circle,
+                          image: DecorationImage(
+                            image: NetworkImage(user.avatarUrl ?? _defaultAvatar),
+                            fit: BoxFit.cover,
+                          ),
+                          border: Border.all(
+                            color: isUser
+                                ? AppColors.accentBlue.withValues(alpha: 0.5)
+                                : AppColors.glassBorder,
+                            width: 1,
+                          ),
+                        ),
+                      ),
+                      const SizedBox(width: 12),
+                      Expanded(
+                        child: Text(
+                          isUser ? 'You' : user.name,
+                          style: AppTextStyles.bodyMedium.copyWith(
+                            fontWeight: isUser ? FontWeight.bold : FontWeight.normal,
+                            color: isUser ? AppColors.textPrimary : AppColors.textSecondary,
+                          ),
+                          overflow: TextOverflow.ellipsis,
+                        ),
+                      ),
+                      Text(
+                        '${user.score} XP',
                         style: AppTextStyles.caption.copyWith(
                           fontWeight: FontWeight.bold,
-                          color: isUser ? AppColors.accentBlue : AppColors.textSecondary,
+                          color: isUser ? AppColors.textPrimary : AppColors.textTertiary,
                         ),
                       ),
-                    ),
-                    const SizedBox(width: 8),
-                    Container(
-                      width: 28,
-                      height: 28,
-                      decoration: BoxDecoration(
-                        shape: BoxShape.circle,
-                        image: DecorationImage(
-                          image: NetworkImage(user['avatar'] as String),
-                          fit: BoxFit.cover,
-                        ),
-                        border: Border.all(
-                          color: isUser ? AppColors.accentBlue.withValues(alpha: 0.5) : AppColors.glassBorder,
-                          width: 1,
-                        ),
-                      ),
-                    ),
-                    const SizedBox(width: 12),
-                    Expanded(
-                      child: Text(
-                        user['name'] as String,
-                        style: AppTextStyles.bodyMedium.copyWith(
-                          fontWeight: isUser ? FontWeight.bold : FontWeight.normal,
-                          color: isUser ? AppColors.textPrimary : AppColors.textSecondary,
-                        ),
-                        overflow: TextOverflow.ellipsis,
-                      ),
-                    ),
-                    Text(
-                      user['xp'] as String,
-                      style: AppTextStyles.caption.copyWith(
-                        fontWeight: FontWeight.bold,
-                        color: isUser ? AppColors.textPrimary : AppColors.textTertiary,
-                      ),
-                    ),
-                  ],
-                ),
-              );
-            }).toList(),
-          ),
+                    ],
+                  ),
+                );
+              }).toList(),
+            ),
+          ],
         ],
+      ),
+    );
+  }
+
+  Widget _buildScopeChip(String label, String scope) {
+    final selected = _scope == scope;
+    return GestureDetector(
+      onTap: () => setState(() => _scope = scope),
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+        decoration: BoxDecoration(
+          color: selected
+              ? AppColors.accentCyan.withValues(alpha: 0.15)
+              : AppColors.bgTertiary,
+          borderRadius: BorderRadius.circular(8),
+          border: Border.all(
+            color: selected
+                ? AppColors.accentCyan.withValues(alpha: 0.4)
+                : AppColors.glassBorder,
+          ),
+        ),
+        child: Text(
+          label,
+          style: AppTextStyles.caption.copyWith(
+            color: selected ? AppColors.accentCyan : AppColors.textSecondary,
+            fontWeight: FontWeight.bold,
+          ),
+        ),
       ),
     );
   }
@@ -446,7 +545,14 @@ class _LeaderboardContentState extends State<LeaderboardContent> {
   // MONTHLY CHALLENGE CARD (Relocated)
   // ─────────────────────────────────────────────
 
-  Widget _buildMonthlyChallengeCard() {
+  Widget _buildMonthlyChallengeCard(Challenge challenge) {
+    final daysRemaining =
+        challenge.endsAt?.difference(DateTime.now()).inDays.clamp(0, 999);
+    final progress = challenge.targetValue > 0
+        ? (challenge.myProgress / challenge.targetValue).clamp(0.0, 1.0)
+        : 0.0;
+    final progressPct = (progress * 100).round();
+
     return Container(
       decoration: BoxDecoration(
         borderRadius: BorderRadius.circular(20),
@@ -479,7 +585,7 @@ class _LeaderboardContentState extends State<LeaderboardContent> {
                         borderRadius: BorderRadius.circular(8),
                       ),
                       child: Text(
-                        'JUNE CHALLENGE',
+                        challenge.scope == 'GYM' ? 'GYM CHALLENGE' : 'ACTIVE CHALLENGE',
                         style: AppTextStyles.caption.copyWith(
                           color: AppColors.accentCoral,
                           fontWeight: FontWeight.bold,
@@ -487,35 +593,48 @@ class _LeaderboardContentState extends State<LeaderboardContent> {
                         ),
                       ),
                     ),
-                    Text(
-                      '12 Days Remaining',
-                      style: AppTextStyles.caption.copyWith(color: AppColors.textSecondary),
-                    ),
+                    if (daysRemaining != null)
+                      Text(
+                        '$daysRemaining Days Remaining',
+                        style: AppTextStyles.caption.copyWith(color: AppColors.textSecondary),
+                      ),
                   ],
                 ),
                 const SizedBox(height: 16),
                 Text(
-                  'June Transformation Challenge',
+                  challenge.title,
                   style: AppTextStyles.titleMedium.copyWith(fontWeight: FontWeight.bold),
                 ),
-                const SizedBox(height: 6),
-                Text(
-                  'Complete 25 active workouts this month to unlock the exclusive "Solstice Warrior" badge + 1,000 XP.',
-                  style: AppTextStyles.caption.copyWith(color: AppColors.textSecondary, height: 1.4),
-                ),
+                if (challenge.description != null) ...[
+                  const SizedBox(height: 6),
+                  Text(
+                    challenge.description!,
+                    style: AppTextStyles.caption.copyWith(color: AppColors.textSecondary, height: 1.4),
+                  ),
+                ],
+                if (challenge.rewardXp > 0) ...[
+                  const SizedBox(height: 6),
+                  Text(
+                    'Reward: ${challenge.rewardXp} XP',
+                    style: AppTextStyles.caption.copyWith(
+                      color: AppColors.accentCoral,
+                      fontWeight: FontWeight.bold,
+                    ),
+                  ),
+                ],
                 const SizedBox(height: 18),
                 Row(
                   mainAxisAlignment: MainAxisAlignment.spaceBetween,
                   children: [
                     Text(
-                      'Progress: 18 / 25 Days',
+                      'Progress: ${challenge.myProgress} / ${challenge.targetValue}',
                       style: AppTextStyles.caption.copyWith(
                         color: AppColors.accentCoral,
                         fontWeight: FontWeight.bold,
                       ),
                     ),
                     Text(
-                      '72%',
+                      '$progressPct%',
                       style: AppTextStyles.caption.copyWith(color: AppColors.textSecondary, fontWeight: FontWeight.bold),
                     ),
                   ],
@@ -529,7 +648,7 @@ class _LeaderboardContentState extends State<LeaderboardContent> {
                     child: Align(
                       alignment: Alignment.centerLeft,
                       child: FractionallySizedBox(
-                        widthFactor: 18 / 25,
+                        widthFactor: progress,
                         child: Container(
                           decoration: BoxDecoration(
                             gradient: AppColors.coralGradient,
@@ -544,6 +663,16 @@ class _LeaderboardContentState extends State<LeaderboardContent> {
             ),
           ),
         ),
+      ),
+    );
+  }
+
+  Widget _buildMonthlyChallengeCardPlaceholder() {
+    return DashboardGlassCard(
+      padding: const EdgeInsets.all(20),
+      child: Text(
+        'No active challenges right now.',
+        style: AppTextStyles.caption.copyWith(color: AppColors.textTertiary),
       ),
     );
   }

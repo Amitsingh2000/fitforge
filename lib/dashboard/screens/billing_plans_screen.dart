@@ -2,8 +2,11 @@ import 'dart:ui';
 import 'package:flutter/material.dart';
 import 'package:flutter_animate/flutter_animate.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import '../../models/invoice.dart';
 import '../../models/member_entitlements.dart';
 import '../../models/member_subscription.dart';
+import '../../providers/member_flow_providers.dart';
+import '../../services/billing_service.dart';
 import '../../services/member_service.dart';
 import '../../theme/app_theme.dart';
 import '../widgets/dashboard_glass_card.dart';
@@ -115,49 +118,13 @@ class _BillingPlansContentState extends ConsumerState<BillingPlansContent>
     },
   ];
 
-  // ── Transaction history ──
-  final List<Map<String, dynamic>> _transactions = [
-    {
-      'title': 'FitForge Pro Plan',
-      'date': 'Jul 15, 2026',
-      'amount': '₹599',
-      'status': 'Paid',
-      'icon': Icons.check_circle_rounded,
-    },
-    {
-      'title': 'FitForge Pro Plan',
-      'date': 'Jun 15, 2026',
-      'amount': '₹599',
-      'status': 'Paid',
-      'icon': Icons.check_circle_rounded,
-    },
-    {
-      'title': 'FitForge Pro Plan',
-      'date': 'May 15, 2026',
-      'amount': '₹599',
-      'status': 'Paid',
-      'icon': Icons.check_circle_rounded,
-    },
-    {
-      'title': 'FitForge Pro Plan — Upgrade',
-      'date': 'Apr 15, 2026',
-      'amount': '₹799',
-      'status': 'Paid',
-      'icon': Icons.check_circle_rounded,
-    },
-    {
-      'title': 'FitForge Free Plan',
-      'date': 'Mar 10, 2026',
-      'amount': '₹0',
-      'status': 'Free',
-      'icon': Icons.circle_outlined,
-    },
-  ];
-
-  // ── Subscription API State ──
+  // ── Subscription & billing API state ──
   MemberSubscription _subscription = MemberSubscription.none();
   MemberEntitlements _entitlements = MemberEntitlements.free();
   bool _subscriptionLoading = true;
+  List<Invoice> _invoices = [];
+  bool _invoicesLoading = true;
+  bool _checkoutLoading = false;
 
   @override
   void initState() {
@@ -167,6 +134,73 @@ class _BillingPlansContentState extends ConsumerState<BillingPlansContent>
       duration: const Duration(seconds: 3),
     )..repeat();
     _loadSubscription();
+    _loadInvoices();
+  }
+
+  Future<void> _loadInvoices() async {
+    try {
+      final invoices = await ref.read(billingServiceProvider).listInvoices();
+      if (mounted) {
+        setState(() {
+          _invoices = invoices;
+          _invoicesLoading = false;
+        });
+      }
+    } catch (_) {
+      if (mounted) {
+        setState(() => _invoicesLoading = false);
+      }
+    }
+  }
+
+  Future<void> _handlePremiumCheckout() async {
+    if (_checkoutLoading) return;
+    setState(() => _checkoutLoading = true);
+    try {
+      final session = await ref.read(billingServiceProvider).checkout(
+            idempotencyKey:
+                'premium-${DateTime.now().millisecondsSinceEpoch}',
+          );
+      if (!mounted) return;
+      invalidateMemberCommerce(ref);
+      await _loadSubscription();
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(
+            'Checkout started${session.providerRef != null ? ': ${session.providerRef}' : ''}',
+          ),
+          backgroundColor: AppColors.accentBlue,
+          behavior: SnackBarBehavior.floating,
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+        ),
+      );
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Checkout failed: $e'),
+            backgroundColor: AppColors.accentCoral,
+            behavior: SnackBarBehavior.floating,
+            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+          ),
+        );
+      }
+    } finally {
+      if (mounted) setState(() => _checkoutLoading = false);
+    }
+  }
+
+  void _handlePlanCta(int index) {
+    if (widget.isStandalone && index == 0) {
+      widget.onCompleted?.call();
+    } else if (widget.isStandalone && index >= 1) {
+      _handleStartTrial();
+    } else if (index >= 1 && !_entitlements.isPremium) {
+      _handlePremiumCheckout();
+    } else {
+      _showUpgradeSheet(context, _plans[index], index);
+    }
   }
 
   Future<void> _loadSubscription() async {
@@ -203,6 +237,7 @@ class _BillingPlansContentState extends ConsumerState<BillingPlansContent>
             shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
           ),
         );
+        invalidateMemberCommerce(ref);
         _loadSubscription();
         if (widget.isStandalone) {
           widget.onCompleted?.call();
@@ -909,13 +944,7 @@ class _BillingPlansContentState extends ConsumerState<BillingPlansContent>
                               const SizedBox(height: 12),
                               // CTA Button
                               GestureDetector(
-                                onTap: () {
-                                  if (widget.isStandalone && index == 0) {
-                                    widget.onCompleted?.call();
-                                  } else {
-                                    _showUpgradeSheet(context, plan, index);
-                                  }
-                                },
+                                onTap: () => _handlePlanCta(index),
                                 child: Container(
                                   width: double.infinity,
                                   padding: const EdgeInsets.symmetric(vertical: 12),
@@ -1172,11 +1201,42 @@ class _BillingPlansContentState extends ConsumerState<BillingPlansContent>
   // ─────────────────────────────────────────────
 
   Widget _buildTransactionHistory() {
+    if (_invoicesLoading) {
+      return const DashboardGlassCard(
+        padding: EdgeInsets.all(24),
+        child: Center(
+          child: SizedBox(
+            width: 24,
+            height: 24,
+            child: CircularProgressIndicator(strokeWidth: 2),
+          ),
+        ),
+      );
+    }
+
+    if (_invoices.isEmpty) {
+      return DashboardGlassCard(
+        padding: const EdgeInsets.all(24),
+        child: Center(
+          child: Text(
+            'No billing history yet',
+            style: AppTextStyles.caption.copyWith(color: AppColors.textTertiary),
+          ),
+        ),
+      );
+    }
+
     return DashboardGlassCard(
       padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
       child: Column(
-        children: _transactions.map((tx) {
-          final isPaid = tx['status'] == 'Paid';
+        children: _invoices.map((invoice) {
+          final isPaid = invoice.status.toUpperCase() == 'PAID';
+          final date = invoice.paidAt != null
+              ? '${_monthName(invoice.paidAt!.month)} ${invoice.paidAt!.day}, ${invoice.paidAt!.year}'
+              : '—';
+          final amount = invoice.amountPaid == 0
+              ? '₹0'
+              : '₹${invoice.amountPaid.toStringAsFixed(0)}';
           return Padding(
             padding: const EdgeInsets.symmetric(vertical: 12),
             child: Row(
@@ -1196,7 +1256,7 @@ class _BillingPlansContentState extends ConsumerState<BillingPlansContent>
                     ),
                   ),
                   child: Icon(
-                    tx['icon'] as IconData,
+                    isPaid ? Icons.check_circle_rounded : Icons.circle_outlined,
                     color: isPaid ? const Color(0xFF4ADE80) : AppColors.textTertiary,
                     size: 16,
                   ),
@@ -1207,7 +1267,9 @@ class _BillingPlansContentState extends ConsumerState<BillingPlansContent>
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
                       Text(
-                        tx['title'] as String,
+                        invoice.planName.isNotEmpty
+                            ? invoice.planName
+                            : 'FitForge Plan',
                         style: AppTextStyles.bodyMedium.copyWith(
                           color: AppColors.textPrimary,
                           fontWeight: FontWeight.w600,
@@ -1218,7 +1280,7 @@ class _BillingPlansContentState extends ConsumerState<BillingPlansContent>
                       ),
                       const SizedBox(height: 2),
                       Text(
-                        tx['date'] as String,
+                        date,
                         style: AppTextStyles.caption.copyWith(
                           color: AppColors.textTertiary,
                           fontSize: 10,
@@ -1232,7 +1294,7 @@ class _BillingPlansContentState extends ConsumerState<BillingPlansContent>
                   crossAxisAlignment: CrossAxisAlignment.end,
                   children: [
                     Text(
-                      tx['amount'] as String,
+                      amount,
                       style: AppTextStyles.bodyMedium.copyWith(
                         color: AppColors.textPrimary,
                         fontWeight: FontWeight.w700,
@@ -1249,7 +1311,7 @@ class _BillingPlansContentState extends ConsumerState<BillingPlansContent>
                         borderRadius: BorderRadius.circular(5),
                       ),
                       child: Text(
-                        tx['status'] as String,
+                        isPaid ? 'Paid' : invoice.status,
                         style: AppTextStyles.caption.copyWith(
                           color: isPaid ? const Color(0xFF4ADE80) : AppColors.textTertiary,
                           fontSize: 8,
@@ -1265,6 +1327,14 @@ class _BillingPlansContentState extends ConsumerState<BillingPlansContent>
         }).toList(),
       ),
     );
+  }
+
+  String _monthName(int month) {
+    const months = [
+      'Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun',
+      'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec',
+    ];
+    return months[month - 1];
   }
 
   // ─────────────────────────────────────────────
@@ -1389,7 +1459,9 @@ class _BillingPlansContentState extends ConsumerState<BillingPlansContent>
             GestureDetector(
               onTap: () {
                 Navigator.pop(ctx);
-                if (index == 1) {
+                if (index >= 1 && !_entitlements.isPremium) {
+                  _handlePremiumCheckout();
+                } else if (index == 1) {
                   _handleStartTrial();
                 } else {
                   ScaffoldMessenger.of(context).showSnackBar(

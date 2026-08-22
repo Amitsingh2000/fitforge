@@ -1,88 +1,30 @@
 import 'dart:math' as math;
 import 'package:flutter/material.dart';
 import 'package:flutter_animate/flutter_animate.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
+import '../../models/diet_today.dart';
+import '../../providers/member_flow_providers.dart';
+import '../../services/member_dashboard_service.dart';
 import '../../theme/app_theme.dart';
 import '../../theme/layout.dart';
 import '../widgets/dashboard_glass_card.dart';
 import '../widgets/linear_progress_bar.dart';
+import '../widgets/member_async_value.dart';
 import '../widgets/radial_progress.dart';
+import '../widgets/state_views.dart';
 import 'meal_builder_screen.dart';
 
 /// Diet Plan content — designed to be embedded inside the DashboardShell.
 /// Does NOT have its own Scaffold or bottom nav.
-class DietPlanContent extends StatefulWidget {
+class DietPlanContent extends ConsumerStatefulWidget {
   const DietPlanContent({super.key});
 
   @override
-  State<DietPlanContent> createState() => _DietPlanContentState();
+  ConsumerState<DietPlanContent> createState() => _DietPlanContentState();
 }
 
-class _DietPlanContentState extends State<DietPlanContent> {
-  // Nutrition targets
-  final int _caloriesTarget = 2500;
-  final int _proteinTarget = 140;
-  final int _carbsTarget = 220;
-  final int _fatsTarget = 70;
-
-  // Current consumption
-  int _caloriesConsumed = 0;
-  int _proteinConsumed = 0;
-  int _carbsConsumed = 0;
-  int _fatsConsumed = 0;
-
-  // Meal items list — holds both original items and custom added items
-  final List<Map<String, dynamic>> _mealItems = [
-    {
-      'name': 'Protein Oats Bowl',
-      'icon': '🥣',
-      'calories': 450,
-      'protein': 28,
-      'carbs': 45,
-      'fat': 12,
-      'checked': false,
-      'isCustom': false,
-    },
-    {
-      'name': 'Greek Yogurt Bowl',
-      'icon': '🥛',
-      'calories': 180,
-      'protein': 15,
-      'carbs': 12,
-      'fat': 8,
-      'checked': false,
-      'isCustom': false,
-    },
-    {
-      'name': 'Chicken Rice Bowl',
-      'icon': '🍗',
-      'calories': 620,
-      'protein': 42,
-      'carbs': 55,
-      'fat': 18,
-      'checked': false,
-      'isCustom': false,
-    },
-    {
-      'name': 'Protein Shake',
-      'icon': '🥤',
-      'calories': 220,
-      'protein': 30,
-      'carbs': 8,
-      'fat': 5,
-      'checked': false,
-      'isCustom': false,
-    },
-    {
-      'name': 'Salmon & Quinoa',
-      'icon': '🐟',
-      'calories': 580,
-      'protein': 38,
-      'carbs': 42,
-      'fat': 22,
-      'checked': false,
-      'isCustom': false,
-    },
-  ];
+class _DietPlanContentState extends ConsumerState<DietPlanContent> {
+  bool _actionBusy = false;
 
   // Insights
   final List<Map<String, dynamic>> _insights = [
@@ -103,17 +45,6 @@ class _DietPlanContentState extends State<DietPlanContent> {
     },
   ];
 
-
-  @override
-  void initState() {
-    super.initState();
-  }
-
-  @override
-  void dispose() {
-    super.dispose();
-  }
-
   String get _formattedDate {
     final now = DateTime.now();
     const months = [
@@ -124,54 +55,96 @@ class _DietPlanContentState extends State<DietPlanContent> {
     return '${days[now.weekday - 1]}, ${months[now.month - 1]} ${now.day}';
   }
 
+  bool _hasTrainerPlan(DietToday diet) =>
+      diet.planId != null && diet.meals.isNotEmpty;
+
+  double _macroProgress(double consumed, double target) =>
+      target > 0 ? (consumed / target).clamp(0.0, 1.0) : 0.0;
+
+  Future<void> _toggleMeal(DietMealToday meal) async {
+    if (_actionBusy) return;
+    setState(() => _actionBusy = true);
+    try {
+      await ref.read(memberDashboardServiceProvider).checkMeal(
+            meal.id,
+            checked: !meal.checked,
+          );
+      invalidateDailyLoop(ref);
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text(friendlyApiError(e))),
+        );
+      }
+    } finally {
+      if (mounted) setState(() => _actionBusy = false);
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
-    return CustomScrollView(
-      physics: const BouncingScrollPhysics(),
-      slivers: [
-        // Diet header
-        SliverToBoxAdapter(child: _buildDietHeader()),
-
-        // Content
-        SliverPadding(
-          padding: EdgeInsets.fromLTRB(20, 8, 20, Layout.navClearance(context)),
-          sliver: SliverList(
-            delegate: SliverChildListDelegate([
-              // Combined Nutrition & Meal Tracker Hero
-              _buildCombinedNutritionTracker()
-                  .animate()
-                  .fadeIn(duration: 600.ms, delay: 100.ms)
-                  .slideY(begin: 0.06, end: 0, duration: 600.ms, delay: 100.ms),
-              const SizedBox(height: 24),
-
-              // Combined checklist
-              _buildSectionLabel("TODAY'S FOOD CHECKLIST"),
-              const SizedBox(height: 14),
-              _buildCombinedMealChecklist()
-                  .animate()
-                  .fadeIn(duration: 500.ms, delay: 200.ms)
-                  .slideY(begin: 0.05, end: 0, duration: 500.ms, delay: 200.ms),
-              const SizedBox(height: 20),
-
-              // Generate Meal Button
-              _buildGenerateMealButton()
-                  .animate()
-                  .fadeIn(duration: 500.ms, delay: 250.ms)
-                  .slideY(begin: 0.05, end: 0, duration: 500.ms, delay: 250.ms),
-              const SizedBox(height: 28),
-
-              // Today's AI Coach
-              _buildSectionLabel('AI GUIDANCE'),
-              const SizedBox(height: 10),
-              _buildAICoachSection()
-                  .animate()
-                  .fadeIn(duration: 500.ms, delay: 400.ms)
-                  .slideY(begin: 0.05, end: 0, duration: 500.ms, delay: 400.ms),
-              const SizedBox(height: 20),
-            ]),
+    final dietAsync = ref.watch(dietTodayProvider);
+    return MemberAsyncValue<DietToday>(
+      value: dietAsync,
+      loadingMessage: 'Loading today\'s nutrition…',
+      onRetry: () => ref.invalidate(dietTodayProvider),
+      builder: (diet) => CustomScrollView(
+        physics: const BouncingScrollPhysics(),
+        slivers: [
+          SliverToBoxAdapter(child: _buildDietHeader()),
+          SliverPadding(
+            padding: EdgeInsets.fromLTRB(20, 8, 20, Layout.navClearance(context)),
+            sliver: SliverList(
+              delegate: SliverChildListDelegate([
+                _buildCombinedNutritionTracker(diet)
+                    .animate()
+                    .fadeIn(duration: 600.ms, delay: 100.ms)
+                    .slideY(begin: 0.06, end: 0, duration: 600.ms, delay: 100.ms),
+                const SizedBox(height: 24),
+                _buildSectionLabel("TODAY'S FOOD CHECKLIST"),
+                const SizedBox(height: 14),
+                if (!_hasTrainerPlan(diet))
+                  _buildNoPlanState(diet)
+                      .animate()
+                      .fadeIn(duration: 500.ms, delay: 200.ms)
+                      .slideY(begin: 0.05, end: 0, duration: 500.ms, delay: 200.ms)
+                else
+                  _buildCombinedMealChecklist(diet)
+                      .animate()
+                      .fadeIn(duration: 500.ms, delay: 200.ms)
+                      .slideY(begin: 0.05, end: 0, duration: 500.ms, delay: 200.ms),
+                const SizedBox(height: 20),
+                _buildGenerateMealButton(diet)
+                    .animate()
+                    .fadeIn(duration: 500.ms, delay: 250.ms)
+                    .slideY(begin: 0.05, end: 0, duration: 500.ms, delay: 250.ms),
+                const SizedBox(height: 28),
+                _buildSectionLabel('AI GUIDANCE'),
+                const SizedBox(height: 10),
+                _buildAICoachSection()
+                    .animate()
+                    .fadeIn(duration: 500.ms, delay: 400.ms)
+                    .slideY(begin: 0.05, end: 0, duration: 500.ms, delay: 400.ms),
+                const SizedBox(height: 20),
+              ]),
+            ),
           ),
-        ),
-      ],
+        ],
+      ),
+    );
+  }
+
+  Widget _buildNoPlanState(DietToday diet) {
+    return DashboardGlassCard(
+      padding: const EdgeInsets.symmetric(vertical: 32, horizontal: 24),
+      borderRadius: 24,
+      child: EmptyStateView(
+        icon: Icons.restaurant_menu_rounded,
+        title: 'No trainer plan assigned',
+        subtitle: 'Build your own meal to hit today\'s macro targets.',
+        actionLabel: 'Open Meal Builder',
+        onAction: () => _navigateToMealBuilder(diet),
+      ),
     );
   }
 
@@ -275,10 +248,20 @@ class _DietPlanContentState extends State<DietPlanContent> {
   // COMBINED NUTRITION & MEAL TRACKER HERO
   // ─────────────────────────────────────────────
 
-  Widget _buildCombinedNutritionTracker() {
-    final totalItems = _mealItems.length;
-    final checkedItems = _mealItems.where((item) => item['checked'] == true).length;
+  Widget _buildCombinedNutritionTracker(DietToday diet) {
+    final meals = diet.meals;
+    final totalItems = meals.length;
+    final checkedItems = meals.where((m) => m.checked).length;
     final mealProgress = totalItems > 0 ? (checkedItems / totalItems) : 0.0;
+
+    final caloriesTarget = diet.targets.calories.round();
+    final proteinTarget = diet.targets.protein.round();
+    final carbsTarget = diet.targets.carbs.round();
+    final fatsTarget = diet.targets.fat.round();
+    final caloriesConsumed = diet.consumed.calories.round();
+    final proteinConsumed = diet.consumed.protein.round();
+    final carbsConsumed = diet.consumed.carbs.round();
+    final fatsConsumed = diet.consumed.fat.round();
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -389,33 +372,33 @@ class _DietPlanContentState extends State<DietPlanContent> {
                   _buildRadialMetric(
                     emoji: '🔥',
                     label: 'Calories',
-                    progress: _caloriesConsumed / _caloriesTarget,
-                    current: '$_caloriesConsumed',
-                    target: '$_caloriesTarget',
+                    progress: _macroProgress(diet.consumed.calories, diet.targets.calories),
+                    current: '$caloriesConsumed',
+                    target: '$caloriesTarget',
                     color: AppColors.accentBlue,
                   ),
                   _buildRadialMetric(
                     emoji: '💪',
                     label: 'Protein',
-                    progress: _proteinConsumed / _proteinTarget,
-                    current: '${_proteinConsumed}g',
-                    target: '${_proteinTarget}g',
+                    progress: _macroProgress(diet.consumed.protein, diet.targets.protein),
+                    current: '${proteinConsumed}g',
+                    target: '${proteinTarget}g',
                     color: AppColors.accentBlue,
                   ),
                   _buildRadialMetric(
                     emoji: '🌾',
                     label: 'Carbs',
-                    progress: _carbsConsumed / _carbsTarget,
-                    current: '${_carbsConsumed}g',
-                    target: '${_carbsTarget}g',
+                    progress: _macroProgress(diet.consumed.carbs, diet.targets.carbs),
+                    current: '${carbsConsumed}g',
+                    target: '${carbsTarget}g',
                     color: AppColors.accentPurple,
                   ),
                   _buildRadialMetric(
                     emoji: '🥑',
                     label: 'Fats',
-                    progress: _fatsConsumed / _fatsTarget,
-                    current: '${_fatsConsumed}g',
-                    target: '${_fatsTarget}g',
+                    progress: _macroProgress(diet.consumed.fat, diet.targets.fat),
+                    current: '${fatsConsumed}g',
+                    target: '${fatsTarget}g',
                     color: AppColors.accentCoral,
                   ),
                 ],
@@ -488,9 +471,10 @@ class _DietPlanContentState extends State<DietPlanContent> {
     );
   }
 
-  Widget _buildCombinedMealChecklist() {
-    final totalItems = _mealItems.length;
-    final checkedItems = _mealItems.where((item) => item['checked'] == true).length;
+  Widget _buildCombinedMealChecklist(DietToday diet) {
+    final meals = diet.meals;
+    final totalItems = meals.length;
+    final checkedItems = meals.where((m) => m.checked).length;
 
     return DashboardGlassCard(
       padding: const EdgeInsets.all(18),
@@ -543,179 +527,106 @@ class _DietPlanContentState extends State<DietPlanContent> {
             ],
           ),
           const SizedBox(height: 16),
-          if (_mealItems.isEmpty)
-            Padding(
-              padding: const EdgeInsets.symmetric(vertical: 24),
-              child: Center(
-                child: Text(
-                  "No items added yet. Click 'Generate Meal' to start!",
-                  style: AppTextStyles.bodyMedium.copyWith(
-                    color: AppColors.textTertiary,
-                    fontStyle: FontStyle.italic,
-                  ),
-                ),
+          ListView.separated(
+            shrinkWrap: true,
+            physics: const NeverScrollableScrollPhysics(),
+            itemCount: meals.length,
+            separatorBuilder: (context, index) => Padding(
+              padding: const EdgeInsets.symmetric(vertical: 8),
+              child: Divider(
+                height: 1,
+                thickness: 1,
+                color: AppColors.glassBorder.withValues(alpha: 0.5),
               ),
-            )
-          else
-            ListView.separated(
-              shrinkWrap: true,
-              physics: const NeverScrollableScrollPhysics(),
-              itemCount: _mealItems.length,
-              separatorBuilder: (context, index) => Padding(
-                padding: const EdgeInsets.symmetric(vertical: 8),
-                child: Divider(
-                  height: 1,
-                  thickness: 1,
-                  color: AppColors.glassBorder.withValues(alpha: 0.5),
-                ),
-              ),
-              itemBuilder: (context, index) {
-                final item = _mealItems[index];
-                final isChecked = item['checked'] == true;
-                final isCustom = item['isCustom'] == true;
-
-                final Color itemColor = isCustom ? AppColors.accentCoral : AppColors.accentBlue;
-
-                return GestureDetector(
-                  behavior: HitTestBehavior.opaque,
-                  onTap: () {
-                    setState(() {
-                      item['checked'] = !isChecked;
-                      if (!isChecked) {
-                        _caloriesConsumed += item['calories'] as int;
-                        _proteinConsumed += item['protein'] as int;
-                        _carbsConsumed += item['carbs'] as int;
-                        _fatsConsumed += item['fat'] as int;
-                      } else {
-                        _caloriesConsumed -= item['calories'] as int;
-                        _proteinConsumed -= item['protein'] as int;
-                        _carbsConsumed -= item['carbs'] as int;
-                        _fatsConsumed -= item['fat'] as int;
-                      }
-                    });
-                  },
-                  child: Padding(
-                    padding: const EdgeInsets.symmetric(vertical: 4),
-                    child: Row(
-                      children: [
-                        // Checkbox
-                        AnimatedContainer(
-                          duration: const Duration(milliseconds: 200),
-                          width: 22,
-                          height: 22,
-                          decoration: BoxDecoration(
-                            borderRadius: BorderRadius.circular(6),
-                            color: isChecked
-                                ? const Color(0xFF22C55E).withValues(alpha: 0.15)
-                                : Colors.transparent,
-                            border: Border.all(
-                              color: isChecked
-                                  ? const Color(0xFF22C55E)
-                                  : AppColors.textDisabled,
-                              width: 1.5,
-                            ),
-                          ),
-                          child: isChecked
-                              ? const Icon(
-                                  Icons.check_rounded,
-                                  color: Color(0xFF22C55E),
-                                  size: 14,
-                                )
-                              : null,
-                        ),
-                        const SizedBox(width: 12),
-                        // Emoji
-                        Text(
-                          (item['icon'] as String?) ?? '🍽️',
-                          style: const TextStyle(fontSize: 18),
-                        ),
-                        const SizedBox(width: 10),
-                        // Name and details
-                        Expanded(
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              Row(
-                                children: [
-                                  Flexible(
-                                    child: Text(
-                                      item['name'] as String,
-                                      style: AppTextStyles.labelLarge.copyWith(
-                                        fontSize: 13,
-                                        fontWeight: FontWeight.w600,
-                                        color: isChecked
-                                            ? AppColors.textTertiary
-                                            : AppColors.textPrimary,
-                                        decoration: isChecked ? TextDecoration.lineThrough : null,
-                                        decorationColor: AppColors.textTertiary,
-                                      ),
-                                      maxLines: 1,
-                                      overflow: TextOverflow.ellipsis,
-                                    ),
-                                  ),
-                                  if (isCustom) ...[
-                                    const SizedBox(width: 6),
-                                    Container(
-                                      padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 2),
-                                      decoration: BoxDecoration(
-                                        color: AppColors.accentCoral.withValues(alpha: 0.1),
-                                        borderRadius: BorderRadius.circular(4),
-                                      ),
-                                      child: Text(
-                                        item['quantity'] != null ? '${item['quantity']}x' : 'Added',
-                                        style: AppTextStyles.caption.copyWith(
-                                          color: AppColors.accentCoral,
-                                          fontWeight: FontWeight.w800,
-                                          fontSize: 8,
-                                        ),
-                                      ),
-                                    ),
-                                  ],
-                                ],
-                              ),
-                              if (item['servingSize'] != null) ...[
-                                const SizedBox(height: 2),
-                                Text(
-                                  item['servingSize'] as String,
-                                  style: AppTextStyles.caption.copyWith(
-                                    color: AppColors.textTertiary,
-                                    fontSize: 9,
-                                  ),
-                                ),
-                              ],
-                            ],
-                          ),
-                        ),
-                        const SizedBox(width: 8),
-                        // Macros details
-                        Column(
-                          crossAxisAlignment: CrossAxisAlignment.end,
-                          children: [
-                            Text(
-                              '${item['calories']} cal',
-                              style: AppTextStyles.caption.copyWith(
-                                color: isChecked
-                                    ? const Color(0xFF22C55E).withValues(alpha: 0.7)
-                                    : itemColor,
-                                fontWeight: FontWeight.w700,
-                                fontSize: 11,
-                              ),
-                            ),
-                            Text(
-                              '${item['protein']}g P · ${item['carbs']}g C · ${item['fat']}g F',
-                              style: AppTextStyles.caption.copyWith(
-                                color: AppColors.textSecondary.withValues(alpha: 0.6),
-                                fontSize: 9,
-                              ),
-                            ),
-                          ],
-                        ),
-                      ],
-                    ),
-                  ),
-                );
-              },
             ),
+            itemBuilder: (context, index) {
+              final meal = meals[index];
+              final isChecked = meal.checked;
+              const itemColor = AppColors.accentBlue;
+
+              return GestureDetector(
+                behavior: HitTestBehavior.opaque,
+                onTap: _actionBusy ? null : () => _toggleMeal(meal),
+                child: Padding(
+                  padding: const EdgeInsets.symmetric(vertical: 4),
+                  child: Row(
+                    children: [
+                      AnimatedContainer(
+                        duration: const Duration(milliseconds: 200),
+                        width: 22,
+                        height: 22,
+                        decoration: BoxDecoration(
+                          borderRadius: BorderRadius.circular(6),
+                          color: isChecked
+                              ? const Color(0xFF22C55E).withValues(alpha: 0.15)
+                              : Colors.transparent,
+                          border: Border.all(
+                            color: isChecked
+                                ? const Color(0xFF22C55E)
+                                : AppColors.textDisabled,
+                            width: 1.5,
+                          ),
+                        ),
+                        child: isChecked
+                            ? const Icon(
+                                Icons.check_rounded,
+                                color: Color(0xFF22C55E),
+                                size: 14,
+                              )
+                            : null,
+                      ),
+                      const SizedBox(width: 12),
+                      const Text(
+                        '🍽️',
+                        style: TextStyle(fontSize: 18),
+                      ),
+                      const SizedBox(width: 10),
+                      Expanded(
+                        child: Text(
+                          meal.name,
+                          style: AppTextStyles.labelLarge.copyWith(
+                            fontSize: 13,
+                            fontWeight: FontWeight.w600,
+                            color: isChecked
+                                ? AppColors.textTertiary
+                                : AppColors.textPrimary,
+                            decoration:
+                                isChecked ? TextDecoration.lineThrough : null,
+                            decorationColor: AppColors.textTertiary,
+                          ),
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                        ),
+                      ),
+                      const SizedBox(width: 8),
+                      Column(
+                        crossAxisAlignment: CrossAxisAlignment.end,
+                        children: [
+                          Text(
+                            '${meal.calories.round()} cal',
+                            style: AppTextStyles.caption.copyWith(
+                              color: isChecked
+                                  ? const Color(0xFF22C55E).withValues(alpha: 0.7)
+                                  : itemColor,
+                              fontWeight: FontWeight.w700,
+                              fontSize: 11,
+                            ),
+                          ),
+                          Text(
+                            '${meal.protein.round()}g P · ${meal.carbs.round()}g C · ${meal.fat.round()}g F',
+                            style: AppTextStyles.caption.copyWith(
+                              color: AppColors.textSecondary.withValues(alpha: 0.6),
+                              fontSize: 9,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ],
+                  ),
+                ),
+              );
+            },
+          ),
         ],
       ),
     );
@@ -833,23 +744,35 @@ class _DietPlanContentState extends State<DietPlanContent> {
   // GENERATE MEAL BUTTON & NAVIGATION
   // ─────────────────────────────────────────────
 
-  void _navigateToMealBuilder() async {
-    final remainingCal = (_caloriesTarget - _caloriesConsumed).clamp(0, _caloriesTarget);
-    final remainingProt = (_proteinTarget - _proteinConsumed).clamp(0, _proteinTarget);
-    final remainingCarbs = (_carbsTarget - _carbsConsumed).clamp(0, _carbsTarget);
-    final remainingFats = (_fatsTarget - _fatsConsumed).clamp(0, _fatsTarget);
+  void _navigateToMealBuilder(DietToday diet) async {
+    final caloriesTarget = diet.targets.calories.round();
+    final proteinTarget = diet.targets.protein.round();
+    final carbsTarget = diet.targets.carbs.round();
+    final fatsTarget = diet.targets.fat.round();
+    final caloriesConsumed = diet.consumed.calories.round();
+    final proteinConsumed = diet.consumed.protein.round();
+    final carbsConsumed = diet.consumed.carbs.round();
+    final fatsConsumed = diet.consumed.fat.round();
 
-    final result = await Navigator.of(context).push<Map<String, dynamic>>(
+    final remainingCal =
+        (caloriesTarget - caloriesConsumed).clamp(0, caloriesTarget);
+    final remainingProt =
+        (proteinTarget - proteinConsumed).clamp(0, proteinTarget);
+    final remainingCarbs =
+        (carbsTarget - carbsConsumed).clamp(0, carbsTarget);
+    final remainingFats = (fatsTarget - fatsConsumed).clamp(0, fatsTarget);
+
+    await Navigator.of(context).push<Map<String, dynamic>>(
       PageRouteBuilder(
         pageBuilder: (context, animation, secondaryAnimation) => MealBuilderScreen(
           remainingCalories: remainingCal,
           remainingProtein: remainingProt,
           remainingCarbs: remainingCarbs,
           remainingFats: remainingFats,
-          totalCaloriesTarget: _caloriesTarget,
-          totalProteinTarget: _proteinTarget,
-          totalCarbsTarget: _carbsTarget,
-          totalFatsTarget: _fatsTarget,
+          totalCaloriesTarget: caloriesTarget,
+          totalProteinTarget: proteinTarget,
+          totalCarbsTarget: carbsTarget,
+          totalFatsTarget: fatsTarget,
         ),
         transitionsBuilder: (context, animation, secondaryAnimation, child) {
           return FadeTransition(
@@ -870,30 +793,14 @@ class _DietPlanContentState extends State<DietPlanContent> {
       ),
     );
 
-    if (result != null && mounted) {
-      setState(() {
-        final customItems = result['customItems'] as List<dynamic>;
-        for (var item in customItems) {
-          _mealItems.add({
-            'name': item['name'],
-            'icon': item['emoji'],
-            'calories': item['calories'],
-            'protein': item['protein'],
-            'carbs': item['carbs'],
-            'fat': item['fat'],
-            'checked': false,
-            'isCustom': true,
-            'quantity': item['quantity'],
-            'servingSize': item['servingSize'],
-          });
-        }
-      });
+    if (mounted) {
+      ref.invalidate(dietTodayProvider);
     }
   }
 
-  Widget _buildGenerateMealButton() {
+  Widget _buildGenerateMealButton(DietToday diet) {
     return InteractivePressCard(
-      onTap: _navigateToMealBuilder,
+      onTap: () => _navigateToMealBuilder(diet),
       child: Container(
         width: double.infinity,
         height: 56,

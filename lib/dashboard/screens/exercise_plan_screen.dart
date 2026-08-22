@@ -1,10 +1,17 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_animate/flutter_animate.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../../models/workout_today.dart';
+import '../../providers/auth_provider.dart';
+import '../../providers/member_flow_providers.dart';
 import '../../theme/app_theme.dart';
 import '../../theme/layout.dart';
+import '../utils/workout_mapper.dart';
 import '../widgets/dashboard_glass_card.dart';
 import '../widgets/linear_progress_bar.dart';
+import '../widgets/member_async_value.dart';
+import '../widgets/state_views.dart';
 import 'exercise_detail_screen.dart';
 
 /// Member workout tracker for trainer-assigned and custom workout routines.
@@ -12,240 +19,20 @@ import 'exercise_detail_screen.dart';
 /// Features routine selection, exercise search & category filtering,
 /// live session progress tracking, set count indicators, and seamless navigation
 /// into the full-featured [ExerciseDetailScreen].
-class ExercisePlanContent extends StatefulWidget {
+class ExercisePlanContent extends ConsumerStatefulWidget {
   const ExercisePlanContent({super.key});
 
   @override
-  State<ExercisePlanContent> createState() => _ExercisePlanContentState();
+  ConsumerState<ExercisePlanContent> createState() => _ExercisePlanContentState();
 }
 
-class _ExercisePlanContentState extends State<ExercisePlanContent>
-    with SingleTickerProviderStateMixin {
-  // ── Workout Routines Repository ──
-  static const Map<String, List<WorkoutExercise>> _routines = {
-    'Lower Body Power': [
-      WorkoutExercise(
-        name: 'Barbell Back Squat',
-        detail: 'Strength • Lower body',
-        sets: 4,
-        reps: 8,
-        restSeconds: 90,
-        icon: Icons.fitness_center_rounded,
-        color: AppColors.accentPurple,
-        muscleGroup: 'Quadriceps',
-        difficulty: 'Intermediate',
-        equipment: 'Barbell & Rack',
-        defaultWeight: 75.0,
-        tips: [
-          'Keep your chest up and back straight throughout the movement.',
-          'Push through your heels when standing up.',
-          'Go to parallel or slightly below for full range of motion.',
-          'Brace your core before each rep.',
-        ],
-      ),
-      WorkoutExercise(
-        name: 'Romanian Deadlift',
-        detail: 'Strength • Hamstrings',
-        sets: 3,
-        reps: 10,
-        restSeconds: 90,
-        icon: Icons.keyboard_double_arrow_up_rounded,
-        color: AppColors.accentCyan,
-        muscleGroup: 'Hamstrings',
-        difficulty: 'Intermediate',
-        equipment: 'Barbell',
-        defaultWeight: 60.0,
-        tips: [
-          'Hinge at your hips, not your lower back.',
-          'Keep the bar close to your body at all times.',
-          'Feel the stretch in your hamstrings at the bottom.',
-          'Squeeze your glutes at the top to lock out.',
-        ],
-      ),
-      WorkoutExercise(
-        name: 'Walking Lunges',
-        detail: 'Hypertrophy • Glutes',
-        sets: 3,
-        reps: 12,
-        restSeconds: 60,
-        icon: Icons.directions_walk_rounded,
-        color: AppColors.accentOrange,
-        muscleGroup: 'Glutes',
-        difficulty: 'Beginner',
-        equipment: 'Dumbbells',
-        defaultWeight: 16.0,
-        tips: [
-          'Take long, controlled steps forward.',
-          'Your back knee should almost touch the ground.',
-          'Keep your torso upright, don\'t lean forward.',
-        ],
-      ),
-      WorkoutExercise(
-        name: 'Standing Calf Raise',
-        detail: 'Accessory • Calves',
-        sets: 3,
-        reps: 15,
-        restSeconds: 45,
-        icon: Icons.arrow_upward_rounded,
-        color: AppColors.accentCoral,
-        muscleGroup: 'Calves',
-        difficulty: 'Beginner',
-        equipment: 'Machine / Bodyweight',
-        defaultWeight: 40.0,
-        tips: [
-          'Rise up onto the balls of your feet as high as possible.',
-          'Hold at the top for a 1-second squeeze.',
-          'Lower slowly for a full stretch.',
-        ],
-      ),
-    ],
-    'Upper Body Hypertrophy': [
-      WorkoutExercise(
-        name: 'Incline Bench Press',
-        detail: 'Strength • Upper Chest',
-        sets: 4,
-        reps: 8,
-        restSeconds: 90,
-        icon: Icons.fitness_center_rounded,
-        color: AppColors.accentBlue,
-        muscleGroup: 'Chest',
-        difficulty: 'Intermediate',
-        equipment: 'Incline Bench & Barbell',
-        defaultWeight: 65.0,
-        tips: [
-          'Set bench angle to 30 degrees.',
-          'Control the descent to upper chest.',
-          'Drive straight up without arching back excessively.',
-        ],
-      ),
-      WorkoutExercise(
-        name: 'Lat Pulldown',
-        detail: 'Hypertrophy • Lats',
-        sets: 4,
-        reps: 10,
-        restSeconds: 75,
-        icon: Icons.vertical_align_bottom_rounded,
-        color: AppColors.accentCyan,
-        muscleGroup: 'Back',
-        difficulty: 'Beginner',
-        equipment: 'Cable Machine',
-        defaultWeight: 55.0,
-        tips: [
-          'Pull down to collarbone level.',
-          'Squeeze shoulder blades together at the bottom.',
-          'Avoid swinging your body backward.',
-        ],
-      ),
-      WorkoutExercise(
-        name: 'Dumbbell Shoulder Press',
-        detail: 'Strength • Shoulders',
-        sets: 3,
-        reps: 10,
-        restSeconds: 60,
-        icon: Icons.upload_rounded,
-        color: AppColors.accentOrange,
-        muscleGroup: 'Shoulders',
-        difficulty: 'Intermediate',
-        equipment: 'Dumbbells',
-        defaultWeight: 20.0,
-        tips: [
-          'Keep core tight and lower back flush against seat.',
-          'Press overhead without locking elbows aggressively.',
-        ],
-      ),
-      WorkoutExercise(
-        name: 'Cable Bicep Curl & Tricep Pushdown',
-        detail: 'Superset • Arms',
-        sets: 3,
-        reps: 12,
-        restSeconds: 60,
-        icon: Icons.loop_rounded,
-        color: AppColors.accentPurple,
-        muscleGroup: 'Arms',
-        difficulty: 'Beginner',
-        equipment: 'Cable Machine',
-        defaultWeight: 25.0,
-        tips: [
-          'Keep elbows pinned to your torso.',
-          'Focus on peak contraction on every rep.',
-        ],
-      ),
-    ],
-    'Full Body HIIT & Core': [
-      WorkoutExercise(
-        name: 'Kettlebell Swings',
-        detail: 'Conditioning • Posterior Chain',
-        sets: 4,
-        reps: 20,
-        restSeconds: 45,
-        icon: Icons.bolt_rounded,
-        color: AppColors.accentCoral,
-        muscleGroup: 'Full Body',
-        difficulty: 'Intermediate',
-        equipment: 'Kettlebell',
-        defaultWeight: 20.0,
-        tips: [
-          'Hinge at hips to generate power, don\'t squat.',
-          'Squeeze glutes at top lockout.',
-        ],
-      ),
-      WorkoutExercise(
-        name: 'Hanging Leg Raise',
-        detail: 'Core • Abdominals',
-        sets: 3,
-        reps: 15,
-        restSeconds: 45,
-        icon: Icons.accessibility_new_rounded,
-        color: AppColors.accentPurple,
-        muscleGroup: 'Abs & Core',
-        difficulty: 'Intermediate',
-        equipment: 'Pull-up Bar',
-        defaultWeight: 0.0,
-        tips: [
-          'Avoid swinging momentum; use strict ab engagement.',
-          'Raise legs until hips flex past 90 degrees.',
-        ],
-      ),
-      WorkoutExercise(
-        name: 'Dumbbell Renegade Rows',
-        detail: 'Stability • Back & Core',
-        sets: 3,
-        reps: 10,
-        restSeconds: 60,
-        icon: Icons.shield_rounded,
-        color: AppColors.accentBlue,
-        muscleGroup: 'Core & Back',
-        difficulty: 'Advanced',
-        equipment: 'Dumbbells',
-        defaultWeight: 14.0,
-        tips: [
-          'Widen your foot stance for balance.',
-          'Keep hips parallel to ground throughout row.',
-        ],
-      ),
-    ],
-  };
-
-  // ── State ──
-  String _selectedRoutineKey = 'Lower Body Power';
+class _ExercisePlanContentState extends ConsumerState<ExercisePlanContent> {
   String _selectedCategoryFilter = 'All';
   String _searchQuery = '';
   final TextEditingController _searchController = TextEditingController();
 
-  // Per-exercise completion state keying on (routineName, exerciseIndex)
-  final Map<String, List<bool>> _completionMap = {};
-
-  @override
-  void initState() {
-    super.initState();
-    _initCompletionMap();
-  }
-
-  void _initCompletionMap() {
-    for (final entry in _routines.entries) {
-      _completionMap[entry.key] = List.generate(entry.value.length, (_) => false);
-    }
-  }
+  // Per-exercise completion state keyed by workout entry id.
+  final Map<String, bool> _completionMap = {};
 
   @override
   void dispose() {
@@ -253,54 +40,58 @@ class _ExercisePlanContentState extends State<ExercisePlanContent>
     super.dispose();
   }
 
-  List<WorkoutExercise> get _currentExercises =>
-      _routines[_selectedRoutineKey] ?? [];
+  List<WorkoutExercise> _mappedExercises(WorkoutToday data) =>
+      data.exercises.map(mapWorkoutEntry).toList();
 
-  List<bool> get _currentCompletion =>
-      _completionMap[_selectedRoutineKey] ?? [];
+  bool _isExerciseDone(WorkoutExerciseEntry entry) =>
+      _completionMap[entry.id] ?? false;
 
-  int get _completedCount =>
-      _currentCompletion.where((done) => done).length;
+  int _completedCount(WorkoutToday data) =>
+      data.exercises.where((e) => _isExerciseDone(e)).length;
 
-  double get _overallProgress => _currentExercises.isEmpty
-      ? 0
-      : _completedCount / _currentExercises.length;
+  double _overallProgress(WorkoutToday data) {
+    final total = data.exercises.length;
+    return total == 0 ? 0 : _completedCount(data) / total;
+  }
 
-  bool get _allDone =>
-      _currentExercises.isNotEmpty && _completedCount == _currentExercises.length;
+  bool _allDone(WorkoutToday data) =>
+      data.exercises.isNotEmpty && _completedCount(data) == data.exercises.length;
 
-  int get _totalSets =>
-      _currentExercises.fold(0, (sum, ex) => sum + ex.sets);
+  int _totalSets(WorkoutToday data) =>
+      data.exercises.fold(0, (sum, ex) => sum + (ex.sets ?? 0));
 
-  int get _estMinutes {
+  int _estMinutes(WorkoutToday data) {
     int seconds = 0;
-    for (final ex in _currentExercises) {
-      seconds += ex.sets * 40;
-      seconds += (ex.sets - 1) * ex.restSeconds;
+    for (final ex in data.exercises) {
+      final sets = ex.sets ?? 3;
+      seconds += sets * 40;
+      seconds += (sets - 1) * (ex.restSeconds ?? 60);
     }
     return (seconds / 60).round();
   }
 
-  int get _estVolumeKg {
+  int _estVolumeKg(WorkoutToday data) {
     int total = 0;
-    for (final ex in _currentExercises) {
-      total += (ex.sets * ex.reps * ex.defaultWeight).round();
+    for (final ex in data.exercises) {
+      final mapped = mapWorkoutEntry(ex);
+      total += (mapped.sets * mapped.reps * mapped.defaultWeight).round();
     }
     return total;
   }
 
-  List<String> get _categories {
+  List<String> _categories(WorkoutToday data) {
     final set = <String>{'All'};
-    for (final ex in _currentExercises) {
+    for (final ex in _mappedExercises(data)) {
       set.add(ex.muscleGroup);
     }
     return set.toList();
   }
 
-  List<int> get _filteredIndices {
+  List<int> _filteredIndices(WorkoutToday data) {
+    final exercises = _mappedExercises(data);
     final list = <int>[];
-    for (int i = 0; i < _currentExercises.length; i++) {
-      final ex = _currentExercises[i];
+    for (int i = 0; i < exercises.length; i++) {
+      final ex = exercises[i];
       final matchesCategory = _selectedCategoryFilter == 'All' ||
           ex.muscleGroup == _selectedCategoryFilter;
       final matchesSearch = _searchQuery.isEmpty ||
@@ -311,6 +102,13 @@ class _ExercisePlanContentState extends State<ExercisePlanContent>
       }
     }
     return list;
+  }
+
+  bool _hasActiveGymMembership() {
+    final user = ref.read(authProvider).user;
+    return user?.gymMemberships
+            .any((m) => m.status.toUpperCase() == 'ACTIVE') ??
+        false;
   }
 
   String get _formattedDate {
@@ -326,8 +124,9 @@ class _ExercisePlanContentState extends State<ExercisePlanContent>
     return '${days[now.weekday - 1]}, ${now.day} ${months[now.month - 1]}';
   }
 
-  void _openExercise(int index) async {
-    final exercise = _currentExercises[index];
+  void _openExercise(WorkoutToday data, int index) async {
+    final entry = data.exercises[index];
+    final exercise = mapWorkoutEntry(entry);
     await Navigator.of(context).push(
       PageRouteBuilder(
         pageBuilder: (context, animation, secondaryAnimation) =>
@@ -353,56 +152,81 @@ class _ExercisePlanContentState extends State<ExercisePlanContent>
     );
     if (mounted) {
       setState(() {
-        _currentCompletion[index] = true;
+        _completionMap[entry.id] = true;
       });
     }
   }
 
-  // ──────────────────────────────────────────────────────────────
-  // BUILD
-  // ──────────────────────────────────────────────────────────────
-
   @override
   Widget build(BuildContext context) {
+    final workoutAsync = ref.watch(workoutTodayProvider);
+    return MemberAsyncValue<WorkoutToday>(
+      value: workoutAsync,
+      loadingMessage: 'Loading today\'s workout…',
+      onRetry: () => ref.invalidate(workoutTodayProvider),
+      builder: (data) {
+        if (data.workout == null) {
+          return _buildNoWorkoutView();
+        }
+        return _buildWorkoutView(data);
+      },
+    );
+  }
+
+  Widget _buildNoWorkoutView() {
+    final isGymMember = _hasActiveGymMembership();
     return CustomScrollView(
       physics: const BouncingScrollPhysics(),
       slivers: [
         SliverToBoxAdapter(child: _buildHeader()),
+        SliverFillRemaining(
+          hasScrollBody: false,
+          child: EmptyStateView(
+            icon: Icons.fitness_center_rounded,
+            title: isGymMember
+                ? 'No workout assigned today'
+                : 'No workout scheduled',
+            subtitle: isGymMember
+                ? 'Your trainer hasn\'t assigned a session for today yet. Check back later or message your coach.'
+                : 'You don\'t have a trainer plan yet. Browse workouts or ask a coach to get started.',
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildWorkoutView(WorkoutToday data) {
+    final filtered = _filteredIndices(data);
+    final completedCount = _completedCount(data);
+    final workoutTitle = data.workout!.title;
+
+    return CustomScrollView(
+      physics: const BouncingScrollPhysics(),
+      slivers: [
+        SliverToBoxAdapter(child: _buildHeader(workoutTitle: workoutTitle)),
         SliverPadding(
           padding: EdgeInsets.fromLTRB(20, 8, 20, Layout.navClearance(context)),
           sliver: SliverList(
             delegate: SliverChildListDelegate([
-              // Routine selector bar
-              _buildRoutineSelectorBar()
-                  .animate()
-                  .fadeIn(duration: 400.ms)
-                  .slideY(begin: 0.04, end: 0),
-              const SizedBox(height: 14),
-
-              // Progress Hero Card (styled like Meal Plan progress)
-              _buildProgressHeroCard()
+              _buildProgressHeroCard(data)
                   .animate()
                   .fadeIn(duration: 450.ms, delay: 50.ms)
                   .slideY(begin: 0.04, end: 0),
               const SizedBox(height: 20),
-
-              // Search & Muscle Group Filter pills
-              _buildSearchAndFilters()
+              _buildSearchAndFilters(data)
                   .animate()
                   .fadeIn(duration: 400.ms, delay: 140.ms),
               const SizedBox(height: 16),
-
-              // Section Label
               Row(
                 mainAxisAlignment: MainAxisAlignment.spaceBetween,
                 children: [
-                  _sectionLabel('ASSIGNED EXERCISES (${_filteredIndices.length})'),
-                  if (_completedCount > 0)
+                  _sectionLabel('ASSIGNED EXERCISES (${filtered.length})'),
+                  if (completedCount > 0)
                     TextButton(
                       onPressed: () {
                         setState(() {
-                          for (int i = 0; i < _currentCompletion.length; i++) {
-                            _currentCompletion[i] = false;
+                          for (final entry in data.exercises) {
+                            _completionMap.remove(entry.id);
                           }
                         });
                       },
@@ -412,37 +236,38 @@ class _ExercisePlanContentState extends State<ExercisePlanContent>
                         tapTargetSize: MaterialTapTargetSize.shrinkWrap,
                         foregroundColor: AppColors.textTertiary,
                       ),
-                      child: Text('Reset Progress',
-                          style: AppTextStyles.caption
-                              .copyWith(color: AppColors.textTertiary, fontSize: 11)),
+                      child: Text(
+                        'Reset Progress',
+                        style: AppTextStyles.caption.copyWith(
+                          color: AppColors.textTertiary,
+                          fontSize: 11,
+                        ),
+                      ),
                     ),
                 ],
               ),
               const SizedBox(height: 10),
-
-              // Exercises List
-              if (_filteredIndices.isEmpty)
+              if (filtered.isEmpty)
                 _buildEmptySearchState()
               else
-                ..._filteredIndices.map((index) {
+                ...filtered.map((index) {
                   return Padding(
                     padding: const EdgeInsets.only(bottom: 12),
-                    child: _buildExerciseCard(index)
+                    child: _buildExerciseCard(data, index)
                         .animate(delay: (index * 55 + 160).ms)
                         .fadeIn(duration: 350.ms)
                         .slideY(begin: 0.04, end: 0),
                   );
                 }),
-
-              // All Done Celebration Banner
-              if (_allDone) ...[
+              if (_allDone(data)) ...[
                 const SizedBox(height: 8),
-                _buildAllDoneBanner()
+                _buildAllDoneBanner(workoutTitle)
                     .animate()
                     .fadeIn(duration: 500.ms)
                     .scale(
-                        begin: const Offset(0.95, 0.95),
-                        end: const Offset(1, 1)),
+                      begin: const Offset(0.95, 0.95),
+                      end: const Offset(1, 1),
+                    ),
               ],
             ]),
           ),
@@ -451,9 +276,7 @@ class _ExercisePlanContentState extends State<ExercisePlanContent>
     );
   }
 
-  // ─── HEADER ───
-
-  Widget _buildHeader() {
+  Widget _buildHeader({String? workoutTitle}) {
     return Padding(
       padding: const EdgeInsets.fromLTRB(20, 12, 20, 8),
       child: Row(
@@ -474,9 +297,11 @@ class _ExercisePlanContentState extends State<ExercisePlanContent>
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Text(
-                  'Workout & Exercise',
+                  workoutTitle ?? 'Workout & Exercise',
                   style: AppTextStyles.titleMedium
                       .copyWith(fontWeight: FontWeight.w700),
+                  maxLines: 2,
+                  overflow: TextOverflow.ellipsis,
                 ),
                 const SizedBox(height: 2),
                 Text(_formattedDate, style: AppTextStyles.caption),
@@ -514,59 +339,10 @@ class _ExercisePlanContentState extends State<ExercisePlanContent>
     );
   }
 
-  // ─── ROUTINE SELECTOR BAR ───
-
-  Widget _buildRoutineSelectorBar() {
-    final routinesList = _routines.keys.toList();
-    return SizedBox(
-      height: 38,
-      child: ListView.separated(
-        scrollDirection: Axis.horizontal,
-        itemCount: routinesList.length,
-        separatorBuilder: (_, __) => const SizedBox(width: 8),
-        itemBuilder: (context, i) {
-          final name = routinesList[i];
-          final isSelected = name == _selectedRoutineKey;
-          return InkWell(
-            onTap: () {
-              setState(() {
-                _selectedRoutineKey = name;
-                _selectedCategoryFilter = 'All';
-              });
-            },
-            borderRadius: BorderRadius.circular(12),
-            child: AnimatedContainer(
-              duration: const Duration(milliseconds: 200),
-              padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
-              decoration: BoxDecoration(
-                color: isSelected
-                    ? AppColors.accentBlue
-                    : AppColors.bgSecondary.withValues(alpha: 0.6),
-                borderRadius: BorderRadius.circular(12),
-                border: Border.all(
-                  color: isSelected
-                      ? AppColors.accentBlue
-                      : AppColors.glassBorder,
-                ),
-              ),
-              child: Text(
-                name,
-                style: AppTextStyles.caption.copyWith(
-                  color: isSelected ? Colors.white : AppColors.textSecondary,
-                  fontWeight: isSelected ? FontWeight.w700 : FontWeight.w500,
-                  fontSize: 12,
-                ),
-              ),
-            ),
-          );
-        },
-      ),
-    );
-  }
-
-  // ─── PROGRESS HERO CARD (MATCHING MEAL PLAN PROGRESS) ───
-
-  Widget _buildProgressHeroCard() {
+  Widget _buildProgressHeroCard(WorkoutToday data) {
+    final workoutTitle = data.workout!.title;
+    final completedCount = _completedCount(data);
+    final overallProgress = _overallProgress(data);
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
@@ -629,7 +405,7 @@ class _ExercisePlanContentState extends State<ExercisePlanContent>
                       ),
                       const SizedBox(height: 2),
                       Text(
-                        '$_completedCount of ${_currentExercises.length} exercises done',
+                        '$completedCount of ${data.exercises.length} exercises done',
                         style: AppTextStyles.caption.copyWith(
                           color: AppColors.textTertiary,
                           fontSize: 11,
@@ -644,7 +420,7 @@ class _ExercisePlanContentState extends State<ExercisePlanContent>
                       borderRadius: BorderRadius.circular(8),
                     ),
                     child: Text(
-                      '${(_overallProgress * 100).round()}%',
+                      '${(overallProgress * 100).round()}%',
                       style: AppTextStyles.caption.copyWith(
                         color: AppColors.accentBlue,
                         fontWeight: FontWeight.w700,
@@ -657,7 +433,7 @@ class _ExercisePlanContentState extends State<ExercisePlanContent>
 
               // Progress Bar
               LinearProgressBar(
-                progress: _overallProgress,
+                progress: overallProgress,
                 color: AppColors.accentBlue,
                 height: 4,
               ),
@@ -675,10 +451,10 @@ class _ExercisePlanContentState extends State<ExercisePlanContent>
               Row(
                 mainAxisAlignment: MainAxisAlignment.spaceBetween,
                 children: [
-                  _progressMetric('Routine', _selectedRoutineKey, AppColors.accentBlue),
-                  _progressMetric('Total Sets', '$_totalSets', AppColors.accentPurple),
-                  _progressMetric('Est Volume', '$_estVolumeKg kg', AppColors.accentCyan),
-                  _progressMetric('Duration', '~$_estMinutes min', AppColors.accentOrange),
+                  _progressMetric('Routine', workoutTitle, AppColors.accentBlue),
+                  _progressMetric('Total Sets', '${_totalSets(data)}', AppColors.accentPurple),
+                  _progressMetric('Est Volume', '${_estVolumeKg(data)} kg', AppColors.accentCyan),
+                  _progressMetric('Duration', '~${_estMinutes(data)} min', AppColors.accentOrange),
                 ],
               ),
             ],
@@ -715,7 +491,8 @@ class _ExercisePlanContentState extends State<ExercisePlanContent>
 
   // ─── SEARCH & FILTER PILLS ───
 
-  Widget _buildSearchAndFilters() {
+  Widget _buildSearchAndFilters(WorkoutToday data) {
+    final categories = _categories(data);
     return Column(
       children: [
         Container(
@@ -755,10 +532,10 @@ class _ExercisePlanContentState extends State<ExercisePlanContent>
           height: 32,
           child: ListView.separated(
             scrollDirection: Axis.horizontal,
-            itemCount: _categories.length,
-            separatorBuilder: (_, __) => const SizedBox(width: 6),
+            itemCount: categories.length,
+            separatorBuilder: (_, _) => const SizedBox(width: 6),
             itemBuilder: (ctx, i) {
-              final cat = _categories[i];
+              final cat = categories[i];
               final isSel = cat == _selectedCategoryFilter;
               return ChoiceChip(
                 label: Text(cat),
@@ -791,9 +568,10 @@ class _ExercisePlanContentState extends State<ExercisePlanContent>
 
   // ─── EXERCISE CARD ───
 
-  Widget _buildExerciseCard(int index) {
-    final exercise = _currentExercises[index];
-    final isDone = _currentCompletion[index];
+  Widget _buildExerciseCard(WorkoutToday data, int index) {
+    final entry = data.exercises[index];
+    final exercise = mapWorkoutEntry(entry);
+    final isDone = _isExerciseDone(entry);
 
     return DashboardGlassCard(
       borderRadius: 20,
@@ -801,7 +579,7 @@ class _ExercisePlanContentState extends State<ExercisePlanContent>
       borderColor: isDone
           ? const Color(0xFF22C55E).withValues(alpha: 0.35)
           : null,
-      onTap: () => _openExercise(index),
+      onTap: () => _openExercise(data, index),
       child: Column(
         children: [
           Container(
@@ -1025,7 +803,7 @@ class _ExercisePlanContentState extends State<ExercisePlanContent>
 
   // ─── ALL DONE CELEBRATION BANNER ───
 
-  Widget _buildAllDoneBanner() {
+  Widget _buildAllDoneBanner(String workoutTitle) {
     return DashboardGlassCard(
       borderRadius: 22,
       padding: const EdgeInsets.all(20),
@@ -1065,7 +843,7 @@ class _ExercisePlanContentState extends State<ExercisePlanContent>
           ),
           const SizedBox(height: 6),
           Text(
-            'You completed all exercises for $_selectedRoutineKey! +150 XP earned.',
+            'You completed all exercises for $workoutTitle! +150 XP earned.',
             style: AppTextStyles.bodyMedium.copyWith(fontSize: 12),
             textAlign: TextAlign.center,
           ),

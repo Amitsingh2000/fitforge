@@ -1,46 +1,29 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_animate/flutter_animate.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
+import '../../models/food_item.dart';
+import '../../providers/member_flow_providers.dart';
+import '../../services/nutrition_service.dart';
 import '../../theme/app_theme.dart';
 import '../widgets/dashboard_glass_card.dart';
+import '../widgets/premium_gate.dart';
+import '../widgets/state_views.dart';
 
-/// Data model for a single food item in the catalog.
-class FoodItem {
-  final String name;
-  final String emoji;
-  final String category;
-  final int caloriesPerServing;
-  final int proteinPerServing;
-  final int carbsPerServing;
-  final int fatPerServing;
-  final String servingSize;
-
-  const FoodItem({
-    required this.name,
-    required this.emoji,
-    required this.category,
-    required this.caloriesPerServing,
-    required this.proteinPerServing,
-    required this.carbsPerServing,
-    required this.fatPerServing,
-    required this.servingSize,
-  });
-}
-
-/// Data model for a cart entry (food item + quantity).
+/// Cart entry tying a catalog [FoodItem] to a quantity.
 class CartEntry {
   final FoodItem item;
   int quantity;
 
   CartEntry({required this.item, this.quantity = 1});
 
-  int get totalCalories => item.caloriesPerServing * quantity;
-  int get totalProtein => item.proteinPerServing * quantity;
-  int get totalCarbs => item.carbsPerServing * quantity;
-  int get totalFat => item.fatPerServing * quantity;
+  int get totalCalories => item.calories * quantity;
+  int get totalProtein => item.proteinG.round() * quantity;
+  int get totalCarbs => item.carbsG.round() * quantity;
+  int get totalFat => item.fatG.round() * quantity;
 }
 
 /// Meal Builder Screen — full-screen cart-based meal customization.
-class MealBuilderScreen extends StatefulWidget {
+class MealBuilderScreen extends ConsumerStatefulWidget {
   final int remainingCalories;
   final int remainingProtein;
   final int remainingCarbs;
@@ -63,10 +46,10 @@ class MealBuilderScreen extends StatefulWidget {
   });
 
   @override
-  State<MealBuilderScreen> createState() => _MealBuilderScreenState();
+  ConsumerState<MealBuilderScreen> createState() => _MealBuilderScreenState();
 }
 
-class _MealBuilderScreenState extends State<MealBuilderScreen>
+class _MealBuilderScreenState extends ConsumerState<MealBuilderScreen>
     with TickerProviderStateMixin {
   // ── Categories ──
   static const List<Map<String, dynamic>> _categories = [
@@ -79,45 +62,55 @@ class _MealBuilderScreenState extends State<MealBuilderScreen>
     {'name': 'Snacks', 'emoji': '🥜', 'color': Color(0xFFEAB308)},
   ];
 
-  // ── Food Catalog ──
-  static const List<FoodItem> _foodCatalog = [
-    // Proteins
-    FoodItem(name: 'Grilled Chicken', emoji: '🍗', category: 'Proteins', caloriesPerServing: 165, proteinPerServing: 31, carbsPerServing: 0, fatPerServing: 4, servingSize: '100g'),
-    FoodItem(name: 'Boiled Eggs', emoji: '🥚', category: 'Proteins', caloriesPerServing: 155, proteinPerServing: 13, carbsPerServing: 1, fatPerServing: 11, servingSize: '2 eggs'),
-    FoodItem(name: 'Paneer', emoji: '🧀', category: 'Proteins', caloriesPerServing: 265, proteinPerServing: 18, carbsPerServing: 1, fatPerServing: 21, servingSize: '100g'),
-    FoodItem(name: 'Tofu', emoji: '🫘', category: 'Proteins', caloriesPerServing: 76, proteinPerServing: 8, carbsPerServing: 2, fatPerServing: 5, servingSize: '100g'),
-    FoodItem(name: 'Fish Fillet', emoji: '🐟', category: 'Proteins', caloriesPerServing: 206, proteinPerServing: 22, carbsPerServing: 0, fatPerServing: 12, servingSize: '100g'),
-    FoodItem(name: 'Whey Protein', emoji: '🥤', category: 'Proteins', caloriesPerServing: 120, proteinPerServing: 24, carbsPerServing: 3, fatPerServing: 1, servingSize: '1 scoop'),
-    // Grains
-    FoodItem(name: 'Brown Rice', emoji: '🍚', category: 'Grains', caloriesPerServing: 216, proteinPerServing: 5, carbsPerServing: 45, fatPerServing: 2, servingSize: '1 cup'),
-    FoodItem(name: 'Oats', emoji: '🥣', category: 'Grains', caloriesPerServing: 154, proteinPerServing: 5, carbsPerServing: 27, fatPerServing: 3, servingSize: '1/2 cup'),
-    FoodItem(name: 'Whole Wheat Roti', emoji: '🫓', category: 'Grains', caloriesPerServing: 120, proteinPerServing: 4, carbsPerServing: 22, fatPerServing: 2, servingSize: '1 roti'),
-    FoodItem(name: 'Quinoa', emoji: '🌿', category: 'Grains', caloriesPerServing: 222, proteinPerServing: 8, carbsPerServing: 39, fatPerServing: 4, servingSize: '1 cup'),
-    // Vegetables
-    FoodItem(name: 'Broccoli', emoji: '🥦', category: 'Vegetables', caloriesPerServing: 55, proteinPerServing: 4, carbsPerServing: 11, fatPerServing: 1, servingSize: '1 cup'),
-    FoodItem(name: 'Spinach', emoji: '🥬', category: 'Vegetables', caloriesPerServing: 23, proteinPerServing: 3, carbsPerServing: 4, fatPerServing: 0, servingSize: '1 cup'),
-    FoodItem(name: 'Sweet Potato', emoji: '🍠', category: 'Vegetables', caloriesPerServing: 103, proteinPerServing: 2, carbsPerServing: 24, fatPerServing: 0, servingSize: '1 medium'),
-    FoodItem(name: 'Mixed Salad', emoji: '🥗', category: 'Vegetables', caloriesPerServing: 45, proteinPerServing: 2, carbsPerServing: 8, fatPerServing: 1, servingSize: '1 bowl'),
-    // Fruits
-    FoodItem(name: 'Banana', emoji: '🍌', category: 'Fruits', caloriesPerServing: 105, proteinPerServing: 1, carbsPerServing: 27, fatPerServing: 0, servingSize: '1 medium'),
-    FoodItem(name: 'Apple', emoji: '🍎', category: 'Fruits', caloriesPerServing: 95, proteinPerServing: 0, carbsPerServing: 25, fatPerServing: 0, servingSize: '1 medium'),
-    FoodItem(name: 'Mixed Berries', emoji: '🫐', category: 'Fruits', caloriesPerServing: 70, proteinPerServing: 1, carbsPerServing: 17, fatPerServing: 0, servingSize: '1 cup'),
-    FoodItem(name: 'Mango', emoji: '🥭', category: 'Fruits', caloriesPerServing: 99, proteinPerServing: 1, carbsPerServing: 25, fatPerServing: 1, servingSize: '1 cup'),
-    // Dairy
-    FoodItem(name: 'Greek Yogurt', emoji: '🥛', category: 'Dairy', caloriesPerServing: 100, proteinPerServing: 17, carbsPerServing: 6, fatPerServing: 1, servingSize: '170g'),
-    FoodItem(name: 'Whole Milk', emoji: '🥛', category: 'Dairy', caloriesPerServing: 149, proteinPerServing: 8, carbsPerServing: 12, fatPerServing: 8, servingSize: '1 cup'),
-    FoodItem(name: 'Cottage Cheese', emoji: '🧀', category: 'Dairy', caloriesPerServing: 206, proteinPerServing: 28, carbsPerServing: 6, fatPerServing: 9, servingSize: '1 cup'),
-    // Snacks
-    FoodItem(name: 'Almonds', emoji: '🌰', category: 'Snacks', caloriesPerServing: 164, proteinPerServing: 6, carbsPerServing: 6, fatPerServing: 14, servingSize: '1 oz'),
-    FoodItem(name: 'Protein Bar', emoji: '🍫', category: 'Snacks', caloriesPerServing: 200, proteinPerServing: 20, carbsPerServing: 22, fatPerServing: 7, servingSize: '1 bar'),
-    FoodItem(name: 'Peanut Butter', emoji: '🥜', category: 'Snacks', caloriesPerServing: 188, proteinPerServing: 8, carbsPerServing: 6, fatPerServing: 16, servingSize: '2 tbsp'),
-  ];
+  List<FoodItem> _foodCatalog = [];
+  bool _catalogLoading = true;
+  Object? _catalogError;
 
   int _selectedCategoryIndex = 0;
   final List<CartEntry> _cart = [];
   bool _hasShownCelebration = false;
+  bool _saving = false;
+  bool _aiLoading = false;
 
   late AnimationController _celebrationController;
+
+  String _emojiForCategory(String? category) {
+    return switch (category) {
+      'Proteins' => '🥩',
+      'Grains' => '🌾',
+      'Vegetables' => '🥦',
+      'Fruits' => '🍎',
+      'Dairy' => '🥛',
+      'Snacks' => '🥜',
+      _ => '🍽️',
+    };
+  }
+
+  String _servingLabel(FoodItem item) => item.servingUnit ?? '1 serving';
+
+  Future<void> _loadCatalog() async {
+    setState(() {
+      _catalogLoading = true;
+      _catalogError = null;
+    });
+    try {
+      final category = _categories[_selectedCategoryIndex]['name'] as String;
+      final result = await ref.read(nutritionServiceProvider).listFoodItems(
+            category: category == 'All' ? null : category,
+          );
+      if (!mounted) return;
+      setState(() {
+        _foodCatalog = result.items;
+        _catalogLoading = false;
+      });
+    } catch (e) {
+      if (!mounted) return;
+      setState(() {
+        _catalogError = e;
+        _catalogLoading = false;
+      });
+    }
+  }
 
   @override
   void initState() {
@@ -126,6 +119,7 @@ class _MealBuilderScreenState extends State<MealBuilderScreen>
       vsync: this,
       duration: const Duration(milliseconds: 1500),
     );
+    _loadCatalog();
   }
 
   @override
@@ -178,22 +172,22 @@ class _MealBuilderScreenState extends State<MealBuilderScreen>
       final double fWeight = remFat / totalRem;
 
       list.sort((a, b) {
-        final double scoreA = (a.proteinPerServing * pWeight) + (a.carbsPerServing * cWeight) + (a.fatPerServing * fWeight);
-        final double scoreB = (b.proteinPerServing * pWeight) + (b.carbsPerServing * cWeight) + (b.fatPerServing * fWeight);
-        return scoreB.compareTo(scoreA); // Bubble up items containing what is most needed
+        final double scoreA = (a.proteinG * pWeight) + (a.carbsG * cWeight) + (a.fatG * fWeight);
+        final double scoreB = (b.proteinG * pWeight) + (b.carbsG * cWeight) + (b.fatG * fWeight);
+        return scoreB.compareTo(scoreA);
       });
     }
     return list;
   }
 
   int _getCartQuantity(FoodItem item) {
-    final entry = _cart.where((e) => e.item.name == item.name).firstOrNull;
+    final entry = _cart.where((e) => e.item.id == item.id).firstOrNull;
     return entry?.quantity ?? 0;
   }
 
   void _addToCart(FoodItem item) {
     setState(() {
-      final existing = _cart.where((e) => e.item.name == item.name).firstOrNull;
+      final existing = _cart.where((e) => e.item.id == item.id).firstOrNull;
       if (existing != null) {
         existing.quantity++;
       } else {
@@ -205,12 +199,12 @@ class _MealBuilderScreenState extends State<MealBuilderScreen>
 
   void _removeFromCart(FoodItem item) {
     setState(() {
-      final existing = _cart.where((e) => e.item.name == item.name).firstOrNull;
+      final existing = _cart.where((e) => e.item.id == item.id).firstOrNull;
       if (existing != null) {
         if (existing.quantity > 1) {
           existing.quantity--;
         } else {
-          _cart.removeWhere((e) => e.item.name == item.name);
+          _cart.removeWhere((e) => e.item.id == item.id);
         }
       }
     });
@@ -241,51 +235,169 @@ class _MealBuilderScreenState extends State<MealBuilderScreen>
     );
   }
 
-  void _createMealAndReturn() {
-    if (_cart.isEmpty) return;
+  Future<void> _createMealAndReturn() async {
+    if (_cart.isEmpty || _saving) return;
 
-    // Build the meal data map to return
-    final totalCal = _cartCalories;
-    final totalProt = _cartProtein;
-    final totalCarb = _cartCarbs;
-    final totalFt = _cartFat;
-
-    final items = _cart.map((e) => {
-      'name': e.item.name,
-      'emoji': e.item.emoji,
-      'quantity': e.quantity,
-      'calories': e.totalCalories,
-      'protein': e.totalProtein,
-      'carbs': e.totalCarbs,
-      'fat': e.totalFat,
-      'servingSize': e.item.servingSize,
-      'checked': false,
-    }).toList();
-
-    final mealData = {
-      'type': 'Custom Meal',
-      'time': _currentTimeString(),
-      'name': 'My Custom Meal',
-      'icon': '🍽️',
-      'calories': totalCal,
-      'protein': totalProt,
-      'carbs': totalCarb,
-      'fat': totalFt,
-      'eaten': false,
-      'isCustom': true,
-      'customItems': items,
-      'ingredients': items.map((i) => '${i['quantity']}x ${i['name']}').toList(),
-    };
-
-    Navigator.of(context).pop(mealData);
+    setState(() => _saving = true);
+    try {
+      await ref.read(nutritionServiceProvider).createCustomMeal(
+            name: 'My Custom Meal',
+            items: _cart
+                .map((e) => {
+                      'foodItemId': e.item.id,
+                      'quantity': e.quantity,
+                    })
+                .toList(),
+            logToToday: true,
+          );
+      invalidateDailyLoop(ref);
+      if (mounted) Navigator.of(context).pop();
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text(friendlyApiError(e))),
+        );
+      }
+    } finally {
+      if (mounted) setState(() => _saving = false);
+    }
   }
 
-  String _currentTimeString() {
-    final now = TimeOfDay.now();
-    final hour = now.hourOfPeriod == 0 ? 12 : now.hourOfPeriod;
-    final minute = now.minute.toString().padLeft(2, '0');
-    final period = now.period == DayPeriod.am ? 'AM' : 'PM';
-    return '$hour:$minute $period';
+  int get _remainingCalAfterCart =>
+      (widget.remainingCalories - _cartCalories).clamp(0, widget.remainingCalories);
+  int get _remainingProtAfterCart =>
+      (widget.remainingProtein - _cartProtein).clamp(0, widget.remainingProtein);
+  int get _remainingCarbsAfterCart =>
+      (widget.remainingCarbs - _cartCarbs).clamp(0, widget.remainingCarbs);
+  int get _remainingFatAfterCart =>
+      (widget.remainingFats - _cartFat).clamp(0, widget.remainingFats);
+
+  Future<void> _generateAiMeals() async {
+    if (_aiLoading) return;
+    setState(() => _aiLoading = true);
+    try {
+      final result = await ref.read(nutritionServiceProvider).generateMeals(
+            remainingCalories: _remainingCalAfterCart,
+            remainingProtein: _remainingProtAfterCart,
+            remainingCarbs: _remainingCarbsAfterCart,
+            remainingFat: _remainingFatAfterCart,
+          );
+      if (mounted) _showAiSuggestionsSheet(result);
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text(friendlyApiError(e))),
+        );
+      }
+    } finally {
+      if (mounted) setState(() => _aiLoading = false);
+    }
+  }
+
+  void _showAiSuggestionsSheet(AiMealGenerationResult result) {
+    showModalBottomSheet<void>(
+      context: context,
+      backgroundColor: AppColors.bgSecondary,
+      isScrollControlled: true,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
+      ),
+      builder: (ctx) => DraggableScrollableSheet(
+        expand: false,
+        initialChildSize: 0.55,
+        minChildSize: 0.35,
+        maxChildSize: 0.85,
+        builder: (_, scrollController) => Padding(
+          padding: const EdgeInsets.fromLTRB(20, 12, 20, 24),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Center(
+                child: Container(
+                  width: 40,
+                  height: 4,
+                  decoration: BoxDecoration(
+                    color: AppColors.glassBorder,
+                    borderRadius: BorderRadius.circular(2),
+                  ),
+                ),
+              ),
+              const SizedBox(height: 16),
+              Text(
+                'AI Meal Suggestions',
+                style: AppTextStyles.titleMedium.copyWith(fontWeight: FontWeight.w800),
+              ),
+              const SizedBox(height: 4),
+              Text(
+                'Based on your remaining macros for today',
+                style: AppTextStyles.caption.copyWith(color: AppColors.textTertiary),
+              ),
+              const SizedBox(height: 16),
+              Expanded(
+                child: result.suggestions.isEmpty
+                    ? Center(
+                        child: Text(
+                          'No suggestions available right now.',
+                          style: AppTextStyles.bodyMedium.copyWith(
+                            color: AppColors.textTertiary,
+                          ),
+                        ),
+                      )
+                    : ListView.builder(
+                        controller: scrollController,
+                        itemCount: result.suggestions.length,
+                        itemBuilder: (_, index) {
+                          final s = result.suggestions[index];
+                          return Padding(
+                            padding: const EdgeInsets.only(bottom: 12),
+                            child: DashboardGlassCard(
+                              padding: const EdgeInsets.all(14),
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  Text(
+                                    s.name,
+                                    style: AppTextStyles.labelLarge.copyWith(
+                                      fontWeight: FontWeight.w700,
+                                    ),
+                                  ),
+                                  const SizedBox(height: 8),
+                                  Wrap(
+                                    spacing: 6,
+                                    runSpacing: 6,
+                                    children: [
+                                      _buildMacroPill('${s.calories} cal', AppColors.accentBlue),
+                                      _buildMacroPill('${s.proteinG}g P', AppColors.accentCoral),
+                                      _buildMacroPill('${s.carbsG}g C', AppColors.accentPurple),
+                                      _buildMacroPill('${s.fatG}g F', AppColors.accentOrange),
+                                    ],
+                                  ),
+                                  if (s.items.isNotEmpty) ...[
+                                    const SizedBox(height: 10),
+                                    ...s.items.map(
+                                      (item) => Padding(
+                                        padding: const EdgeInsets.only(bottom: 2),
+                                        child: Text(
+                                          '• $item',
+                                          style: AppTextStyles.caption.copyWith(
+                                            color: AppColors.textSecondary,
+                                          ),
+                                        ),
+                                      ),
+                                    ),
+                                  ],
+                                ],
+                              ),
+                            ),
+                          );
+                        },
+                      ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
   }
 
   @override
@@ -361,7 +473,30 @@ class _MealBuilderScreenState extends State<MealBuilderScreen>
               ],
             ),
           ),
-          // Cart counter badge
+          // AI suggestions + cart badge
+          PremiumGate(
+            feature: (e) => e.aiPlans,
+            featureLabel: 'AI meal suggestions',
+            child: GestureDetector(
+              onTap: _aiLoading ? null : _generateAiMeals,
+              child: Container(
+                width: 40,
+                height: 40,
+                margin: const EdgeInsets.only(right: 8),
+                decoration: BoxDecoration(
+                  borderRadius: BorderRadius.circular(12),
+                  color: AppColors.accentPurple.withValues(alpha: 0.12),
+                  border: Border.all(color: AppColors.accentPurple.withValues(alpha: 0.35)),
+                ),
+                child: _aiLoading
+                    ? const Padding(
+                        padding: EdgeInsets.all(10),
+                        child: CircularProgressIndicator(strokeWidth: 2, color: AppColors.accentPurple),
+                      )
+                    : const Icon(Icons.auto_awesome_rounded, color: AppColors.accentPurple, size: 18),
+              ),
+            ),
+          ),
           if (_cart.isNotEmpty)
             Container(
               padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
@@ -587,7 +722,10 @@ class _MealBuilderScreenState extends State<MealBuilderScreen>
           return Padding(
             padding: const EdgeInsets.only(right: 8),
             child: GestureDetector(
-              onTap: () => setState(() => _selectedCategoryIndex = index),
+              onTap: () {
+                setState(() => _selectedCategoryIndex = index);
+                _loadCatalog();
+              },
               child: AnimatedContainer(
                 duration: const Duration(milliseconds: 250),
                 curve: Curves.easeOutCubic,
@@ -628,7 +766,28 @@ class _MealBuilderScreenState extends State<MealBuilderScreen>
   // ─────────────────────────────────────
 
   Widget _buildFoodGrid() {
+    if (_catalogLoading) {
+      return const Center(
+        child: CircularProgressIndicator(color: AppColors.accentBlue, strokeWidth: 2.5),
+      );
+    }
+    if (_catalogError != null) {
+      return Center(
+        child: ErrorRetryView(
+          message: friendlyApiError(_catalogError!),
+          onRetry: _loadCatalog,
+        ),
+      );
+    }
     final items = _filteredItems;
+    if (items.isEmpty) {
+      return Center(
+        child: Text(
+          'No food items in this category.',
+          style: AppTextStyles.bodyMedium.copyWith(color: AppColors.textTertiary),
+        ),
+      );
+    }
     return ListView.builder(
       padding: const EdgeInsets.fromLTRB(16, 8, 16, 16),
       physics: const BouncingScrollPhysics(),
@@ -647,12 +806,13 @@ class _MealBuilderScreenState extends State<MealBuilderScreen>
   }
 
   Widget _buildFoodItemCard(FoodItem item, int qty, bool isInCart, int index) {
-    // Get category color
+    final catName = item.category ?? 'All';
     final catEntry = _categories.firstWhere(
-      (c) => c['name'] == item.category,
+      (c) => c['name'] == catName,
       orElse: () => _categories[0],
     );
     final catColor = catEntry['color'] as Color;
+    final emoji = _emojiForCategory(item.category);
 
     return DashboardGlassCard(
       padding: EdgeInsets.zero,
@@ -702,7 +862,7 @@ class _MealBuilderScreenState extends State<MealBuilderScreen>
                         border: Border.all(color: catColor.withValues(alpha: 0.2)),
                       ),
                       alignment: Alignment.center,
-                      child: Text(item.emoji, style: const TextStyle(fontSize: 22)),
+                      child: Text(emoji, style: const TextStyle(fontSize: 22)),
                     ),
                     const SizedBox(width: 12),
                     // Name + macros
@@ -720,22 +880,21 @@ class _MealBuilderScreenState extends State<MealBuilderScreen>
                           ),
                           const SizedBox(height: 3),
                           Text(
-                            item.servingSize,
+                            _servingLabel(item),
                             style: AppTextStyles.caption.copyWith(
                               color: AppColors.textTertiary,
                               fontSize: 10,
                             ),
                           ),
                           const SizedBox(height: 6),
-                          // Macro pills
                           Wrap(
                             spacing: 4,
                             runSpacing: 4,
                             children: [
-                              _buildMacroPill('${item.caloriesPerServing} cal', AppColors.accentBlue),
-                              _buildMacroPill('${item.proteinPerServing}g P', AppColors.accentCoral),
-                              _buildMacroPill('${item.carbsPerServing}g C', AppColors.accentPurple),
-                              _buildMacroPill('${item.fatPerServing}g F', AppColors.accentOrange),
+                              _buildMacroPill('${item.calories} cal', AppColors.accentBlue),
+                              _buildMacroPill('${item.proteinG.round()}g P', AppColors.accentCoral),
+                              _buildMacroPill('${item.carbsG.round()}g C', AppColors.accentPurple),
+                              _buildMacroPill('${item.fatG.round()}g F', AppColors.accentOrange),
                             ],
                           ),
                         ],
@@ -889,7 +1048,7 @@ class _MealBuilderScreenState extends State<MealBuilderScreen>
               const SizedBox(height: 12),
               // Create Meal button
               GestureDetector(
-                onTap: _cart.isNotEmpty ? _createMealAndReturn : null,
+                onTap: _cart.isNotEmpty && !_saving ? _createMealAndReturn : null,
                 child: Container(
                   width: double.infinity,
                   height: 50,
@@ -912,14 +1071,25 @@ class _MealBuilderScreenState extends State<MealBuilderScreen>
                   child: Row(
                     mainAxisAlignment: MainAxisAlignment.center,
                     children: [
-                      Icon(
-                        _targetsMet ? Icons.check_circle_rounded : Icons.restaurant_menu_rounded,
-                        color: Colors.white,
-                        size: 20,
-                      ),
+                      if (_saving)
+                        const SizedBox(
+                          width: 20,
+                          height: 20,
+                          child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white),
+                        )
+                      else
+                        Icon(
+                          _targetsMet ? Icons.check_circle_rounded : Icons.restaurant_menu_rounded,
+                          color: Colors.white,
+                          size: 20,
+                        ),
                       const SizedBox(width: 8),
                       Text(
-                        _targetsMet ? 'Create Meal ✨' : 'Create Meal ($_totalCartItems items)',
+                        _saving
+                            ? 'Saving…'
+                            : (_targetsMet
+                                ? 'Create Meal ✨'
+                                : 'Create Meal ($_totalCartItems items)'),
                         style: AppTextStyles.labelLarge.copyWith(
                           color: Colors.white,
                           fontWeight: FontWeight.w700,

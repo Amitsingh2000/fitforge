@@ -1,8 +1,16 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_animate/flutter_animate.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
+import '../../models/daily_task.dart';
+import '../../models/dashboard_today.dart';
+import '../../providers/auth_provider.dart';
+import '../../providers/member_flow_providers.dart';
+import '../../services/member_dashboard_service.dart';
 import '../../theme/app_theme.dart';
 import '../../theme/layout.dart';
 import '../widgets/adaptive_nav_shell.dart';
+import '../widgets/member_async_value.dart';
+import '../widgets/state_views.dart';
 import '../widgets/dashboard_glass_card.dart';
 import '../widgets/radial_progress.dart';
 import '../widgets/linear_progress_bar.dart';
@@ -14,15 +22,16 @@ import 'leaderboard_screen.dart';
 import 'profile_screen.dart';
 import 'billing_plans_screen.dart';
 import 'rewards_screen.dart';
+import '../../notifications/notifications_screen.dart';
 
-class HomeDashboard extends StatefulWidget {
+class HomeDashboard extends ConsumerStatefulWidget {
   const HomeDashboard({super.key});
 
   @override
-  State<HomeDashboard> createState() => _HomeDashboardState();
+  ConsumerState<HomeDashboard> createState() => _HomeDashboardState();
 }
 
-class _HomeDashboardState extends State<HomeDashboard>
+class _HomeDashboardState extends ConsumerState<HomeDashboard>
     with TickerProviderStateMixin {
   int _currentNavIndex = 0;
 
@@ -40,21 +49,7 @@ class _HomeDashboardState extends State<HomeDashboard>
     return 1;
   }
   
-  // Simulated user data
-  final int _caloriesConsumed = 2200;
-  final int _caloriesTarget = 2500;
-  double _waterCurrent = 2.5;
-  final double _waterTarget = 4.0;
-  final int _stepsCurrent = 6420;
-  final int _stepsTarget = 10000;
-  final int _currentStreak = 12;
-
-  final List<Map<String, dynamic>> _tasks = [
-    {'title': 'Drink 4L Water', 'completed': false, 'xp': 50},
-    {'title': 'Reach Protein Goal', 'completed': false, 'xp': 50},
-    {'title': 'Walk 8000 Steps', 'completed': true, 'xp': 50},
-    {'title': 'Complete Workout', 'completed': false, 'xp': 50},
-  ];
+  bool _actionBusy = false;
 
   String get _greeting {
     final hour = DateTime.now().hour;
@@ -63,16 +58,41 @@ class _HomeDashboardState extends State<HomeDashboard>
     return 'Good Evening';
   }
 
-  void _addWater(double amount) {
-    setState(() {
-      _waterCurrent = (_waterCurrent + amount).clamp(0.0, _waterTarget);
-    });
+  Future<void> _addWater(double amount) async {
+    if (_actionBusy) return;
+    setState(() => _actionBusy = true);
+    try {
+      await ref.read(memberDashboardServiceProvider).logWater(amountLiters: amount);
+      invalidateDailyLoop(ref);
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text(friendlyApiError(e))),
+        );
+      }
+    } finally {
+      if (mounted) setState(() => _actionBusy = false);
+    }
   }
 
-  void _toggleTask(int index) {
-    setState(() {
-      _tasks[index]['completed'] = !_tasks[index]['completed'];
-    });
+  Future<void> _toggleTask(DailyTask task) async {
+    if (task.completed || _actionBusy) return;
+    setState(() => _actionBusy = true);
+    try {
+      await ref.read(memberDashboardServiceProvider).toggleTask(
+            task.id,
+            completed: true,
+          );
+      invalidateDailyLoop(ref);
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text(friendlyApiError(e))),
+        );
+      }
+    } finally {
+      if (mounted) setState(() => _actionBusy = false);
+    }
   }
 
   @override
@@ -209,44 +229,42 @@ class _HomeDashboardState extends State<HomeDashboard>
   }
 
   Widget _buildHomeContent({Key? key}) {
-    return CustomScrollView(
-      key: key,
-      physics: const BouncingScrollPhysics(),
-      slivers: [
-        // Prominent greeting
-        SliverToBoxAdapter(child: _buildGreetingHeader()),
-
-        // Content
-        SliverPadding(
-          padding: Layout.scroll(context, horizontal: 16),
-          sliver: SliverList(
-            delegate: SliverChildListDelegate([
-              // ── Swipeable Hero Section ──
-              _buildSwipeableHeroSection()
-                  .animate()
-                  .fadeIn(duration: 600.ms, delay: 100.ms)
-                  .slideY(
-                      begin: 0.08, end: 0, duration: 600.ms, delay: 100.ms),
-              const SizedBox(height: 14),
-
-              // Daily Tasks
-              _buildTasksSection()
-                  .animate()
-                  .fadeIn(duration: 500.ms, delay: 350.ms)
-                  .slideY(
-                      begin: 0.08, end: 0, duration: 500.ms, delay: 350.ms),
-              const SizedBox(height: 14),
-
-              // AI Recommendations
-              _buildAIRecommendations()
-                  .animate()
-                  .fadeIn(duration: 500.ms, delay: 480.ms)
-                  .slideY(
-                      begin: 0.08, end: 0, duration: 500.ms, delay: 480.ms),
-            ]),
+    final todayAsync = ref.watch(todayDashboardProvider);
+    return MemberAsyncValue<DashboardToday>(
+      value: todayAsync,
+      loadingMessage: 'Loading today…',
+      onRetry: () => ref.invalidate(todayDashboardProvider),
+      builder: (today) => CustomScrollView(
+        key: key,
+        physics: const BouncingScrollPhysics(),
+        slivers: [
+          SliverToBoxAdapter(child: _buildGreetingHeader(today)),
+          SliverPadding(
+            padding: Layout.scroll(context, horizontal: 16),
+            sliver: SliverList(
+              delegate: SliverChildListDelegate([
+                _buildSwipeableHeroSection(today)
+                    .animate()
+                    .fadeIn(duration: 600.ms, delay: 100.ms)
+                    .slideY(
+                        begin: 0.08, end: 0, duration: 600.ms, delay: 100.ms),
+                const SizedBox(height: 14),
+                _buildTasksSection(today.tasks)
+                    .animate()
+                    .fadeIn(duration: 500.ms, delay: 350.ms)
+                    .slideY(
+                        begin: 0.08, end: 0, duration: 500.ms, delay: 350.ms),
+                const SizedBox(height: 14),
+                _buildAIRecommendations(today)
+                    .animate()
+                    .fadeIn(duration: 500.ms, delay: 480.ms)
+                    .slideY(
+                        begin: 0.08, end: 0, duration: 500.ms, delay: 480.ms),
+              ]),
+            ),
           ),
-        ),
-      ],
+        ],
+      ),
     );
   }
 
@@ -264,7 +282,11 @@ class _HomeDashboardState extends State<HomeDashboard>
     return '${days[now.weekday - 1]}, ${now.day} ${months[now.month - 1]}';
   }
 
-  Widget _buildGreetingHeader() {
+  Widget _buildGreetingHeader(DashboardToday today) {
+    final user = ref.watch(authProvider).user;
+    final name = user?.firstName.isNotEmpty == true
+        ? user!.firstName
+        : (user?.name ?? 'Member');
     return Padding(
       padding: const EdgeInsets.fromLTRB(16, 20, 16, 12),
       child: Row(
@@ -278,7 +300,7 @@ class _HomeDashboardState extends State<HomeDashboard>
               mainAxisSize: MainAxisSize.min,
               children: [
                 Text(
-                  '$_greeting, Amit 👋',
+                  '$_greeting, $name 👋',
                   style: AppTextStyles.titleMedium.copyWith(
                     fontWeight: FontWeight.w800,
                     fontSize: 16.5,
@@ -299,6 +321,24 @@ class _HomeDashboardState extends State<HomeDashboard>
             ),
           ),
           const SizedBox(width: 12),
+          if (today.unreadNotifications > 0)
+            IconButton(
+              onPressed: () {
+                Navigator.of(context).push(
+                  MaterialPageRoute(
+                    builder: (_) => const NotificationsScreen(),
+                  ),
+                );
+              },
+              icon: Badge(
+                label: Text('${today.unreadNotifications}'),
+                child: const Icon(
+                  Icons.notifications_outlined,
+                  color: AppColors.textPrimary,
+                  size: 22,
+                ),
+              ),
+            ),
           // Right side: Streak badge (redirects to Streak & Rewards screen)
           Material(
             color: Colors.transparent,
@@ -324,7 +364,7 @@ class _HomeDashboardState extends State<HomeDashboard>
                     const StreakFlame(size: 13),
                     const SizedBox(width: 4),
                     Text(
-                      '$_currentStreak days',
+                      '${today.streakDays} days',
                       style: AppTextStyles.caption.copyWith(
                         color: AppColors.accentOrange,
                         fontWeight: FontWeight.w700,
@@ -349,7 +389,7 @@ class _HomeDashboardState extends State<HomeDashboard>
   // SWIPEABLE HERO SECTION  (Calories / Water / Steps)
   // ─────────────────────────────────────────────
 
-  Widget _buildSwipeableHeroSection() {
+  Widget _buildSwipeableHeroSection(DashboardToday today) {
     const pageCount = 3;
     final labels = ['Calories', 'Water', 'Steps'];
     final icons = [
@@ -467,9 +507,9 @@ class _HomeDashboardState extends State<HomeDashboard>
                 setState(() => _heroCurrentPage = index);
               },
               children: [
-                _buildCaloriesContent(),
-                _buildWaterContent(),
-                _buildStepsContent(),
+                _buildCaloriesContent(today),
+                _buildWaterContent(today),
+                _buildStepsContent(today),
               ],
             ),
           ),
@@ -481,9 +521,11 @@ class _HomeDashboardState extends State<HomeDashboard>
   }
 
   // ── PAGE 1 CONTENT : Daily Calories ──
-  Widget _buildCaloriesContent() {
-    final progress = _caloriesConsumed / _caloriesTarget;
-    final remaining = _caloriesTarget - _caloriesConsumed;
+  Widget _buildCaloriesContent(DashboardToday today) {
+    final consumed = today.calories.consumed;
+    final target = today.calories.target <= 0 ? 2500 : today.calories.target;
+    final progress = target > 0 ? consumed / target : 0.0;
+    final remaining = target - consumed;
 
     return Padding(
       padding: const EdgeInsets.fromLTRB(16, 18, 16, 8),
@@ -508,7 +550,7 @@ class _HomeDashboardState extends State<HomeDashboard>
                     const SizedBox(height: 4),
                     TweenAnimationBuilder<double>(
                       tween: Tween(
-                          begin: 0, end: _caloriesConsumed.toDouble()),
+                          begin: 0, end: consumed.toDouble()),
                       duration: const Duration(milliseconds: 1200),
                       curve: Curves.easeOutCubic,
                       builder: (context, value, _) {
@@ -523,7 +565,7 @@ class _HomeDashboardState extends State<HomeDashboard>
                       },
                     ),
                     Text(
-                      '/ $_caloriesTarget cal',
+                      '/ $target cal',
                       style: AppTextStyles.caption.copyWith(
                         color: AppColors.textTertiary,
                         fontSize: 11,
@@ -541,7 +583,7 @@ class _HomeDashboardState extends State<HomeDashboard>
               _buildMiniStat(
                 emoji: '🔥',
                 label: 'Consumed',
-                value: '$_caloriesConsumed',
+                value: '$consumed',
                 unit: 'cal',
                 color: AppColors.accentBlue,
               ),
@@ -549,7 +591,7 @@ class _HomeDashboardState extends State<HomeDashboard>
               _buildMiniStat(
                 emoji: '🎯',
                 label: 'Target',
-                value: '$_caloriesTarget',
+                value: '$target',
                 unit: 'cal',
                 color: AppColors.accentPurple,
               ),
@@ -566,15 +608,17 @@ class _HomeDashboardState extends State<HomeDashboard>
 
           // Progress bar
           _buildProgressRow(
-              'Progress', _caloriesConsumed, _caloriesTarget, AppColors.accentBlue),
+              'Progress', consumed, target, AppColors.accentBlue),
         ],
       ),
     );
   }
 
   // ── PAGE 2 CONTENT : Water Intake ──
-  Widget _buildWaterContent() {
-    final progress = _waterCurrent / _waterTarget;
+  Widget _buildWaterContent(DashboardToday today) {
+    final waterCurrent = today.water.currentLiters;
+    final waterTarget = today.water.targetLiters;
+    final progress = waterTarget > 0 ? waterCurrent / waterTarget : 0.0;
 
     return Padding(
       padding: const EdgeInsets.fromLTRB(16, 18, 16, 8),
@@ -598,7 +642,7 @@ class _HomeDashboardState extends State<HomeDashboard>
                     const Text('💧', style: TextStyle(fontSize: 18)),
                     const SizedBox(height: 4),
                     Text(
-                      '${_waterCurrent.toStringAsFixed(1)}L',
+                      '${waterCurrent.toStringAsFixed(1)}L',
                       style: AppTextStyles.headlineMedium.copyWith(
                         fontWeight: FontWeight.w800,
                         fontSize: 22,
@@ -606,7 +650,7 @@ class _HomeDashboardState extends State<HomeDashboard>
                       ),
                     ),
                     Text(
-                      '/ ${_waterTarget.toStringAsFixed(0)}L goal',
+                      '/ ${waterTarget.toStringAsFixed(0)}L goal',
                       style: AppTextStyles.caption.copyWith(
                         color: AppColors.textTertiary,
                         fontSize: 11,
@@ -635,7 +679,7 @@ class _HomeDashboardState extends State<HomeDashboard>
               _buildMiniStat(
                 emoji: '💧',
                 label: 'Consumed',
-                value: _waterCurrent.toStringAsFixed(1),
+                value: waterCurrent.toStringAsFixed(1),
                 unit: 'L',
                 color: AppColors.accentCyan,
               ),
@@ -643,7 +687,7 @@ class _HomeDashboardState extends State<HomeDashboard>
               _buildMiniStat(
                 emoji: '🎯',
                 label: 'Target',
-                value: _waterTarget.toStringAsFixed(0),
+                value: waterTarget.toStringAsFixed(0),
                 unit: 'L',
                 color: AppColors.accentBlue,
               ),
@@ -651,7 +695,7 @@ class _HomeDashboardState extends State<HomeDashboard>
               _buildMiniStat(
                 emoji: '✨',
                 label: 'Left',
-                value: (_waterTarget - _waterCurrent).toStringAsFixed(1),
+                value: (waterTarget - waterCurrent).toStringAsFixed(1),
                 unit: 'L',
                 color: AppColors.accentPurple,
               ),
@@ -663,11 +707,13 @@ class _HomeDashboardState extends State<HomeDashboard>
   }
 
   // ── PAGE 3 CONTENT : Step Count ──
-  Widget _buildStepsContent() {
-    final progress = _stepsCurrent / _stepsTarget;
-    final remaining = _stepsTarget - _stepsCurrent;
-    final distanceKm = (_stepsCurrent * 0.000762).toStringAsFixed(1);
-    final caloriesBurned = (_stepsCurrent * 0.04).round();
+  Widget _buildStepsContent(DashboardToday today) {
+    final stepsCurrent = today.steps.current;
+    final stepsTarget = today.steps.target;
+    final progress = stepsTarget > 0 ? stepsCurrent / stepsTarget : 0.0;
+    final remaining = stepsTarget - stepsCurrent;
+    final distanceKm = (stepsCurrent * 0.000762).toStringAsFixed(1);
+    final caloriesBurned = (stepsCurrent * 0.04).round();
 
     return Padding(
       padding: const EdgeInsets.fromLTRB(16, 18, 16, 8),
@@ -692,7 +738,7 @@ class _HomeDashboardState extends State<HomeDashboard>
                     const SizedBox(height: 4),
                     TweenAnimationBuilder<double>(
                       tween: Tween(
-                          begin: 0, end: _stepsCurrent.toDouble()),
+                          begin: 0, end: stepsCurrent.toDouble()),
                       duration: const Duration(milliseconds: 1200),
                       curve: Curves.easeOutCubic,
                       builder: (context, value, _) {
@@ -707,7 +753,7 @@ class _HomeDashboardState extends State<HomeDashboard>
                       },
                     ),
                     Text(
-                      '/ $_stepsTarget steps',
+                      '/ $stepsTarget steps',
                       style: AppTextStyles.caption.copyWith(
                         color: AppColors.textTertiary,
                         fontSize: 11,
@@ -750,7 +796,7 @@ class _HomeDashboardState extends State<HomeDashboard>
 
           // Progress bar
           _buildProgressRow(
-              'Progress', _stepsCurrent, _stepsTarget, AppColors.accentPurple),
+              'Progress', stepsCurrent, stepsTarget, AppColors.accentPurple),
         ],
       ),
     );
@@ -866,8 +912,8 @@ class _HomeDashboardState extends State<HomeDashboard>
   // TODAY'S TASKS
   // ─────────────────────────────────────────────
 
-  Widget _buildTasksSection() {
-    final completedCount = _tasks.where((t) => t['completed']).length;
+  Widget _buildTasksSection(List<DailyTask> tasks) {
+    final completedCount = tasks.where((t) => t.completed).length;
 
     return DashboardGlassCard(
       padding: const EdgeInsets.all(18),
@@ -907,7 +953,7 @@ class _HomeDashboardState extends State<HomeDashboard>
                       ),
                     ),
                     Text(
-                      '$completedCount / ${_tasks.length} completed',
+                      '$completedCount / ${tasks.length} completed',
                       style: AppTextStyles.caption.copyWith(
                         color: AppColors.textTertiary,
                       ),
@@ -933,16 +979,16 @@ class _HomeDashboardState extends State<HomeDashboard>
             ],
           ),
           const SizedBox(height: 16),
-          ...List.generate(_tasks.length, (index) {
-            final task = _tasks[index];
-            final isCompleted = task['completed'] as bool;
+          ...List.generate(tasks.length, (index) {
+            final task = tasks[index];
+            final isCompleted = task.completed;
 
             return Padding(
               padding: EdgeInsets.only(
-                bottom: index < _tasks.length - 1 ? 10 : 0,
+                bottom: index < tasks.length - 1 ? 10 : 0,
               ),
               child: GestureDetector(
-                onTap: () => _toggleTask(index),
+                onTap: () => _toggleTask(task),
                 child: AnimatedContainer(
                   duration: const Duration(milliseconds: 250),
                   curve: Curves.easeOutCubic,
@@ -990,7 +1036,7 @@ class _HomeDashboardState extends State<HomeDashboard>
                       const SizedBox(width: 12),
                       Expanded(
                         child: Text(
-                          task['title'],
+                          task.title,
                           style: AppTextStyles.labelLarge.copyWith(
                             color: isCompleted
                                 ? AppColors.textTertiary
@@ -1015,7 +1061,7 @@ class _HomeDashboardState extends State<HomeDashboard>
                             borderRadius: BorderRadius.circular(6),
                           ),
                           child: Text(
-                            '+${task['xp']} XP',
+                            '+${task.xp} XP',
                             style: AppTextStyles.caption.copyWith(
                               color: AppColors.accentBlue,
                               fontWeight: FontWeight.w600,
@@ -1039,7 +1085,9 @@ class _HomeDashboardState extends State<HomeDashboard>
   // AI RECOMMENDATIONS
   // ─────────────────────────────────────────────
 
-  Widget _buildAIRecommendations() {
+  Widget _buildAIRecommendations(DashboardToday today) {
+    final waterLeft = (today.water.targetLiters - today.water.currentLiters)
+        .clamp(0, today.water.targetLiters);
     final insights = [
       {
         'title': 'Healthy Pace',
@@ -1340,7 +1388,9 @@ class _HomeDashboardState extends State<HomeDashboard>
                       ),
                       const SizedBox(height: 2),
                       Text(
-                        'Hit protein target + drink 1.5L more water to unlock your best recovery score.',
+                        waterLeft > 0
+                            ? 'Hit protein target + drink ${waterLeft.toStringAsFixed(1)}L more water to unlock your best recovery score.'
+                            : 'Great hydration today — keep your protein on track for recovery.',
                         style: AppTextStyles.caption.copyWith(
                           color: AppColors.textSecondary,
                           fontSize: 11,

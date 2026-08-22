@@ -6,6 +6,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../models/member_entitlements.dart';
 import '../../models/member_subscription.dart';
 import '../../providers/auth_provider.dart';
+import '../../coaching/coaching_screen.dart';
 import '../../services/member_service.dart';
 import '../../theme/app_theme.dart';
 import '../../theme/layout.dart';
@@ -17,6 +18,7 @@ import 'qr_checkin_screen.dart';
 import 'referral_screen.dart';
 import 'rewards_screen.dart';
 import 'settings_screen.dart';
+import '../../marketplace/screens/marketplace_home.dart';
 
 /// Profile content — designed to be embedded inside the DashboardShell.
 /// Does NOT have its own Scaffold or bottom nav.
@@ -141,7 +143,18 @@ class _ProfileContentState extends ConsumerState<ProfileContent> {
     return '${months[date.month - 1]} ${date.day.toString().padLeft(2, '0')}, ${date.year}';
   }
 
+  bool _hasActiveGymMembership() {
+    final user = ref.read(authProvider).user;
+    return user?.gymMemberships
+            .any((m) => m.status.toUpperCase() == 'ACTIVE') ??
+        false;
+  }
 
+  /// Individual premium path — no gym, on trial or premium tier.
+  bool _showOnlineCoaching() {
+    return !_hasActiveGymMembership() &&
+        (_entitlements.isPremium || _entitlements.isTrial);
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -1452,6 +1465,19 @@ class _ProfileContentState extends ConsumerState<ProfileContent> {
       padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
       child: Column(
         children: [
+          if (_showOnlineCoaching()) ...[
+            _buildActionTile(
+              title: 'Online Coaching',
+              subtitle: 'View your assigned coach and request a switch',
+              icon: Icons.support_agent_rounded,
+              onTap: () {
+                Navigator.of(context).push(
+                  MaterialPageRoute(builder: (_) => const CoachingScreen()),
+                );
+              },
+            ),
+            Divider(color: AppColors.glassBorder, height: 1),
+          ],
           _buildActionTile(
             title: 'Streak & Rewards',
             subtitle: 'View streaks, XP, achievements and leaderboard',
@@ -1514,6 +1540,38 @@ class _ProfileContentState extends ConsumerState<ProfileContent> {
             onTap: () {
               Navigator.of(context).push(
                 MaterialPageRoute(builder: (_) => const ReferralScreen()),
+              );
+            },
+          ),
+          Divider(color: AppColors.glassBorder, height: 1),
+          ListTile(
+            contentPadding: EdgeInsets.zero,
+            leading: Container(
+              padding: const EdgeInsets.all(8),
+              decoration: BoxDecoration(
+                color: AppColors.accentBlue.withValues(alpha: 0.12),
+                borderRadius: BorderRadius.circular(10),
+              ),
+              child: const Icon(Icons.shopping_bag_rounded, color: AppColors.accentBlue, size: 18),
+            ),
+            title: Text(
+              'Marketplace',
+              style: AppTextStyles.bodyMedium.copyWith(
+                color: AppColors.textPrimary,
+                fontWeight: FontWeight.bold,
+              ),
+            ),
+            subtitle: Text(
+              'Browse gym products, offers, and orders',
+              style: AppTextStyles.caption.copyWith(
+                color: AppColors.textTertiary,
+                fontSize: 10,
+              ),
+            ),
+            trailing: const Icon(Icons.chevron_right_rounded, color: AppColors.textTertiary, size: 20),
+            onTap: () {
+              Navigator.of(context).push(
+                MaterialPageRoute(builder: (_) => const MarketplaceHomeScreen()),
               );
             },
           ),
